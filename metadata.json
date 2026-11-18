@@ -1,0 +1,10 @@
+{
+  "name": "Tamale 3D",
+  "description": "An interactive 3D open-world life simulation and cultural preservation game set in Tamale, Northern Ghana, featuring Dagbani language immersion, local transport, markets, and AI-assisted NPC conversations.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

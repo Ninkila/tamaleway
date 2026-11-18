@@ -1,0 +1,43 @@
+[
+  {
+    "id": "sub_001",
+    "contributorName": "Alhaji Abdul-Rahman Yakubu",
+    "contributorAffiliation": "Dagbon Cultural Historian · Tishigu",
+    "category": "historical_record",
+    "title": "Old Dakpema Market & Chief's Courtyard Protocol",
+    "community": "Dagbandabo Fong (Central Tamale)",
+    "description": "Visitors entering the Dakpema courtyard greet elders respectfully with 'Naa!' and remove sandals when invited into inner reception spaces.",
+    "sourceAndPermission": "Oral cultural heritage note contributed for educational preservation.",
+    "status": "approved",
+    "reviewerNote": "Verified with Dagbon cultural guidance.",
+    "submittedAt": "2026-10-12T09:30:00Z",
+    "reviewedAt": "2026-10-13T14:15:00Z"
+  },
+  {
+    "id": "sub_002",
+    "contributorName": "Mariam Fuseini",
+    "contributorAffiliation": "Kukuo Women's Pottery Cooperative",
+    "category": "architectural_reference",
+    "title": "Kukuo Open-Air Clay Firing Mounds",
+    "community": "Kukuo",
+    "description": "Around Kukuo, wide spherical earthenware water pots (duɣu) and soup bowls are sun-dried on swept yards before firing under dry grass and firewood.",
+    "dagbaniTerm": "Duɣu (Clay pot)",
+    "sourceAndPermission": "Cooperative documentation contributed under CC BY-SA 4.0.",
+    "status": "approved",
+    "reviewerNote": "Incorporated into Kukuo Pottery Centre 3D scene.",
+    "submittedAt": "2026-10-19T11:00:00Z",
+    "reviewedAt": "2026-10-20T16:40:00Z"
+  },
+  {
+    "id": "sub_003",
+    "contributorName": "Ibrahim Mohammed",
+    "contributorAffiliation": "Lamashegu Youth Mechanics Association",
+    "category": "location",
+    "title": "Lamashegu Pragya & Tricycle Repair Sheds",
+    "community": "Lamashegu",
+    "description": "Along the Salaga Road bend in Lamashegu, dozens of open metal-roofed mechanic bays repair Bajaj Pragyas, Motor King cargo trikes, and vulcanize tires.",
+    "sourceAndPermission": "Community mapping note submitted for Tamale 3D.",
+    "status": "pending_review",
+    "submittedAt": "2026-11-10T15:20:00Z"
+  }
+]
