@@ -57,6 +57,24 @@ export const AboutTamaleModal: React.FC<AboutTamaleModalProps> = ({
 
           <div className="bg-[#201b17] border border-white/10 rounded-xl p-4 space-y-1.5">
             <div className="text-xs font-semibold text-amber-400">
+              Real Landmarks vs. Representative Local Businesses
+            </div>
+            <p className="text-xs text-[#cfc8bc]">
+              Verified civic and cultural sites (Naa Gbewaa Interchange, Tamale Central Market,
+              Aboabo &amp; Lamashegu Markets, Central Mosque, Dakpema Palace, Tamale Teaching
+              Hospital, Aliu Mahama Stadium, Tamale International Airport, Jubilee Park, and SCCA
+              &amp; Red Clay) are tagged as <strong className="text-white">Real Locations</strong>{" "}
+              and paired with Wikimedia Commons field photos. Neighbourhood shops such as Nyohini
+              Fade &amp; Braids Studio, Jubilee Rest Guest House, Tishigu Pharmacy &amp; Sugar
+              Bakery, Savannah Fitness &amp; Print Hub, Dungu Campus Café, and Choggu Evening Spot
+              are clearly marked as{" "}
+              <strong className="text-white">Representative Local Businesses</strong> modeled on
+              everyday Tamale commerce.
+            </p>
+          </div>
+
+          <div className="bg-[#201b17] border border-white/10 rounded-xl p-4 space-y-1.5">
+            <div className="text-xs font-semibold text-amber-400">
               Dagbani Language &amp; Cultural Preservation
             </div>
             <p className="text-xs text-[#cfc8bc]">

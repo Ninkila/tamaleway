@@ -2657,7 +2657,13 @@ export class TamaleEngine {
       } else if (agent.role === "child") {
         activeNow = hour >= 7.0 && hour <= 20.5;
       } else if (agent.role === "vendor") {
-        activeNow = hour >= 6.0 && hour <= 22.5;
+        if (agent.vendorShopId === "nightlife_grill_lounge") {
+          activeNow = hour >= 15.5 || hour < 1.5;
+        } else if (agent.vendorShopId === "street_koose_seller") {
+          activeNow = hour >= 5.5 && hour <= 20.0;
+        } else {
+          activeNow = hour >= 6.5 && hour <= 20.5;
+        }
       } else if (lateNight) {
         activeNow = idx % 3 === 0;
       }
@@ -2716,7 +2722,14 @@ export class TamaleEngine {
         agent.rig.rightArmPivot.rotation.x = -0.3 + Math.sin(elapsed * 1.4 + agent.walkPhase) * 0.08;
         continue;
       }
-      if (agent.role === "vendor") {
+      const isStationaryVendor =
+        agent.role === "vendor" &&
+        agent.waypoints.length >= 2 &&
+        Math.hypot(
+          agent.waypoints[0].x - agent.waypoints[1].x,
+          agent.waypoints[0].z - agent.waypoints[1].z
+        ) < 1.5;
+      if (isStationaryVendor) {
         agent.rig.rightArmPivot.rotation.x = -0.45 + Math.sin(elapsed * 2.4 + agent.walkPhase) * 0.22;
         agent.rig.leftArmPivot.rotation.x = -0.3 + Math.cos(elapsed * 1.9 + agent.walkPhase) * 0.14;
         agent.rig.headGroup.rotation.y = Math.sin(elapsed * 0.9 + agent.walkPhase) * 0.3;
