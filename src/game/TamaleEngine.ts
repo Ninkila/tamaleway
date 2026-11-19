@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import {
   getDistrictAt,
+  getNearestLandmarkGuidance,
   TAMALE_LANDMARKS,
   TAMALE_NPCS,
   TAMALE_ROADS,
@@ -11,6 +12,9 @@ import { CROWD_DAGBANI_VOICE_STYLES } from "../data/dagbaniVoices";
 import {
   ActiveCityEventMode,
   CameraMode,
+  DEFAULT_KEY_BINDINGS,
+  GraphicsQuality,
+  KeyBindings,
   NearbyChatter,
   NearbyInteractable,
   NpcRuntimeSnapshot,
@@ -170,8 +174,18 @@ export interface EngineCallbacks {
     speedKmh: number;
     isDriving: boolean;
     drivingLabel: string | null;
+    drivingKind: "pragya" | "motorcycle" | null;
     nearby: NearbyInteractable | null;
+    nearbyVehicle: NearbyInteractable | null;
     nearbyChatter: NearbyChatter | null;
+    nearestGuidance: {
+      id: string;
+      name: string;
+      dagbaniLabel: string;
+      distanceMeters: number;
+      bearingLabel: string;
+      isErrandTarget: boolean;
+    } | null;
     playerPos: { x: number; z: number; rotY: number };
     discoveredLandmarkId: string | null;
     npcStates: NpcRuntimeSnapshot[];
@@ -194,6 +208,7 @@ export class TamaleEngine {
   private sunLight!: THREE.DirectionalLight;
   private hemiLight!: THREE.HemisphereLight;
   private lampBulbMats: THREE.MeshStandardMaterial[] = [];
+  private nightlifeMats: THREE.MeshStandardMaterial[] = [];
   private stadiumFloodlightMats: THREE.MeshStandardMaterial[] = [];
   private emberMats: THREE.MeshStandardMaterial[] = [];
   private windSwayTrees: Array<{ group: THREE.Group; phase: number }> = [];
@@ -211,11 +226,20 @@ export class TamaleEngine {
   private camPitch = 0.28;
   private camDist = 9.5;
   private cameraMode: CameraMode = "third-person";
+  private cameraSensitivity = 1.0;
 
   private keys: Record<string, boolean> = {};
+  private keyBindings: KeyBindings = { ...DEFAULT_KEY_BINDINGS };
+  private virtualMoveX = 0;
+  private virtualMoveY = 0;
+  private virtualRun = false;
+  private vehicleInput = { throttle: 0, steer: 0, brake: false, handbrake: false };
+
   private isPointerDragging = false;
+  private activeDragPointerId: number | null = null;
   private lastPointerX = 0;
   private lastPointerY = 0;
+  private pinchDistPrev: number | null = null;
 
   private colliders: BoxCollider[] = [];
   private npcController!: NpcScheduleController;
@@ -230,6 +254,13 @@ export class TamaleEngine {
   private traffic: TrafficVehicle[] = [];
   private drivingVehicle: DrivableVehicle | null = null;
   private nearbyInteractable: NearbyInteractable | null = null;
+  private nearbyVehicleInteractable: NearbyInteractable | null = null;
+
+  private graphicsQuality: GraphicsQuality = "high";
+  private resolutionScale = 1.0;
+  private crowdUpdateRadius = 115;
+  private trafficUpdateRadius = 250;
+  private labelMaxDist = 195;
 
   private activeErrandLandmarkId: string | null = null;
   private deliveryBeacon!: THREE.Mesh;
@@ -773,6 +804,30 @@ export class TamaleEngine {
       bench.position.set(bx, 0, bz);
       bench.rotation.y = brot;
       this.scene.add(bench);
+    }
+
+    // 21c-2. Nightlife String Bulbs & Evening Chop-Bar Seating Along High Street, Aboabo, Lamashegu & Jubilee
+    const nightStringSpots: Array<[number, number]> = [
+      [34, -9.2],   // Daa Waakye & Night Lounge outdoor seating
+      [38, -9.2],
+      [20, -9.2],   // Gbewaa Mobile Money & Pharmacy frontage
+      [-120, 9.8],  // Aboabo Chichinga Grill
+      [-84, 111],   // Lamashegu evening chop bar
+      [86, 36],     // Jubilee evening plaza
+    ];
+    for (const [nx, nz] of nightStringSpots) {
+      const bulbMat = new THREE.MeshStandardMaterial({
+        color: "#fef08a",
+        emissive: "#f59e0b",
+        emissiveIntensity: 0.15,
+        roughness: 0.35,
+      });
+      this.nightlifeMats.push(bulbMat);
+      for (const ox of [-1.2, 0, 1.2]) {
+        const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), bulbMat);
+        bulb.position.set(nx + ox, 3.15, nz);
+        this.scene.add(bulb);
+      }
     }
 
     // 21d. Parked Street Motorcycles Outside Shops, Markets & Compounds
@@ -1923,10 +1978,16 @@ export class TamaleEngine {
       if (tag === "INPUT" || tag === "TEXTAREA") return;
       this.keys[e.code] = true;
 
-      if (e.code === "KeyE" && !this.paused && this.nearbyInteractable) {
-        this.handlePrimaryInteract();
-      } else if (e.code === "KeyE" && !this.paused && this.drivingVehicle) {
-        this.exitVehicle();
+      if (this.paused) return;
+
+      if (e.code === this.keyBindings.interact) {
+        if (this.nearbyInteractable) {
+          this.handlePrimaryInteract();
+        }
+      } else if (e.code === this.keyBindings.vehicleToggle) {
+        this.handleVehicleToggle();
+      } else if (e.code === this.keyBindings.horn && this.drivingVehicle) {
+        this.triggerHorn();
       }
     };
 
@@ -1936,27 +1997,47 @@ export class TamaleEngine {
 
     const onPointerDown = (e: PointerEvent) => {
       this.audio.init();
+      if (this.activeDragPointerId !== null) return;
       this.isPointerDragging = true;
+      this.activeDragPointerId = e.pointerId;
       this.lastPointerX = e.clientX;
       this.lastPointerY = e.clientY;
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      if (!this.isPointerDragging || this.paused) return;
+      if (!this.isPointerDragging || e.pointerId !== this.activeDragPointerId || this.paused) return;
       const dx = e.clientX - this.lastPointerX;
       const dy = e.clientY - this.lastPointerY;
       this.lastPointerX = e.clientX;
       this.lastPointerY = e.clientY;
-      this.camYaw -= dx * 0.0055;
-      this.camPitch = THREE.MathUtils.clamp(this.camPitch + dy * 0.0045, 0.08, 1.15);
+      this.rotateCamera(dx, dy);
     };
 
-    const onPointerUp = () => {
-      this.isPointerDragging = false;
+    const onPointerUp = (e: PointerEvent) => {
+      if (e.pointerId === this.activeDragPointerId) {
+        this.isPointerDragging = false;
+        this.activeDragPointerId = null;
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && !this.paused) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.hypot(dx, dy);
+        if (this.pinchDistPrev !== null) {
+          this.adjustZoom((this.pinchDistPrev - dist) * 0.045);
+        }
+        this.pinchDistPrev = dist;
+      }
+    };
+
+    const onTouchEnd = () => {
+      this.pinchDistPrev = null;
     };
 
     const onWheel = (e: WheelEvent) => {
-      this.camDist = THREE.MathUtils.clamp(this.camDist + e.deltaY * 0.005, 5, 24);
+      this.adjustZoom(e.deltaY * 0.005);
     };
 
     const onResize = () => {
@@ -1980,6 +2061,9 @@ export class TamaleEngine {
     dom.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+    dom.addEventListener("touchmove", onTouchMove, { passive: true });
+    dom.addEventListener("touchend", onTouchEnd, { passive: true });
     dom.addEventListener("wheel", onWheel, { passive: true });
     window.addEventListener("resize", onResize);
     dom.addEventListener("webglcontextlost", onContextLost);
@@ -1991,6 +2075,9 @@ export class TamaleEngine {
       dom.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+      dom.removeEventListener("touchmove", onTouchMove);
+      dom.removeEventListener("touchend", onTouchEnd);
       dom.removeEventListener("wheel", onWheel);
       window.removeEventListener("resize", onResize);
       dom.removeEventListener("webglcontextlost", onContextLost);
@@ -2000,25 +2087,127 @@ export class TamaleEngine {
 
   private cleanupListeners: () => void = () => {};
 
+  private isActionPressed(action: keyof KeyBindings): boolean {
+    const bound = this.keyBindings[action];
+    if (this.keys[bound]) return true;
+    // Ergonomic secondary defaults when default WASD / Shift keys are active
+    if (action === "forward" && bound === "KeyW" && this.keys["ArrowUp"]) return true;
+    if (action === "backward" && bound === "KeyS" && this.keys["ArrowDown"]) return true;
+    if (action === "left" && bound === "KeyA" && this.keys["ArrowLeft"]) return true;
+    if (action === "right" && bound === "KeyD" && this.keys["ArrowRight"]) return true;
+    if (action === "run" && bound === "ShiftLeft" && this.keys["ShiftRight"]) return true;
+    return false;
+  }
+
+  public setKeyBindings(bindings: KeyBindings) {
+    this.keyBindings = { ...bindings };
+  }
+
+  public setCameraSensitivity(sens: number) {
+    this.cameraSensitivity = THREE.MathUtils.clamp(sens, 0.35, 2.5);
+  }
+
+  public rotateCamera(dx: number, dy: number) {
+    const mult = this.cameraSensitivity;
+    this.camYaw -= dx * 0.0055 * mult;
+    this.camPitch = THREE.MathUtils.clamp(this.camPitch + dy * 0.0045 * mult, 0.08, 1.15);
+  }
+
+  public adjustZoom(delta: number) {
+    this.camDist = THREE.MathUtils.clamp(this.camDist + delta, 5, 24);
+  }
+
+  public setVirtualMove(x: number, y: number) {
+    this.virtualMoveX = THREE.MathUtils.clamp(x, -1, 1);
+    this.virtualMoveY = THREE.MathUtils.clamp(y, -1, 1);
+  }
+
+  public setVirtualRun(active: boolean) {
+    this.virtualRun = active;
+  }
+
+  public triggerJump() {
+    if (this.paused || this.drivingVehicle) return;
+    if (this.isGrounded) {
+      this.playerVelY = 7.4;
+      this.isGrounded = false;
+    }
+  }
+
+  public setVehicleControls(ctrl: {
+    throttle?: number;
+    steer?: number;
+    brake?: boolean;
+    handbrake?: boolean;
+  }) {
+    if (ctrl.throttle !== undefined) this.vehicleInput.throttle = THREE.MathUtils.clamp(ctrl.throttle, -1, 1);
+    if (ctrl.steer !== undefined) this.vehicleInput.steer = THREE.MathUtils.clamp(ctrl.steer, -1, 1);
+    if (ctrl.brake !== undefined) this.vehicleInput.brake = ctrl.brake;
+    if (ctrl.handbrake !== undefined) this.vehicleInput.handbrake = ctrl.handbrake;
+  }
+
+  public triggerHorn() {
+    if (!this.drivingVehicle || this.paused) return;
+    this.audio.init();
+    this.audio.playTrafficHorn(
+      this.drivingVehicle.kind === "motorcycle" ? "moto" : "pragya",
+      this.drivingVehicle.x,
+      this.drivingVehicle.z
+    );
+  }
+
+  public applyGraphicsSettings(quality: GraphicsQuality, resolutionScale: number) {
+    this.graphicsQuality = quality;
+    this.resolutionScale = THREE.MathUtils.clamp(resolutionScale, 0.5, 1.0);
+
+    const maxPr = quality === "low" ? 1.0 : quality === "medium" ? 1.5 : 2.0;
+    const basePr = this.isSoftwareGl ? 1.0 : Math.min(window.devicePixelRatio || 1, maxPr);
+    this.renderer.setPixelRatio(Math.max(0.55, basePr * this.resolutionScale));
+
+    const enableShadows = !this.isSoftwareGl && quality !== "low";
+    this.renderer.shadowMap.enabled = enableShadows;
+    this.sunLight.castShadow = enableShadows;
+
+    if (quality === "low") {
+      this.camera.far = 230;
+      this.crowdUpdateRadius = 56;
+      this.trafficUpdateRadius = 115;
+      this.labelMaxDist = 115;
+    } else if (quality === "medium") {
+      this.camera.far = 360;
+      this.crowdUpdateRadius = 86;
+      this.trafficUpdateRadius = 175;
+      this.labelMaxDist = 155;
+    } else {
+      this.camera.far = 560;
+      this.crowdUpdateRadius = 120;
+      this.trafficUpdateRadius = 260;
+      this.labelMaxDist = 195;
+    }
+    this.camera.updateProjectionMatrix();
+  }
+
   private handlePrimaryInteract() {
+    if (this.drivingVehicle) return;
+    if (!this.nearbyInteractable) return;
+
+    this.audio.playChime("interact");
+    this.callbacks.onInteract(this.nearbyInteractable);
+  }
+
+  public handleVehicleToggle() {
     if (this.drivingVehicle) {
       this.exitVehicle();
       return;
     }
-    if (!this.nearbyInteractable) return;
-
-    if (this.nearbyInteractable.kind === "vehicle") {
-      const veh = this.drivables.find((v) => v.id === this.nearbyInteractable!.id);
-      if (veh) {
-        this.drivingVehicle = veh;
-        this.playerRig.root.visible = false;
-        this.audio.playChime("interact");
-      }
-      return;
+    if (!this.nearbyVehicleInteractable) return;
+    const veh = this.drivables.find((v) => v.id === this.nearbyVehicleInteractable!.id);
+    if (veh) {
+      this.drivingVehicle = veh;
+      this.playerRig.root.visible = false;
+      this.vehicleInput = { throttle: 0, steer: 0, brake: false, handbrake: false };
+      this.audio.playChime("interact");
     }
-
-    this.audio.playChime("interact");
-    this.callbacks.onInteract(this.nearbyInteractable);
   }
 
   public triggerNearbyInteraction() {
@@ -2032,8 +2221,10 @@ export class TamaleEngine {
       0,
       this.drivingVehicle.z - Math.sin(this.drivingVehicle.rotY) * 1.8
     );
+    this.drivingVehicle.group.rotation.z = 0;
     this.drivingVehicle.speed = 0;
     this.drivingVehicle = null;
+    this.vehicleInput = { throttle: 0, steer: 0, brake: false, handbrake: false };
     this.playerRig.root.visible = true;
     this.playerRig.root.position.copy(this.playerPos);
   }
@@ -2042,6 +2233,9 @@ export class TamaleEngine {
     this.paused = p;
     if (p) {
       this.keys = {};
+      this.virtualMoveX = 0;
+      this.virtualMoveY = 0;
+      this.vehicleInput = { throttle: 0, steer: 0, brake: false, handbrake: false };
       this.audio.stopVoiceClip();
     }
   }
@@ -2129,30 +2323,56 @@ export class TamaleEngine {
 
     if (this.drivingVehicle) {
       const veh = this.drivingVehicle;
+      const isMoto = veh.kind === "motorcycle";
+
+      const keyThrottle =
+        (this.isActionPressed("forward") ? 1 : 0) - (this.isActionPressed("backward") ? 1 : 0);
+      const keySteer =
+        (this.isActionPressed("left") ? 1 : 0) - (this.isActionPressed("right") ? 1 : 0);
+
       const throttle =
-        (this.keys["KeyW"] || this.keys["ArrowUp"] ? 1 : 0) -
-        (this.keys["KeyS"] || this.keys["ArrowDown"] ? 1 : 0);
-      const steer =
-        (this.keys["KeyA"] || this.keys["ArrowLeft"] ? 1 : 0) -
-        (this.keys["KeyD"] || this.keys["ArrowRight"] ? 1 : 0);
+        keyThrottle !== 0
+          ? keyThrottle
+          : this.vehicleInput.brake
+          ? veh.speed > 0.6
+            ? -1
+            : -0.7
+          : this.vehicleInput.throttle;
+      const steer = keySteer !== 0 ? keySteer : this.vehicleInput.steer;
+      const handbrake = this.isActionPressed("jump") || this.vehicleInput.handbrake;
 
-      const maxSpeed = veh.kind === "motorcycle" ? 21 : 16;
-      const accel = throttle > 0 ? 18 : throttle < 0 ? -15 : 0;
+      const maxSpeed = isMoto ? 24.5 : 16.5;
+      const reverseMax = isMoto ? -4.5 : -6.8;
+      const accelRate = isMoto ? 25 : 16.5;
+      const brakeRate = isMoto ? 24 : 18;
+      const turnRate = isMoto ? 2.75 : 1.95;
 
-      if (accel !== 0) {
-        veh.speed = THREE.MathUtils.clamp(veh.speed + accel * dt, -6, maxSpeed);
+      if (handbrake) {
+        veh.speed = THREE.MathUtils.damp(veh.speed, 0, isMoto ? 7.5 : 5.5, dt);
+      } else if (throttle > 0) {
+        veh.speed = THREE.MathUtils.clamp(veh.speed + throttle * accelRate * dt, reverseMax, maxSpeed);
+      } else if (throttle < 0) {
+        const decel = veh.speed > 0 ? brakeRate : accelRate * 0.72;
+        veh.speed = THREE.MathUtils.clamp(veh.speed + throttle * decel * dt, reverseMax, maxSpeed);
       } else {
-        veh.speed = THREE.MathUtils.damp(veh.speed, 0, 3.2, dt);
+        veh.speed = THREE.MathUtils.damp(veh.speed, 0, isMoto ? 2.8 : 3.6, dt);
       }
 
-      if (Math.abs(veh.speed) > 0.35) {
+      if (Math.abs(veh.speed) > 0.3) {
         const dirSign = veh.speed >= 0 ? 1 : -1;
-        veh.rotY += steer * dirSign * 2.1 * dt;
+        const speedRatio = Math.min(1, Math.abs(veh.speed) / (isMoto ? 6 : 4.5));
+        veh.rotY += steer * dirSign * turnRate * (0.55 + 0.45 * speedRatio) * dt;
       }
+
+      // Motorcycle leans into curves; Pragya has subtle suspension body roll
+      const targetLean = isMoto
+        ? -steer * Math.min(1, Math.abs(veh.speed) / 8) * 0.28
+        : steer * Math.min(1, Math.abs(veh.speed) / 10) * 0.075;
+      veh.group.rotation.z = THREE.MathUtils.damp(veh.group.rotation.z, targetLean, 8, dt);
 
       const nextX = veh.x + Math.sin(veh.rotY) * veh.speed * dt;
       const nextZ = veh.z + Math.cos(veh.rotY) * veh.speed * dt;
-      const resolved = this.resolveCollisions(nextX, nextZ, 1.15);
+      const resolved = this.resolveCollisions(nextX, nextZ, isMoto ? 0.85 : 1.15);
       veh.x = resolved.x;
       veh.z = resolved.z;
 
@@ -2165,20 +2385,24 @@ export class TamaleEngine {
 
       this.playerPos.set(veh.x, 0, veh.z);
       this.playerRotY = veh.rotY;
-      this.camYaw = THREE.MathUtils.damp(this.camYaw, veh.rotY + Math.PI, 2.2, dt);
+      if (!this.isPointerDragging) {
+        this.camYaw = THREE.MathUtils.damp(this.camYaw, veh.rotY + Math.PI, 2.2, dt);
+      }
       return;
     }
 
-    const forwardInput =
-      (this.keys["KeyW"] || this.keys["ArrowUp"] ? 1 : 0) -
-      (this.keys["KeyS"] || this.keys["ArrowDown"] ? 1 : 0);
-    const strafeInput =
-      (this.keys["KeyD"] || this.keys["ArrowRight"] ? 1 : 0) -
-      (this.keys["KeyA"] || this.keys["ArrowLeft"] ? 1 : 0);
+    const keyFwd =
+      (this.isActionPressed("forward") ? 1 : 0) - (this.isActionPressed("backward") ? 1 : 0);
+    const keyStrafe =
+      (this.isActionPressed("right") ? 1 : 0) - (this.isActionPressed("left") ? 1 : 0);
 
-    const isMoving = forwardInput !== 0 || strafeInput !== 0;
-    const isRunning = Boolean(this.keys["ShiftLeft"] || this.keys["ShiftRight"]);
-    const moveSpeed = isRunning ? 10.5 : 5.6;
+    const forwardInput = keyFwd !== 0 ? keyFwd : this.virtualMoveY;
+    const strafeInput = keyStrafe !== 0 ? keyStrafe : this.virtualMoveX;
+
+    const inputMag = Math.min(1, Math.hypot(forwardInput, strafeInput));
+    const isMoving = inputMag > 0.08;
+    const isRunning = this.isActionPressed("run") || this.virtualRun || inputMag > 0.86;
+    const moveSpeed = (isRunning ? 10.5 : 5.6) * (keyFwd !== 0 || keyStrafe !== 0 ? 1 : Math.max(0.45, inputMag));
 
     if (isMoving) {
       const forwardX = -Math.sin(this.camYaw);
@@ -2212,7 +2436,7 @@ export class TamaleEngine {
       this.walkPhase = THREE.MathUtils.damp(this.walkPhase, 0, 6, dt);
     }
 
-    if (this.keys["Space"] && this.isGrounded) {
+    if (this.isActionPressed("jump") && this.isGrounded) {
       this.playerVelY = 7.4;
       this.isGrounded = false;
     }
@@ -2274,9 +2498,20 @@ export class TamaleEngine {
       } else if (agent.role === "child") {
         activeNow = hour >= 7.0 && hour <= 20.5;
       } else if (agent.role === "vendor") {
-        activeNow = hour >= 6.0 && hour <= 21.5;
+        activeNow = hour >= 6.0 && hour <= 22.5;
       } else if (lateNight) {
         activeNow = idx % 3 === 0;
+      }
+
+      if (this.graphicsQuality === "low" && idx % 2 === 1) {
+        activeNow = false;
+      }
+
+      const distToPlayer = Math.hypot(agent.x - this.playerPos.x, agent.z - this.playerPos.z);
+      if (distToPlayer > this.crowdUpdateRadius) {
+        agent.rig.root.visible = false;
+        if (agent.speechSprite) this.disposeSpeechSprite(agent);
+        continue;
       }
 
       agent.rig.root.visible = activeNow;
@@ -2285,7 +2520,6 @@ export class TamaleEngine {
         continue;
       }
 
-      const distToPlayer = Math.hypot(agent.x - this.playerPos.x, agent.z - this.playerPos.z);
       if (distToPlayer < 25) {
         nearbyWalkers++;
       }
@@ -2433,9 +2667,11 @@ export class TamaleEngine {
 
   private updateLandmarkLabels() {
     if (!this.labelsVisible) return;
+    const maxDist = this.labelMaxDist;
+    const fadeStart = maxDist * 0.76;
     for (const item of this.landmarkLabels) {
       const dist = Math.hypot(item.x - this.camera.position.x, item.z - this.camera.position.z);
-      if (dist > 195) {
+      if (dist > maxDist) {
         item.sprite.visible = false;
         continue;
       }
@@ -2443,7 +2679,7 @@ export class TamaleEngine {
       const s = THREE.MathUtils.clamp(dist * 0.11, 7.2, 18.5);
       item.sprite.scale.set(s, s * 0.25, 1);
       const mat = item.sprite.material as THREE.SpriteMaterial;
-      mat.opacity = dist > 150 ? THREE.MathUtils.clamp(1 - (dist - 150) / 45, 0.1, 1) : 1;
+      mat.opacity = dist > fadeStart ? THREE.MathUtils.clamp(1 - (dist - fadeStart) / (maxDist - fadeStart), 0.1, 1) : 1;
     }
   }
 
@@ -2458,8 +2694,11 @@ export class TamaleEngine {
 
     for (let i = 0; i < this.traffic.length; i++) {
       const tv = this.traffic[i];
-      const active = !isLateNight || tv.nightActive;
-      tv.group.visible = active;
+      const distFromPlayer = Math.hypot(tv.x - this.playerPos.x, tv.z - this.playerPos.z);
+      const active =
+        (!isLateNight || tv.nightActive) &&
+        !(this.graphicsQuality === "low" && i % 2 === 1);
+      tv.group.visible = active && distFromPlayer <= this.trafficUpdateRadius;
       if (!active) continue;
 
       tv.hornCooldown = Math.max(0, tv.hornCooldown - dt);
@@ -2691,6 +2930,10 @@ export class TamaleEngine {
     for (const mat of this.lampBulbMats) {
       mat.emissiveIntensity = lampEmissive;
     }
+    const nightSpotEmissive = hour >= 17.5 || hour < 5.5 ? 2.6 : 0.12;
+    for (const mat of this.nightlifeMats) {
+      mat.emissiveIntensity = nightSpotEmissive;
+    }
     for (const d of this.drivables) {
       d.headlightMat.emissiveIntensity = isNight || isDuskOrDawn ? 1.8 : 0.25;
     }
@@ -2761,17 +3004,42 @@ export class TamaleEngine {
     const horizDist = Math.cos(this.camPitch) * this.camDist;
     const vertDist = Math.sin(this.camPitch) * this.camDist;
 
+    const fullX = this.playerPos.x + Math.sin(this.camYaw) * horizDist;
+    const fullY = Math.max(1.0, targetY + vertDist);
+    const fullZ = this.playerPos.z + Math.cos(this.camYaw) * horizDist;
+
+    // Camera collision prevention: step ray from target to full camera position against building colliders
+    let safeT = 1.0;
+    const steps = 8;
+    for (let s = 2; s <= steps; s++) {
+      const t = s / steps;
+      const sx = THREE.MathUtils.lerp(_camTarget.x, fullX, t);
+      const sy = THREE.MathUtils.lerp(_camTarget.y, fullY, t);
+      const sz = THREE.MathUtils.lerp(_camTarget.z, fullZ, t);
+      if (sy < 6.8) {
+        let hit = false;
+        for (const c of this.colliders) {
+          if (sx > c.minX - 0.4 && sx < c.maxX + 0.4 && sz > c.minZ - 0.4 && sz < c.maxZ + 0.4) {
+            hit = true;
+            break;
+          }
+        }
+        if (hit) {
+          safeT = Math.max(0.22, (s - 1) / steps);
+          break;
+        }
+      }
+    }
+
     _desiredCamPos.set(
-      this.playerPos.x + Math.sin(this.camYaw) * horizDist,
-      targetY + vertDist,
-      this.playerPos.z + Math.cos(this.camYaw) * horizDist
+      THREE.MathUtils.lerp(_camTarget.x, fullX, safeT),
+      Math.max(1.0, THREE.MathUtils.lerp(_camTarget.y, fullY, safeT)),
+      THREE.MathUtils.lerp(_camTarget.z, fullZ, safeT)
     );
 
-    if (_desiredCamPos.y < 1.0) _desiredCamPos.y = 1.0;
-
-    this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, _desiredCamPos.x, 8, dt);
-    this.camera.position.y = THREE.MathUtils.damp(this.camera.position.y, _desiredCamPos.y, 8, dt);
-    this.camera.position.z = THREE.MathUtils.damp(this.camera.position.z, _desiredCamPos.z, 8, dt);
+    this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, _desiredCamPos.x, 9, dt);
+    this.camera.position.y = THREE.MathUtils.damp(this.camera.position.y, _desiredCamPos.y, 9, dt);
+    this.camera.position.z = THREE.MathUtils.damp(this.camera.position.z, _desiredCamPos.z, 9, dt);
 
     this.camera.lookAt(_camTarget);
   }
@@ -2782,7 +3050,9 @@ export class TamaleEngine {
 
     const npcSnapshots = this.npcController.getSnapshots();
     let closest: NearbyInteractable | null = null;
-    let bestDist = 4.4;
+    let bestDist = 4.6;
+    let closestVeh: NearbyInteractable | null = null;
+    let bestVehDist = 4.8;
 
     if (!this.drivingVehicle) {
       if (this.activeErrandLandmarkId) {
@@ -2795,6 +3065,7 @@ export class TamaleEngine {
               id: targetLm.id,
               label: `Complete Errand at ${targetLm.name}`,
               sublabel: "Deliver package & earn GH₵",
+              interactionVerb: "deliver",
             };
             bestDist = 0;
           }
@@ -2811,21 +3082,24 @@ export class TamaleEngine {
           closest = {
             kind: "npc",
             id: profile.id,
-            label: `Speak with ${profile.name}`,
+            label: `Talk to ${profile.name}`,
             sublabel: `${snap.activityLabel} · ${snap.destinationLabel}`,
+            interactionVerb: "talk",
           };
         }
       }
 
       for (const veh of this.drivables) {
         const d = Math.hypot(this.playerPos.x - veh.x, this.playerPos.z - veh.z);
-        if (d < bestDist) {
-          bestDist = d;
-          closest = {
+        if (d < bestVehDist) {
+          bestVehDist = d;
+          closestVeh = {
             kind: "vehicle",
             id: veh.id,
-            label: `Drive ${veh.label}`,
-            sublabel: "Press E to ride · WASD to steer",
+            label: `Enter ${veh.label}`,
+            sublabel: veh.kind === "motorcycle" ? "Motorcycle · Fast agile ride" : "Pragya · City tricycle",
+            interactionVerb: "vehicle",
+            vehicleKind: veh.kind,
           };
         }
       }
@@ -2838,8 +3112,9 @@ export class TamaleEngine {
             closest = {
               kind: "building",
               id: lm.id,
-              label: `Enter ${lm.name}`,
+              label: `${lm.shopId ? "Interact · " : "Enter "}${lm.name}`,
               sublabel: lm.dagbaniLabel,
+              interactionVerb: lm.shopId ? "shop" : "enter",
             };
             break;
           }
@@ -2848,6 +3123,7 @@ export class TamaleEngine {
     }
 
     this.nearbyInteractable = closest;
+    this.nearbyVehicleInteractable = closestVeh;
 
     let discoveredLandmarkId: string | null = null;
     for (const lm of TAMALE_LANDMARKS) {
@@ -2882,8 +3158,15 @@ export class TamaleEngine {
       speedKmh,
       isDriving: Boolean(this.drivingVehicle),
       drivingLabel: this.drivingVehicle ? this.drivingVehicle.label : null,
+      drivingKind: this.drivingVehicle ? this.drivingVehicle.kind : null,
       nearby: closest,
+      nearbyVehicle: closestVeh,
       nearbyChatter,
+      nearestGuidance: getNearestLandmarkGuidance(
+        this.playerPos.x,
+        this.playerPos.z,
+        this.activeErrandLandmarkId
+      ),
       playerPos: { x: this.playerPos.x, z: this.playerPos.z, rotY: this.playerRotY },
       discoveredLandmarkId,
       npcStates: npcSnapshots,

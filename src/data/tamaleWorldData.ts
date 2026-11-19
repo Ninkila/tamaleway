@@ -427,6 +427,42 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     type: "school",
     enterable: false,
   },
+  {
+    id: "gbewaa_commercial_arcade",
+    name: "Gbewaa High St Shops & Mobile Money Row",
+    dagbaniLabel: "Gbewaa Pali Daabilim",
+    district: "Dagbandabo Fong · Gbewaa High St",
+    osmCoords: "9.4038° N, 0.8408° W (High Street Corridor)",
+    authenticityNote:
+      "Representative Gbewaa High Street commercial row featuring mobile-money kiosks, Savannah Telecom accessories, Northern Star Pharmacy, and Tishigu Bakery.",
+    x: 20,
+    z: -13,
+    radius: 15,
+    type: "commercial",
+    enterable: true,
+    shopId: "gbewaa_provisions_telecom",
+    interiorTitle: "Gbewaa High St Shops & Mobile Money Counter",
+    interiorDescription:
+      "Browse airtime, cold drinks, bakery bread, solar accessories, and everyday Tamale street provisions along Gbewaa High Street.",
+  },
+  {
+    id: "jubilee_night_spot",
+    name: "Daa Waakye, Chichinga & Night Lounge",
+    dagbaniLabel: "Zaawuni Bindirigu Shee",
+    district: "Gbewaa High St East · Jakarayili",
+    osmCoords: "9.4037° N, 0.8395° W (High Street Evening Eatery)",
+    authenticityNote:
+      "Inspired by Tamale's vibrant evening eateries and outdoor chichinga spots along High Street and Jubilee corridors, coming alive from sunset into late night.",
+    x: 34,
+    z: -13,
+    radius: 15,
+    type: "commercial",
+    enterable: true,
+    shopId: "nightlife_grill_lounge",
+    interiorTitle: "Evening Chop Bar, Grill & Open-Air Lounge",
+    interiorDescription:
+      "Warm string lights, charcoal chichinga smoke, chilled sobolo, live Tamale radio music, and neighbours gathering over hot waakye and grilled guinea fowl after dusk.",
+  },
 ];
 
 export const SHOP_INVENTORIES: Record<string, ShopItem[]> = {
@@ -567,6 +603,63 @@ export const SHOP_INVENTORIES: Record<string, ShopItem[]> = {
       category: "craft",
       price: 45,
       description: "Carved hourglass drum ornament celebrating Dagbon oral drumming.",
+    },
+  ],
+  gbewaa_provisions_telecom: [
+    {
+      id: "tishigu_butter_bread",
+      name: "Warm Bakery Sugar Bread & Tea",
+      dagbaniName: "Paano ni Tii",
+      category: "food",
+      price: 14,
+      energyRestore: 28,
+      description: "Fresh Tamale bakery loaf paired with spiced tea from High Street kiosks.",
+    },
+    {
+      id: "pure_water",
+      name: "Chilled Drinking Water",
+      dagbaniName: "Kom",
+      category: "food",
+      price: 4,
+      energyRestore: 15,
+      description: "Cool refreshing water for walking under the savannah sun.",
+    },
+    {
+      id: "telecom_powerbank",
+      name: "Compact Pocket Power Bank",
+      dagbaniName: "Batiri Kpaŋ",
+      category: "craft",
+      price: 65,
+      description: "Handy phone & torch charger picked up from Savannah Telecom on High Street.",
+    },
+  ],
+  nightlife_grill_lounge: [
+    {
+      id: "grilled_guinea_fowl",
+      name: "Spiced Grilled Guinea Fowl",
+      dagbaniName: "Kpaɣli Nimdi",
+      category: "food",
+      price: 38,
+      energyRestore: 55,
+      description: "Tamale evening classic: charcoal-roasted guinea fowl with pepper sauce & onion rings.",
+    },
+    {
+      id: "chilled_sobolo",
+      name: "Chilled Ginger Sobolo",
+      dagbaniName: "Sobolo Kom",
+      category: "food",
+      price: 10,
+      energyRestore: 24,
+      description: "Refreshing spiced hibiscus & pineapple drink served cold at night spots.",
+    },
+    {
+      id: "night_chichinga",
+      name: "Late-Night Beef Chichinga",
+      dagbaniName: "Nimdi",
+      category: "food",
+      price: 18,
+      energyRestore: 35,
+      description: "Hot spiced beef skewers sizzling over glowing charcoal at sunset and night.",
     },
   ],
 };
@@ -1992,4 +2085,54 @@ export function getDistrictAt(x: number, z: number): string {
     }
   }
   return closestName;
+}
+
+/**
+ * Scaled Tamale metric guidance: 1 world unit ≈ 10 metres along major corridors
+ * (disclosed gameplay scale preserving real-world bearings from Naa Gbewaa Interchange).
+ */
+export function getNearestLandmarkGuidance(
+  x: number,
+  z: number,
+  activeErrandLandmarkId?: string | null
+): {
+  id: string;
+  name: string;
+  dagbaniLabel: string;
+  distanceMeters: number;
+  bearingLabel: string;
+  isErrandTarget: boolean;
+} | null {
+  const target = activeErrandLandmarkId
+    ? TAMALE_LANDMARKS.find((l) => l.id === activeErrandLandmarkId)
+    : null;
+
+  let chosen = target ?? null;
+  let bestDist = chosen ? Math.hypot(chosen.x - x, chosen.z - z) : Infinity;
+
+  if (!chosen) {
+    for (const lm of TAMALE_LANDMARKS) {
+      const d = Math.hypot(lm.x - x, lm.z - z);
+      if (d > lm.radius * 0.8 && d < bestDist) {
+        bestDist = d;
+        chosen = lm;
+      }
+    }
+  }
+  if (!chosen) return null;
+
+  const dx = chosen.x - x;
+  const dz = chosen.z - z;
+  const deg = ((Math.atan2(dx, -dz) * 180) / Math.PI + 360) % 360;
+  const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  const bearingLabel = dirs[Math.round(deg / 45) % 8];
+
+  return {
+    id: chosen.id,
+    name: chosen.name,
+    dagbaniLabel: chosen.dagbaniLabel,
+    distanceMeters: Math.round(bestDist * 10),
+    bearingLabel,
+    isErrandTarget: Boolean(target),
+  };
 }

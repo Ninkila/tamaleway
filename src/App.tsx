@@ -4,6 +4,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AboutTamaleModal } from "./components/AboutTamaleModal";
 import { CommunityPortalModal } from "./components/CommunityPortalModal";
 import { CustomizeModal } from "./components/CustomizeModal";
 import { DagbaniGuideModal } from "./components/DagbaniGuideModal";
@@ -13,7 +14,9 @@ import { BuildingInteriorModal, PauseModal } from "./components/InteriorAndPause
 import { InventoryJournalModal } from "./components/InventoryJournalModal";
 import { MainMenu } from "./components/MainMenu";
 import { MapModal } from "./components/MapModal";
+import { MobileTouchControls } from "./components/MobileTouchControls";
 import { ReferenceArchiveModal } from "./components/ReferenceArchiveModal";
+import { SettingsAndControlsModal } from "./components/SettingsAndControlsModal";
 import { ShopModal } from "./components/ShopAndErrandsModal";
 import { TamaleEventsModal } from "./components/TamaleEventsModal";
 import { INITIAL_CITY_EVENT_DESCRIPTIONS } from "./data/tamaleExpansionData";
@@ -26,11 +29,11 @@ import { TamaleAudioEngine } from "./game/audio";
 import { TamaleEngine } from "./game/TamaleEngine";
 import {
   ActiveCityEventMode,
-  CameraMode,
+  DEFAULT_KEY_BINDINGS,
   ErrandQuest,
+  GameSettings,
   InventoryItem,
   LandmarkData,
-  LanguageMode,
   NearbyChatter,
   NearbyInteractable,
   NpcRuntimeSnapshot,
@@ -51,6 +54,25 @@ const DEFAULT_CUSTOMIZATION: PlayerCustomization = {
   accentColor: "#b45309",
   skinTone: "#62381f",
 };
+
+function createInitialSettings(): GameSettings {
+  const isCompactOrTouch =
+    typeof window !== "undefined" &&
+    (window.innerWidth < 900 || (navigator.maxTouchPoints ?? 0) > 0);
+  return {
+    languageMode: "mixed",
+    showSubtitles: true,
+    audioEnabled: true,
+    soundVolume: 0.55,
+    cameraMode: "third-person",
+    graphicsQuality: isCompactOrTouch ? "medium" : "high",
+    resolutionScale: isCompactOrTouch ? 0.85 : 1.0,
+    cameraSensitivity: 1.0,
+    vibrationEnabled: true,
+    controlMode: "auto",
+    keyBindings: { ...DEFAULT_KEY_BINDINGS },
+  };
+}
 
 function getPeriodFromMinutes(mins: number): { period: TimePeriod; label: string } {
   const h = mins / 60;
@@ -73,10 +95,39 @@ export default function App() {
   const audioRef = useRef<TamaleAudioEngine | null>(null);
 
   const [inMainMenu, setInMainMenu] = useState(true);
+  const [exitedScreen, setExitedScreen] = useState(false);
   const [hasSavedGame, setHasSavedGame] = useState(false);
   const [webglLost, setWebglLost] = useState(false);
 
-  // Core game progression state
+  // Responsive device detection
+  const [viewportInfo, setViewportInfo] = useState(() => ({
+    width: typeof window !== "undefined" ? window.innerWidth : 1280,
+    height: typeof window !== "undefined" ? window.innerHeight : 720,
+    hasTouch:
+      typeof window !== "undefined" &&
+      ((navigator.maxTouchPoints ?? 0) > 0 ||
+        window.matchMedia?.("(pointer: coarse)").matches === true),
+  }));
+
+  useEffect(() => {
+    const updateViewport = () => {
+      setViewportInfo({
+        width: window.innerWidth,
+        height: window.innerHeight,
+        hasTouch:
+          (navigator.maxTouchPoints ?? 0) > 0 ||
+          window.matchMedia?.("(pointer: coarse)").matches === true,
+      });
+    };
+    window.addEventListener("resize", updateViewport);
+    window.addEventListener("orientationchange", updateViewport);
+    return () => {
+      window.removeEventListener("resize", updateViewport);
+      window.removeEventListener("orientationchange", updateViewport);
+    };
+  }, []);
+
+  // Core game progression & settings state
   const [moneyCedis, setMoneyCedis] = useState(180);
   const [energy, setEnergy] = useState(92);
   const [cultureXp, setCultureXp] = useState(15);
@@ -84,10 +135,7 @@ export default function App() {
   const [weather, setWeather] = useState<WeatherType>("clear");
   const [activeCityEvent, setActiveCityEvent] = useState<ActiveCityEventMode>("ordinary_day");
   const [customization, setCustomization] = useState<PlayerCustomization>(DEFAULT_CUSTOMIZATION);
-  const [languageMode, setLanguageMode] = useState<LanguageMode>("mixed");
-  const [showSubtitles, setShowSubtitles] = useState(true);
-  const [audioEnabled, setAudioEnabled] = useState(true);
-  const [cameraMode, setCameraMode] = useState<CameraMode>("third-person");
+  const [settings, setSettings] = useState<GameSettings>(createInitialSettings);
 
   const [inventory, setInventory] = useState<InventoryItem[]>([
     {
@@ -110,8 +158,18 @@ export default function App() {
   const [speedKmh, setSpeedKmh] = useState(0);
   const [isDriving, setIsDriving] = useState(false);
   const [drivingLabel, setDrivingLabel] = useState<string | null>(null);
+  const [drivingKind, setDrivingKind] = useState<"pragya" | "motorcycle" | null>(null);
   const [nearby, setNearby] = useState<NearbyInteractable | null>(null);
+  const [nearbyVehicle, setNearbyVehicle] = useState<NearbyInteractable | null>(null);
   const [nearbyChatter, setNearbyChatter] = useState<NearbyChatter | null>(null);
+  const [nearestGuidance, setNearestGuidance] = useState<{
+    id: string;
+    name: string;
+    dagbaniLabel: string;
+    distanceMeters: number;
+    bearingLabel: string;
+    isErrandTarget: boolean;
+  } | null>(null);
   const [showLabels, setShowLabels] = useState(true);
   const [playerPos, setPlayerPos] = useState({ x: 14, z: 14, rotY: -Math.PI * 0.78 });
   const [npcStates, setNpcStates] = useState<NpcRuntimeSnapshot[]>([]);
@@ -127,11 +185,21 @@ export default function App() {
   const [showReferences, setShowReferences] = useState(false);
   const [showEvents, setShowEvents] = useState(false);
   const [showContributions, setShowContributions] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"settings" | "controls">("settings");
+  const [showAbout, setShowAbout] = useState(false);
   const [showPause, setShowPause] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const errandsRef = useRef(errands);
   errandsRef.current = errands;
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+
+  const isPortraitPhone = viewportInfo.width < 768 && viewportInfo.height > viewportInfo.width;
+  const isTouchControlsVisible =
+    settings.controlMode === "touch" ||
+    (settings.controlMode === "auto" && (viewportInfo.hasTouch || viewportInfo.width < 900));
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -142,6 +210,32 @@ export default function App() {
     const t = setTimeout(() => setToastMessage(null), 3500);
     return () => clearTimeout(t);
   }, [toastMessage]);
+
+  const applySettingsToEngines = useCallback((next: GameSettings) => {
+    audioRef.current?.setEnabled(next.audioEnabled);
+    audioRef.current?.setVolume(next.soundVolume);
+    engineRef.current?.setCameraMode(next.cameraMode);
+    engineRef.current?.setCameraSensitivity(next.cameraSensitivity);
+    engineRef.current?.setKeyBindings(next.keyBindings);
+    engineRef.current?.applyGraphicsSettings(next.graphicsQuality, next.resolutionScale);
+  }, []);
+
+  const updateSettings = useCallback(
+    (patch: Partial<GameSettings>) => {
+      setSettings((prev) => {
+        const next: GameSettings = {
+          ...prev,
+          ...patch,
+          keyBindings: patch.keyBindings
+            ? { ...DEFAULT_KEY_BINDINGS, ...patch.keyBindings }
+            : prev.keyBindings,
+        };
+        applySettingsToEngines(next);
+        return next;
+      });
+    },
+    [applySettingsToEngines]
+  );
 
   // Check saved game presence on mount
   useEffect(() => {
@@ -188,8 +282,11 @@ export default function App() {
         setSpeedKmh(data.speedKmh);
         setIsDriving(data.isDriving);
         setDrivingLabel(data.drivingLabel);
+        setDrivingKind(data.drivingKind);
         setNearby(data.nearby);
+        setNearbyVehicle(data.nearbyVehicle);
         setNearbyChatter(data.nearbyChatter);
+        setNearestGuidance(data.nearestGuidance);
         setPlayerPos(data.playerPos);
         setNpcStates(data.npcStates);
         if (engineRef.current) {
@@ -221,6 +318,7 @@ export default function App() {
     });
 
     engineRef.current = engine;
+    applySettingsToEngines(settingsRef.current);
     engine.setPaused(true); // Paused while on Main Menu
 
     return () => {
@@ -229,11 +327,12 @@ export default function App() {
       engineRef.current = null;
       audioRef.current = null;
     };
-  }, [handleCompleteActiveErrand, showToast]);
+  }, [applySettingsToEngines, handleCompleteActiveErrand, showToast]);
 
-  // Pause engine whenever menu or any modal is open
+  // Pause engine whenever menu, exit screen, or any modal is open
   const anyModalOpen =
     inMainMenu ||
+    exitedScreen ||
     Boolean(activeNpcId) ||
     Boolean(activeShopId) ||
     Boolean(activeInteriorLandmarkId) ||
@@ -244,6 +343,8 @@ export default function App() {
     showReferences ||
     showEvents ||
     showContributions ||
+    showSettings ||
+    showAbout ||
     showPause;
 
   useEffect(() => {
@@ -254,13 +355,16 @@ export default function App() {
     audioRef.current?.setIndoorMode(Boolean(activeShopId || activeInteriorLandmarkId));
   }, [activeShopId, activeInteriorLandmarkId]);
 
-  // Keyboard shortcuts for HUD modals
+  // Keyboard shortcuts for HUD modals (supports custom key bindings)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || inMainMenu) return;
+      if (tag === "INPUT" || tag === "TEXTAREA" || inMainMenu || exitedScreen || showSettings) {
+        return;
+      }
 
-      if (e.code === "Escape") {
+      const kb = settings.keyBindings;
+      if (e.code === kb.pause || e.code === "Escape") {
         if (
           activeNpcId ||
           activeShopId ||
@@ -271,7 +375,8 @@ export default function App() {
           showInventory ||
           showReferences ||
           showEvents ||
-          showContributions
+          showContributions ||
+          showAbout
         ) {
           setActiveNpcId(null);
           setActiveShopId(null);
@@ -283,14 +388,15 @@ export default function App() {
           setShowReferences(false);
           setShowEvents(false);
           setShowContributions(false);
+          setShowAbout(false);
         } else {
           setShowPause((p) => !p);
         }
-      } else if (e.code === "KeyM" && !anyModalOpen) {
+      } else if (e.code === kb.map && !anyModalOpen) {
         setShowMap(true);
       } else if (e.code === "KeyL" && !anyModalOpen) {
         setShowDagbaniGuide(true);
-      } else if (e.code === "KeyI" && !anyModalOpen) {
+      } else if (e.code === kb.inventory && !anyModalOpen) {
         setShowInventory(true);
       }
     };
@@ -298,6 +404,9 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
     inMainMenu,
+    exitedScreen,
+    showSettings,
+    settings.keyBindings,
     anyModalOpen,
     activeNpcId,
     activeShopId,
@@ -309,12 +418,13 @@ export default function App() {
     showReferences,
     showEvents,
     showContributions,
+    showAbout,
   ]);
 
   const handleSaveGame = useCallback(() => {
     const activeErr = errands.find((e) => e.active && !e.completed);
     const saveObj: SavedGameState = {
-      version: 1,
+      version: 2,
       moneyCedis,
       energy,
       cultureXp,
@@ -322,13 +432,7 @@ export default function App() {
       weather,
       activeCityEvent,
       customization,
-      settings: {
-        languageMode,
-        showSubtitles,
-        audioEnabled,
-        soundVolume: 0.5,
-        cameraMode,
-      },
+      settings,
       inventory,
       friendships,
       discoveredLandmarks,
@@ -354,10 +458,7 @@ export default function App() {
     weather,
     activeCityEvent,
     customization,
-    languageMode,
-    showSubtitles,
-    audioEnabled,
-    cameraMode,
+    settings,
     inventory,
     friendships,
     discoveredLandmarks,
@@ -366,61 +467,67 @@ export default function App() {
     showToast,
   ]);
 
-  const handleContinueGame = () => {
-    audioRef.current?.init();
+  const loadSavedGameFromStorage = useCallback((): boolean => {
     try {
       const raw = localStorage.getItem(SAVE_STORAGE_KEY);
-      if (raw) {
-        const s = JSON.parse(raw) as SavedGameState;
-        setMoneyCedis(s.moneyCedis ?? 180);
-        setEnergy(s.energy ?? 90);
-        setCultureXp(s.cultureXp ?? 15);
-        setGameMinutes(s.gameMinutes ?? 555);
-        setWeather(s.weather ?? "clear");
-        const ev = s.activeCityEvent ?? "ordinary_day";
-        setActiveCityEvent(ev);
-        engineRef.current?.setActiveCityEvent(ev);
-        if (s.customization) {
-          setCustomization(s.customization);
-          engineRef.current?.updatePlayerCustomization(s.customization);
-        }
-        if (s.settings) {
-          setLanguageMode(s.settings.languageMode);
-          setShowSubtitles(s.settings.showSubtitles);
-          setAudioEnabled(s.settings.audioEnabled);
-          setCameraMode(s.settings.cameraMode);
-          audioRef.current?.setEnabled(s.settings.audioEnabled);
-          engineRef.current?.setCameraMode(s.settings.cameraMode);
-        }
-        setInventory(s.inventory ?? []);
-        setFriendships(s.friendships ?? {});
-        setDiscoveredLandmarks(s.discoveredLandmarks ?? ["tamale_interchange"]);
-        setLearnedVocabIds(s.learnedVocabIds ?? []);
-        setErrands(
-          INITIAL_ERRANDS.map((e) => ({
-            ...e,
-            completed: s.completedErrands?.includes(e.id) ?? false,
-            active: s.activeErrandId === e.id,
-          }))
-        );
-        if (s.activeErrandId) {
-          const er = INITIAL_ERRANDS.find((e) => e.id === s.activeErrandId);
-          engineRef.current?.setActiveErrandLandmark(er ? er.targetLandmarkId : null);
-        }
-        if (s.playerPos) {
-          engineRef.current?.teleportTo(s.playerPos.x, s.playerPos.z, s.playerPos.rotY);
-        }
-        engineRef.current?.setWeather(s.weather ?? "clear");
-        engineRef.current?.setGameMinutes(s.gameMinutes ?? 555);
-      }
-    } catch {
-      // fall back cleanly
-    }
-    setInMainMenu(false);
-    showToast("Dasuba / Antire! Welcome back to Tamale.");
-  };
+      if (!raw) return false;
+      const s = JSON.parse(raw) as Partial<SavedGameState>;
+      setMoneyCedis(s.moneyCedis ?? 180);
+      setEnergy(s.energy ?? 90);
+      setCultureXp(s.cultureXp ?? 15);
+      setGameMinutes(s.gameMinutes ?? 555);
+      const nextWeather = s.weather ?? "clear";
+      setWeather(nextWeather);
+      const ev = s.activeCityEvent ?? "ordinary_day";
+      setActiveCityEvent(ev);
+      engineRef.current?.setActiveCityEvent(ev);
 
-  const handleNewGame = () => {
+      if (s.customization) {
+        setCustomization(s.customization);
+        engineRef.current?.updatePlayerCustomization(s.customization);
+      }
+
+      const defaults = createInitialSettings();
+      const loadedSettings: GameSettings = {
+        ...defaults,
+        ...(s.settings ?? {}),
+        keyBindings: {
+          ...DEFAULT_KEY_BINDINGS,
+          ...(s.settings?.keyBindings ?? {}),
+        },
+      };
+      setSettings(loadedSettings);
+      applySettingsToEngines(loadedSettings);
+
+      setInventory(s.inventory ?? []);
+      setFriendships(s.friendships ?? {});
+      setDiscoveredLandmarks(s.discoveredLandmarks ?? ["tamale_interchange"]);
+      setLearnedVocabIds(s.learnedVocabIds ?? []);
+      setErrands(
+        INITIAL_ERRANDS.map((e) => ({
+          ...e,
+          completed: s.completedErrands?.includes(e.id) ?? false,
+          active: s.activeErrandId === e.id,
+        }))
+      );
+      if (s.activeErrandId) {
+        const er = INITIAL_ERRANDS.find((e) => e.id === s.activeErrandId);
+        engineRef.current?.setActiveErrandLandmark(er ? er.targetLandmarkId : null);
+      } else {
+        engineRef.current?.setActiveErrandLandmark(null);
+      }
+      if (s.playerPos) {
+        engineRef.current?.teleportTo(s.playerPos.x, s.playerPos.z, s.playerPos.rotY);
+      }
+      engineRef.current?.setWeather(nextWeather);
+      engineRef.current?.setGameMinutes(s.gameMinutes ?? 555);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [applySettingsToEngines]);
+
+  const handleNewGame = useCallback(() => {
     audioRef.current?.init();
     setMoneyCedis(180);
     setEnergy(95);
@@ -434,9 +541,69 @@ export default function App() {
     engineRef.current?.setGameMinutes(9 * 60 + 15);
     engineRef.current?.setActiveErrandLandmark(null);
     engineRef.current?.teleportTo(14, 14, -Math.PI * 0.78);
+    setExitedScreen(false);
+    setShowPause(false);
     setInMainMenu(false);
-    showToast("Dasuba! Explore Tamale — press E near residents, landmarks, or a Pragya.");
-  };
+    showToast("Dasuba! Explore Tamale — walk near residents, shops, or a Pragya.");
+  }, [showToast]);
+
+  const handleContinueGame = useCallback(() => {
+    audioRef.current?.init();
+    const loaded = loadSavedGameFromStorage();
+    setExitedScreen(false);
+    setShowPause(false);
+    if (loaded) {
+      setInMainMenu(false);
+      showToast("Dasuba / Antire! Welcome back to Tamale.");
+    } else {
+      handleNewGame();
+      showToast("No prior save found — starting a fresh journey in Tamale!");
+    }
+  }, [handleNewGame, loadSavedGameFromStorage, showToast]);
+
+  const handlePlay = useCallback(() => {
+    if (hasSavedGame) {
+      handleContinueGame();
+    } else {
+      handleNewGame();
+    }
+  }, [handleContinueGame, handleNewGame, hasSavedGame]);
+
+  const handleLoadFromPause = useCallback(() => {
+    audioRef.current?.init();
+    const loaded = loadSavedGameFromStorage();
+    if (loaded) {
+      setShowPause(false);
+      audioRef.current?.playChime("success");
+      showToast("Loaded saved Tamale progress.");
+    } else {
+      showToast("No saved game found yet — save your progress first.");
+    }
+  }, [loadSavedGameFromStorage, showToast]);
+
+  const handleToggleFullscreen = useCallback(() => {
+    try {
+      if (!document.fullscreenElement) {
+        const req = document.documentElement.requestFullscreen?.();
+        if (req) {
+          void req
+            .then(() => {
+              const ori = screen.orientation as unknown as {
+                lock?: (mode: string) => Promise<void>;
+              };
+              if (viewportInfo.hasTouch && ori?.lock) {
+                void ori.lock("landscape").catch(() => undefined);
+              }
+            })
+            .catch(() => undefined);
+        }
+      } else {
+        void document.exitFullscreen?.().catch(() => undefined);
+      }
+    } catch {
+      // Ignore fullscreen denial on restricted browsers
+    }
+  }, [viewportInfo.hasTouch]);
 
   const handleBuyItem = (item: ShopItem, finalPrice: number) => {
     if (moneyCedis < finalPrice) return;
@@ -490,7 +657,7 @@ export default function App() {
     setErrands((prev) =>
       prev.map((e) => ({
         ...e,
-        active: e.id === errandId ? true : false,
+        active: e.id === errandId,
       }))
     );
     engineRef.current?.setActiveErrandLandmark(err.targetLandmarkId);
@@ -523,7 +690,7 @@ export default function App() {
   const { period, label: timePeriodLabel } = getPeriodFromMinutes(gameMinutes);
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-[#12100e]">
+    <div className="relative w-screen h-[100dvh] overflow-hidden bg-[#12100e]">
       {/* Isolated WebGL Mount */}
       <div ref={canvasMountRef} className="w-full h-full" />
 
@@ -541,23 +708,71 @@ export default function App() {
       )}
 
       {/* Main Menu */}
-      {inMainMenu && (
+      {inMainMenu && !exitedScreen && (
         <MainMenu
           hasSavedGame={hasSavedGame}
-          languageMode={languageMode}
-          onChangeLanguageMode={setLanguageMode}
-          onNewGame={handleNewGame}
+          languageMode={settings.languageMode}
+          onChangeLanguageMode={(mode) => updateSettings({ languageMode: mode })}
+          onPlay={handlePlay}
           onContinueGame={handleContinueGame}
+          onNewGame={handleNewGame}
           onOpenCustomize={() => setShowCustomize(true)}
+          onOpenSettings={() => {
+            setSettingsTab("settings");
+            setShowSettings(true);
+          }}
           onOpenLanguageGuide={() => setShowDagbaniGuide(true)}
+          onOpenControls={() => {
+            setSettingsTab("controls");
+            setShowSettings(true);
+          }}
+          onOpenAbout={() => setShowAbout(true)}
+          onExit={() => setExitedScreen(true)}
           onOpenReferences={() => setShowReferences(true)}
           onOpenEvents={() => setShowEvents(true)}
           onOpenContributions={() => setShowContributions(true)}
         />
       )}
 
+      {/* Clean Exit Screen */}
+      {exitedScreen && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#12100e]/95 p-6 text-center">
+          <div className="w-full max-w-md bg-[#171411] border border-white/15 rounded-2xl p-6 sm:p-8 space-y-4 shadow-2xl">
+            <div className="text-xs font-medium text-amber-400">Biɛɣuni ti ni nyɛ taba</div>
+            <h2 className="font-display text-2xl font-bold text-[#f8f5ef]">
+              Thank You for Visiting Tamale 3D
+            </h2>
+            <p className="text-sm text-[#cfc8bc]">
+              Your current session is paused. Return to the main menu anytime to explore the city.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setExitedScreen(false);
+                  setInMainMenu(true);
+                }}
+                className="min-h-[46px] flex-1 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-[#12100e] font-bold text-sm rounded-xl cursor-pointer"
+              >
+                Return to Main Menu
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setExitedScreen(false);
+                  setInMainMenu(false);
+                }}
+                className="min-h-[46px] flex-1 px-4 py-2.5 bg-[#241f1a] hover:bg-white/10 text-[#f5f2eb] border border-white/15 font-semibold text-sm rounded-xl cursor-pointer"
+              >
+                Resume Tamale
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Active Gameplay HUD */}
-      {!inMainMenu && (
+      {!inMainMenu && !exitedScreen && (
         <GameHud
           district={district}
           formattedTime={formatClock(gameMinutes)}
@@ -569,16 +784,22 @@ export default function App() {
           drivingLabel={drivingLabel}
           speedKmh={speedKmh}
           nearby={nearby}
+          nearbyVehicle={nearbyVehicle}
           nearbyChatter={nearbyChatter}
+          nearestGuidance={nearestGuidance}
           activeErrandTitle={activeErrand ? activeErrand.title : null}
           activeCityEventLabel={INITIAL_CITY_EVENT_DESCRIPTIONS[activeCityEvent].label}
           weather={weather}
-          cameraMode={cameraMode}
-          languageMode={languageMode}
-          audioEnabled={audioEnabled}
+          cameraMode={settings.cameraMode}
+          languageMode={settings.languageMode}
+          audioEnabled={settings.audioEnabled}
           showLabels={showLabels}
+          isTouchControlsVisible={isTouchControlsVisible}
+          isPortraitPhone={isPortraitPhone}
+          keyBindings={settings.keyBindings}
           onTriggerInteract={() => engineRef.current?.triggerNearbyInteraction()}
-          onExitVehicle={() => engineRef.current?.exitVehicle()}
+          onToggleVehicle={() => engineRef.current?.handleVehicleToggle()}
+          onTriggerHorn={() => engineRef.current?.triggerHorn()}
           onOpenMap={() => setShowMap(true)}
           onOpenDagbaniGuide={() => setShowDagbaniGuide(true)}
           onOpenInventory={() => setShowInventory(true)}
@@ -589,15 +810,14 @@ export default function App() {
           onOpenPause={() => setShowPause(true)}
           onToggleAudio={() => {
             audioRef.current?.init();
-            const next = !audioEnabled;
-            setAudioEnabled(next);
-            audioRef.current?.setEnabled(next);
+            updateSettings({ audioEnabled: !settings.audioEnabled });
           }}
           onToggleLabels={() => {
             const next = !showLabels;
             setShowLabels(next);
             engineRef.current?.setShowLabels(next);
           }}
+          onToggleFullscreen={handleToggleFullscreen}
           onChangeWeather={(w) => {
             setWeather(w);
             engineRef.current?.setWeather(w);
@@ -606,17 +826,52 @@ export default function App() {
             setGameMinutes(mins);
             engineRef.current?.setGameMinutes(mins);
           }}
-          onChangeCameraMode={(m) => {
-            setCameraMode(m);
-            engineRef.current?.setCameraMode(m);
+          onChangeCameraMode={(m) => updateSettings({ cameraMode: m })}
+          onChangeLanguageMode={(m) => updateSettings({ languageMode: m })}
+        />
+      )}
+
+      {/* Multi-Touch Mobile & Tablet Controls */}
+      {!inMainMenu && !exitedScreen && !anyModalOpen && isTouchControlsVisible && (
+        <MobileTouchControls
+          isDriving={isDriving}
+          drivingKind={drivingKind}
+          nearby={nearby}
+          nearbyVehicle={nearbyVehicle}
+          vibrationEnabled={settings.vibrationEnabled}
+          onMoveChange={(x, y) => {
+            audioRef.current?.init();
+            engineRef.current?.setVirtualMove(x, y);
           }}
-          onChangeLanguageMode={setLanguageMode}
+          onToggleRun={(running) => engineRef.current?.setVirtualRun(running)}
+          onJump={() => {
+            audioRef.current?.init();
+            engineRef.current?.triggerJump();
+          }}
+          onInteract={() => {
+            audioRef.current?.init();
+            engineRef.current?.triggerNearbyInteraction();
+          }}
+          onEnterVehicle={() => {
+            audioRef.current?.init();
+            engineRef.current?.handleVehicleToggle();
+          }}
+          onExitVehicle={() => engineRef.current?.exitVehicle()}
+          onVehicleControls={(ctrl) => {
+            audioRef.current?.init();
+            engineRef.current?.setVehicleControls(ctrl);
+          }}
+          onHorn={() => {
+            audioRef.current?.init();
+            engineRef.current?.triggerHorn();
+          }}
+          onCameraRotate={(dx, dy) => engineRef.current?.rotateCamera(dx, dy)}
         />
       )}
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-[#171411]/95 border border-amber-500/45 text-[#f8f5ef] px-4 py-2 rounded-lg text-xs font-medium shadow-xl pointer-events-none">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-[#171411]/95 border border-amber-500/45 text-[#f8f5ef] px-4 py-2 rounded-lg text-xs font-medium shadow-xl pointer-events-none max-w-[90vw] text-center">
           {toastMessage}
         </div>
       )}
@@ -626,15 +881,15 @@ export default function App() {
         <DialogueModal
           npc={activeNpc}
           npcRuntime={npcStates.find((s) => s.npcId === activeNpc.id) ?? null}
-          languageMode={languageMode}
-          showSubtitles={showSubtitles}
+          languageMode={settings.languageMode}
+          showSubtitles={settings.showSubtitles}
           timePeriod={period}
           friendshipLevel={friendships[activeNpc.id] ?? 1}
           availableErrand={
             errands.find((e) => e.giverNpcId === activeNpc.id && !e.completed) || null
           }
-          onChangeLanguageMode={setLanguageMode}
-          onToggleSubtitles={() => setShowSubtitles((s) => !s)}
+          onChangeLanguageMode={(m) => updateSettings({ languageMode: m })}
+          onToggleSubtitles={() => updateSettings({ showSubtitles: !settings.showSubtitles })}
           onClose={() => setActiveNpcId(null)}
           onOpenShop={(shopId) => {
             setActiveNpcId(null);
@@ -646,7 +901,7 @@ export default function App() {
         />
       )}
 
-      {/* Market / Craft Shop Modal */}
+      {/* Market / Craft / Night Lounge Shop Modal */}
       {activeShopId && (
         <ShopModal
           shopId={activeShopId}
@@ -808,15 +1063,43 @@ export default function App() {
         />
       )}
 
+      {/* Settings & Controls Modal */}
+      {showSettings && (
+        <SettingsAndControlsModal
+          initialTab={settingsTab}
+          settings={settings}
+          onUpdateSettings={updateSettings}
+          onResetKeyBindings={() =>
+            updateSettings({ keyBindings: { ...DEFAULT_KEY_BINDINGS } })
+          }
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {/* About Tamale Modal */}
+      {showAbout && (
+        <AboutTamaleModal
+          onOpenReferences={() => setShowReferences(true)}
+          onOpenEvents={() => setShowEvents(true)}
+          onClose={() => setShowAbout(false)}
+        />
+      )}
+
       {/* Pause & Save Menu */}
       {showPause && (
         <PauseModal
-          languageMode={languageMode}
-          showSubtitles={showSubtitles}
-          onChangeLanguageMode={setLanguageMode}
-          onToggleSubtitles={() => setShowSubtitles((s) => !s)}
-          onSaveGame={handleSaveGame}
+          hasSavedGame={hasSavedGame}
           onResume={() => setShowPause(false)}
+          onSaveGame={handleSaveGame}
+          onLoadGame={handleLoadFromPause}
+          onOpenSettings={() => {
+            setSettingsTab("settings");
+            setShowSettings(true);
+          }}
+          onOpenControls={() => {
+            setSettingsTab("controls");
+            setShowSettings(true);
+          }}
           onReturnMainMenu={() => {
             setShowPause(false);
             setInMainMenu(true);
