@@ -1,16 +1,23 @@
 import React, { useState } from "react";
-import { Layers, Navigation, X } from "lucide-react";
+import { Compass, Info, Layers, Navigation, X } from "lucide-react";
 import { TAMALE_COMMUNITIES } from "../data/tamaleExpansionData";
-import { TAMALE_LANDMARKS, TAMALE_NPCS, TAMALE_ROADS } from "../data/tamaleWorldData";
+import {
+  TAMALE_LANDMARKS,
+  TAMALE_NPCS,
+  TAMALE_ROADS,
+  TAMALE_SCALE_DISCLOSURE,
+} from "../data/tamaleWorldData";
 import { CommunityZone, LandmarkData, NpcProfile, NpcRuntimeSnapshot } from "../types/game";
 
 interface MapModalProps {
   playerPos: { x: number; z: number };
   discoveredLandmarks: string[];
   activeErrandLandmarkId: string | null;
+  activeGigLandmarkId?: string | null;
   npcStates?: NpcRuntimeSnapshot[];
   onFastTravel: (landmark: LandmarkData) => void;
   onFastTravelCoords?: (x: number, z: number, label: string) => void;
+  onInspectLandmark?: (landmark: LandmarkData) => void;
   onClose: () => void;
 }
 
@@ -18,9 +25,11 @@ export const MapModal: React.FC<MapModalProps> = ({
   playerPos,
   discoveredLandmarks,
   activeErrandLandmarkId,
+  activeGigLandmarkId = null,
   npcStates = [],
   onFastTravel,
   onFastTravelCoords,
+  onInspectLandmark,
   onClose,
 }) => {
   const [selectedLandmark, setSelectedLandmark] = useState<LandmarkData | null>(
@@ -45,7 +54,7 @@ export const MapModal: React.FC<MapModalProps> = ({
               Tamale Metropolitan Map &amp; 17 Communities Guide
             </h2>
             <div className="text-xs text-[#b5ada0]">
-              Anchored on Naa Gbewaa Interchange (9.40379° N, 0.84202° W) · {TAMALE_LANDMARKS.length} Landmarks &amp; {TAMALE_COMMUNITIES.length} Communities
+              Anchored on {TAMALE_SCALE_DISCLOSURE.anchorName} ({TAMALE_SCALE_DISCLOSURE.anchorCoords}) · {TAMALE_SCALE_DISCLOSURE.scaleLabel}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -135,6 +144,7 @@ export const MapModal: React.FC<MapModalProps> = ({
                 const my = toMapY(lm.z);
                 const isSelected = selectedLandmark?.id === lm.id;
                 const isErrandTarget = activeErrandLandmarkId === lm.id;
+                const isGigTarget = activeGigLandmarkId === lm.id;
                 const isDiscovered = discoveredLandmarks.includes(lm.id);
 
                 return (
@@ -147,12 +157,25 @@ export const MapModal: React.FC<MapModalProps> = ({
                     }}
                     className="cursor-pointer"
                   >
+                    {isGigTarget && (
+                      <circle
+                        cx={mx}
+                        cy={my}
+                        r={11}
+                        fill="none"
+                        stroke="#22d3ee"
+                        strokeWidth="1.8"
+                        strokeDasharray="2.5 2"
+                      />
+                    )}
                     <circle
                       cx={mx}
                       cy={my}
                       r={isSelected ? 8.5 : 6}
                       fill={
-                        isErrandTarget
+                        isGigTarget
+                          ? "#22d3ee"
+                          : isErrandTarget
                           ? "#10b981"
                           : isSelected
                           ? "#f59e0b"
@@ -235,21 +258,50 @@ export const MapModal: React.FC<MapModalProps> = ({
           {/* Selected Landmark or Community Details & Fast Travel */}
           <div className="md:col-span-5 p-6 flex flex-col justify-between overflow-y-auto space-y-5">
             {selectedLandmark ? (
-              <div>
-                <div className="text-xs text-amber-400 font-medium mb-1">
-                  {selectedLandmark.district} · {selectedLandmark.dagbaniLabel}
+              <div className="space-y-3">
+                <div>
+                  <div className="text-xs text-amber-400 font-medium mb-1">
+                    {selectedLandmark.district} · {selectedLandmark.dagbaniLabel}
+                  </div>
+                  <h3 className="font-display text-xl font-bold text-[#f8f5ef] mb-1">
+                    {selectedLandmark.name}
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-mono-num text-[#a39b8e]">
+                    {selectedLandmark.osmCoords && <span>OSM: {selectedLandmark.osmCoords}</span>}
+                    {selectedLandmark.realDistanceFromInterchangeKm !== undefined && (
+                      <span className="inline-flex items-center gap-1 text-emerald-300">
+                        <Compass className="w-3 h-3" />
+                        {selectedLandmark.realDistanceFromInterchangeKm.toFixed(2)} km from
+                        Interchange
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <h3 className="font-display text-xl font-bold text-[#f8f5ef] mb-1">
-                  {selectedLandmark.name}
-                </h3>
-                {selectedLandmark.osmCoords && (
-                  <div className="text-[11px] font-mono-num text-[#a39b8e] mb-3">
-                    OSM: {selectedLandmark.osmCoords}
+                {selectedLandmark.referenceImagePath && (
+                  <div className="rounded-lg overflow-hidden border border-white/10 bg-black/40">
+                    <img
+                      src={selectedLandmark.referenceImagePath}
+                      alt={selectedLandmark.name}
+                      className="w-full h-32 object-cover"
+                    />
+                    <div className="px-2.5 py-1 text-[10px] text-[#bfb7aa] bg-[#120f0d]">
+                      Real Tamale Reference Photo · Wikimedia / Field Archive
+                    </div>
                   </div>
                 )}
-                <p className="text-sm text-[#cfc8bc] leading-relaxed mb-4">
-                  {selectedLandmark.authenticityNote}
+                <p className="text-sm text-[#cfc8bc] leading-relaxed">
+                  {selectedLandmark.historicalSignificance || selectedLandmark.authenticityNote}
                 </p>
+                {onInspectLandmark && (
+                  <button
+                    type="button"
+                    onClick={() => onInspectLandmark(selectedLandmark)}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-300 hover:text-amber-200 cursor-pointer"
+                  >
+                    <Info className="w-3.5 h-3.5" />
+                    <span>Open Discovery Card</span>
+                  </button>
+                )}
               </div>
             ) : selectedCommunity ? (
               <div className="space-y-3">
@@ -317,6 +369,7 @@ export const MapModal: React.FC<MapModalProps> = ({
                   <span>Amber · Landmarks</span>
                   <span>Dashed · Communities</span>
                   <span>Green · Errand</span>
+                  <span>Cyan · Active Gig</span>
                   <span>Blue · Live Residents</span>
                 </div>
               </div>

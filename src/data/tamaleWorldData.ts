@@ -1,4 +1,11 @@
-import { ErrandQuest, LandmarkData, NpcProfile, ShopItem } from "../types/game";
+import {
+  CityGigTask,
+  ErrandQuest,
+  LandmarkData,
+  NpcProfile,
+  ShopItem,
+  ShopMetadata,
+} from "../types/game";
 import { TAMALE_COMMUNITIES } from "./tamaleExpansionData";
 
 export const TAMALE_WORLD_BOUNDS = {
@@ -6,6 +13,19 @@ export const TAMALE_WORLD_BOUNDS = {
   maxX: 232,
   minZ: -222,
   maxZ: 210,
+};
+
+/**
+ * Disclosed Geographical Scaling Reference:
+ * - World origin (0, 0) = Naa Gbewaa (Tamale) Interchange (9.40379° N, 0.84202° W).
+ * - Corridor scale: 1 world unit ≈ 10 metres along city corridors (with radial outer hubs
+ *   like Tamale Airport smoothly compressed along true N10 bearing for continuous exploration).
+ * - True cardinal bearings preserved: North = -Z, South = +Z, East = +X, West = -X.
+ */
+export const TAMALE_SCALE_DISCLOSURE = {
+  anchorName: "Naa Gbewaa Interchange",
+  anchorCoords: "9.40379° N, 0.84202° W",
+  scaleLabel: "1 world unit ≈ 10m corridor network (true bearings preserved)",
 };
 
 /**
@@ -133,6 +153,43 @@ export const TAMALE_ROADS = [
     depth: 300,
     orientation: "ns" as const,
   },
+  // Secondary Neighbourhood Streets & Connectors
+  {
+    id: "nyohini_aboabo_cross",
+    name: "Nyohini – Aboabo Connecting Lane",
+    x: -132,
+    z: 42,
+    width: 60,
+    depth: 7,
+    orientation: "ew" as const,
+  },
+  {
+    id: "dungu_kakpagyili_ln",
+    name: "Dungu – Kakpagyili South Link Road",
+    x: -50,
+    z: 172,
+    width: 224,
+    depth: 7,
+    orientation: "ew" as const,
+  },
+  {
+    id: "dabokpaa_hospital_ln",
+    name: "Dabokpaa – Teaching Hospital Side Street",
+    x: 126,
+    z: 148,
+    width: 120,
+    depth: 7,
+    orientation: "ew" as const,
+  },
+  {
+    id: "kalpohin_estates_connector",
+    name: "Kalpohin Estates North-South Street",
+    x: 96,
+    z: -125,
+    width: 7,
+    depth: 66,
+    orientation: "ns" as const,
+  },
 ];
 
 export const TAMALE_LANDMARKS: LandmarkData[] = [
@@ -142,6 +199,10 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     dagbaniLabel: "Naa Gbewaa Flyover",
     district: "Dagbandabo Fong · Central Tamale",
     osmCoords: "9.40379° N, 0.84202° W",
+    realDistanceFromInterchangeKm: 0,
+    referenceImagePath: "/assets/references/tamale/landmarks/tamale_interchange.jpg",
+    historicalSignificance:
+      "Commissioned in 2022 as Northern Ghana's first grade-separated interchange, linking Bolgatanga N10 traffic cleanly over Central Tamale High Street.",
     authenticityNote:
       "OSM: 9.40379° N, 0.84202° W. Reconstructed from CC BY-SA 4.0 photography showing the concrete box-girder overpass, tapered piers, guardrails, and central roundabout.",
     x: 0,
@@ -156,6 +217,10 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     dagbaniLabel: "Tamale Daa",
     district: "Dagbandabo Fong · NW of Interchange",
     osmCoords: "9.40458° N, 0.84287° W",
+    realDistanceFromInterchangeKm: 0.13,
+    referenceImagePath: "/assets/references/tamale/central_market/tamale_market_ghana.jpg",
+    historicalSignificance:
+      "Historic commercial heart of Northern Ghana where yam farmers, shea butter cooperatives, smock tailors, and grain wholesalers converge daily.",
     authenticityNote:
       "OSM: 9.40458° N, 0.84287° W. Corrugated zinc sheds, multi-colored market umbrellas, wooden produce tables on stone blocks, and lock-up perimeter shops.",
     x: -44,
@@ -174,6 +239,10 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     dagbaniLabel: "Tamale Jiŋli Titali",
     district: "Gukpegu Road · SSE of Interchange",
     osmCoords: "9.40180° N, 0.84110° W",
+    realDistanceFromInterchangeKm: 0.24,
+    referenceImagePath: "/assets/references/tamale/landmarks/tamale_central_mosque.jpg",
+    historicalSignificance:
+      "Cornerstone Friday congregational mosque along Gukpegu Road hosting weekly Jumu'ah prayers, Eid gatherings, and community scholarship.",
     authenticityNote:
       "OSM: 9.40180° N, 0.84110° W. Broad circular cream prayer hall, green-tinted arched windows, emerald dome, and twin 3-tier louvered minarets.",
     x: 34,
@@ -191,6 +260,10 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     dagbaniLabel: "Jubilee Park",
     district: "Tishigu / Jakarayili · East High St",
     osmCoords: "9.40361° N, 0.83822° W",
+    realDistanceFromInterchangeKm: 0.42,
+    referenceImagePath: "/assets/references/tamale/commercial_areas/tamale_office_building.jpg",
+    historicalSignificance:
+      "Tamale's premier civic parade lawn and administrative corridor hosting Independence Day parades, cultural durbars, and evening community life.",
     authenticityNote:
       "OSM: 9.40361° N, 0.83822° W. Civic parade ground paired with a white-and-sky-blue multi-story concrete office building modeled from Tamale High Street photography.",
     x: 86,
@@ -205,6 +278,10 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     dagbaniLabel: "Dakpema Yili",
     district: "Dakpema Rd · Dagbandabo Fong",
     osmCoords: "9.4049° N, 0.8425° W (Central Tamale)",
+    realDistanceFromInterchangeKm: 0.35,
+    referenceImagePath: "/assets/references/tamale/landmarks/regional_house_of_chiefs.jpg",
+    historicalSignificance:
+      "Seat of traditional governance in central Tamale and host courtyard for Damba Festival drumming, royal greetings, and civic mediation.",
     authenticityNote:
       "Reconstructed using Northern Regional House of Chiefs reference photography: charcoal cylindrical colonnade, burgundy pitched metal roofs, clerestory pediment, and paved durbar courtyard.",
     x: -34,
@@ -222,6 +299,10 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     dagbaniLabel: "Aboabo Daa",
     district: "Aboabo · WSW",
     osmCoords: "9.40132° N, 0.84911° W",
+    realDistanceFromInterchangeKm: 0.83,
+    referenceImagePath: "/assets/references/tamale/markets/kaladan_market_tamale.jpg",
+    historicalSignificance:
+      "One of Tamale's liveliest neighbourhood markets, famed for textiles, bulk millet and maize, electronic repair stalls, and smoky evening chichinga.",
     authenticityNote:
       "OSM: 9.40132° N, 0.84911° W. Bustling community grain, cloth, and fresh produce market anchored by zinc bays, umbrellas, and roadside stalls.",
     x: -132,
@@ -240,6 +321,10 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     dagbaniLabel: "Lamashegu Daa",
     district: "Lamashegu · Salaga Rd (SSW)",
     osmCoords: "9.38790° N, 0.85460° W",
+    realDistanceFromInterchangeKm: 2.24,
+    referenceImagePath: "/assets/references/tamale/markets/tamale_market_traders.jpg",
+    historicalSignificance:
+      "Vital southern gateway hub along Salaga Road where Pragya tricycles, Motor King cargo trikes, mechanics, and timber traders meet daily shoppers.",
     authenticityNote:
       "OSM: 9.38790° N, 0.85460° W. Major southern commercial hub combining open market sheds, Pragya & motorcycle mechanic bays, spare-parts shops, and timber stacks.",
     x: -84,
@@ -258,6 +343,9 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     dagbaniLabel: "Kukuo Daa ni Duɣu",
     district: "Kukuo · ESE",
     osmCoords: "9.39992° N, 0.82020° W",
+    realDistanceFromInterchangeKm: 2.43,
+    historicalSignificance:
+      "Renowned across Northern Ghana for generations of women potters shaping porous terracotta water coolers (duɣu) and cooking vessels.",
     authenticityNote:
       "OSM: 9.39992° N, 0.82020° W. Celebrated eastern suburb combining Kukuo daily market tables with open-air earthenware clay pot shaping and firing yards.",
     x: 158,
@@ -276,6 +364,7 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     dagbaniLabel: "Kakpagyili Daa",
     district: "Kakpagyili · South",
     osmCoords: "9.3810° N, 0.8420° W (Approx. South)",
+    realDistanceFromInterchangeKm: 2.53,
     authenticityNote:
       "Southern community market plaza surrounded by traditional compound walls, neem shade, and local provision kiosks.",
     x: 32,
@@ -290,6 +379,8 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     dagbaniLabel: "Gunayili Niɣi Daa",
     district: "East Ring Corridor",
     osmCoords: "9.406° N, 0.805° W (Eastern Livestock/Timber Zone)",
+    realDistanceFromInterchangeKm: 4.07,
+    isRepresentativeFictional: true,
     authenticityNote:
       "Representative livestock pens, timber-milling planks, and firewood stacks reflecting Tamale's regional cattle and woodworking trade.",
     x: 158,
@@ -304,6 +395,10 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     dagbaniLabel: "Tamale Asibiti Titali",
     district: "Changli / Dabokpaa · Central High St (SE)",
     osmCoords: "9.39140° N, 0.82458° W",
+    realDistanceFromInterchangeKm: 2.36,
+    referenceImagePath: "/assets/references/tamale/hospitals/tamale_teaching_hospital.jpg",
+    historicalSignificance:
+      "Established in 1974 and upgraded to a premier tertiary teaching hospital serving Northern, Savannah, North East, Upper East, and Upper West regions.",
     authenticityNote:
       "OSM: 9.39140° N, 0.82458° W. Reconstructed from field photography: multi-storey peach-terracotta block with horizontal window louvers, low outpatient wing, and iconic steel exterior staircase tower.",
     x: 96,
@@ -321,6 +416,10 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     dagbaniLabel: "Tamale Bɔɔli Paaki",
     district: "Sagnarigu / Nyohini · NW",
     osmCoords: "9.41066° N, 0.86126° W",
+    realDistanceFromInterchangeKm: 2.25,
+    referenceImagePath: "/assets/references/tamale/sports/aliu_mahama_stadium.jpg",
+    historicalSignificance:
+      "21,000-seat arena inaugurated for AFCON 2008 and named after former Vice President Aliu Mahama, hosting RTU and Ghana Premier League matches.",
     authenticityNote:
       "OSM: 9.41066° N, 0.86126° W. Reconstructed from stadium photography: circular white precast concrete buttresses, exposed white steel truss canopy ring, and gatehouse walls.",
     x: -134,
@@ -338,8 +437,12 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     dagbaniLabel: "Tamale Alopile Paaki",
     district: "Airport Rd / Bolgatanga N10 (North)",
     osmCoords: "9.55663° N, 0.86312° W (Scaled North Gateway)",
+    realDistanceFromInterchangeKm: 17.15,
+    referenceImagePath: "/assets/references/tamale/transportation/tamale_airport_terminal.jpg",
+    historicalSignificance:
+      "Modernised international aviation gateway north of Tamale along N10, supporting domestic Accra flights, cargo, and annual Hajj departures.",
     authenticityNote:
-      "OSM: 9.55663° N, 0.86312° W. Modeled from Tamale Airport Terminal photo: cantilevered concrete canopy on tapered V-pillars, bronze curtain glass, Departures sign, and tarmac apron.",
+      "OSM: 9.55663° N, 0.86312° W (distance compressed along true N10 North bearing for playable commute). Modeled from Tamale Airport Terminal photo.",
     x: 0,
     z: -196,
     radius: 25,
@@ -352,6 +455,10 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     dagbaniLabel: "SCCA ni Red Clay",
     district: "Vittin / Janna Kpeŋ Corridor (East)",
     osmCoords: "9.394° N, 0.793° W (Vittin / Janna Kpeŋ)",
+    realDistanceFromInterchangeKm: 5.5,
+    referenceImagePath: "/assets/references/tamale/cultural_sites/scca_tamale.jpg",
+    historicalSignificance:
+      "Founded by artist Ibrahim Mahama, SCCA and Red Clay Studio turned Tamale into an internationally celebrated hub for contemporary art and community education.",
     authenticityNote:
       "Modeled from SCCA Tamale & Red Clay photography: red-brick warehouse gallery with burgundy roof, shimmering aluminum relief facade panels, and outdoor Red Clay sculpture lawn.",
     x: 208,
@@ -370,6 +477,10 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     dagbaniLabel: "Batakari & Dondo Yiŋa",
     district: "Cultural Quarter (West Market)",
     osmCoords: "Central Tamale Cultural Zone",
+    realDistanceFromInterchangeKm: 0.86,
+    referenceImagePath: "/assets/references/tamale/festivals/damba_festival_tamale.jpg",
+    historicalSignificance:
+      "Living artisan workshop preserving Dagbon strip-weaving (batakari / fugu) and carved hourglass talking drums (dondo).",
     authenticityNote:
       "Culturally grounded artisan courtyard west of Central Market celebrating handloom batakari weavers and dondo talking drummers.",
     x: -84,
@@ -388,6 +499,8 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     dagbaniLabel: "Tiŋa Yiŋa",
     district: "Residential Quarter (SW)",
     osmCoords: "Representative Northern Compound Cluster",
+    realDistanceFromInterchangeKm: 0.96,
+    referenceImagePath: "/assets/references/tamale/architecture/northern_clay_compound.jpg",
     authenticityNote:
       "Reconstructed from Northern Region compound photography: circular earth huts with conical thatch, outdoor cooking pots, firewood stacks, and zinc extension room.",
     x: -84,
@@ -405,6 +518,7 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     dagbaniLabel: "Karimbu Yiŋa",
     district: "Tishigu · North Central",
     osmCoords: "9.40975° N, 0.83871° W",
+    realDistanceFromInterchangeKm: 0.76,
     authenticityNote:
       "Northern Ghanaian concrete-and-zinc classroom block with shaded veranda columns and Ghanaian flag.",
     x: 34,
@@ -419,6 +533,9 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     dagbaniLabel: "Dungu Karimbu",
     district: "Dungu · Southwest",
     osmCoords: "9.37701° N, 0.87818° W",
+    realDistanceFromInterchangeKm: 4.96,
+    historicalSignificance:
+      "Home to the University for Development Studies (UDS) Tamale Campus, medical and health sciences faculties, and bustling student hostel avenues.",
     authenticityNote:
       "OSM: 9.37701° N, 0.87818° W. Representative academic lecture blocks, student apartments, and traditional compounds on Tamale's southwestern campus road.",
     x: -134,
@@ -433,6 +550,9 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     dagbaniLabel: "Gbewaa Pali Daabilim",
     district: "Dagbandabo Fong · Gbewaa High St",
     osmCoords: "9.4038° N, 0.8408° W (High Street Corridor)",
+    realDistanceFromInterchangeKm: 0.24,
+    isRepresentativeFictional: true,
+    referenceImagePath: "/assets/references/tamale/roads/street_tamale.jpg",
     authenticityNote:
       "Representative Gbewaa High Street commercial row featuring mobile-money kiosks, Savannah Telecom accessories, Northern Star Pharmacy, and Tishigu Bakery.",
     x: 20,
@@ -451,8 +571,11 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     dagbaniLabel: "Zaawuni Bindirigu Shee",
     district: "Gbewaa High St East · Jakarayili",
     osmCoords: "9.4037° N, 0.8395° W (High Street Evening Eatery)",
+    realDistanceFromInterchangeKm: 0.36,
+    isRepresentativeFictional: true,
+    referenceImagePath: "/assets/references/tamale/everyday_life/kebab_vendor_tamale.jpg",
     authenticityNote:
-      "Inspired by Tamale's vibrant evening eateries and outdoor chichinga spots along High Street and Jubilee corridors, coming alive from sunset into late night.",
+      "Representative Tamale evening eatery and outdoor chichinga spot along High Street and Jubilee corridors, coming alive from sunset into late night.",
     x: 34,
     z: -13,
     radius: 15,
@@ -462,6 +585,141 @@ export const TAMALE_LANDMARKS: LandmarkData[] = [
     interiorTitle: "Evening Chop Bar, Grill & Open-Air Lounge",
     interiorDescription:
       "Warm string lights, charcoal chichinga smoke, chilled sobolo, live Tamale radio music, and neighbours gathering over hot waakye and grilled guinea fowl after dusk.",
+  },
+  // --- NEW REPRESENTATIVE TAMALE NEIGHBOURHOOD BUSINESSES & SERVICES ---
+  {
+    id: "nyohini_barber_salon",
+    name: "Nyohini Fade & Braids Studio",
+    dagbaniLabel: "Zuɣu Pɔnibu Shee",
+    district: "Nyohini · West High St",
+    realDistanceFromInterchangeKm: 1.46,
+    isRepresentativeFictional: true,
+    authenticityNote:
+      "Representative neighbourhood barbering shop and hair braiding salon serving Nyohini and Aboabo commuters along the western avenue.",
+    x: -146,
+    z: -13,
+    radius: 14,
+    type: "commercial",
+    enterable: true,
+    shopId: "nyohini_barber_salon",
+    interiorTitle: "Nyohini Barbering & Hair Braiding Salon",
+    interiorDescription:
+      "Clippers hum beside a wall mirror and street-radio speaker while customers get clean fades, beard trims, or braided styles.",
+  },
+  {
+    id: "jakarayili_guesthouse",
+    name: "Jubilee Rest Guest House",
+    dagbaniLabel: "Saamba Doɣu",
+    district: "Jakarayili · Central East",
+    realDistanceFromInterchangeKm: 0.65,
+    isRepresentativeFictional: true,
+    referenceImagePath: "/assets/references/tamale/modern_houses/grnma_tamale_building.jpg",
+    authenticityNote:
+      "Representative Tamale guest house inspired by local hospitality compounds (such as GRNMA and city guest lodges), open 24 hours for resting travelers.",
+    x: 56,
+    z: 32,
+    radius: 14,
+    type: "commercial",
+    enterable: true,
+    shopId: "jakarayili_guesthouse",
+    interiorTitle: "Jubilee Rest Guest House Reception",
+    interiorDescription:
+      "Quiet walled courtyard with ceiling fans, chilled water, and cool guest rooms where you can rest overnight or midday to restore full energy.",
+  },
+  {
+    id: "dabokpaa_fitness_cafe",
+    name: "Savannah Fitness Gym & Print Hub",
+    dagbaniLabel: "Paŋ Tuma ni Karimbu",
+    district: "Dabokpaa · Salaga East",
+    realDistanceFromInterchangeKm: 1.88,
+    isRepresentativeFictional: true,
+    authenticityNote:
+      "Representative Tamale neighbourhood gym, printing press, and photocopying shop serving Teaching Hospital staff and Dabokpaa residents.",
+    x: 150,
+    z: 114,
+    radius: 14,
+    type: "commercial",
+    enterable: true,
+    shopId: "dabokpaa_fitness_cafe",
+    interiorTitle: "Savannah Fitness Gym & Printing Hub",
+    interiorDescription:
+      "Barbells, skipping ropes, and treadmills share a bright concrete frontage beside high-speed colour printers and document binding.",
+  },
+  {
+    id: "tishigu_pharmacy_bakery",
+    name: "Tishigu Pharmacy & Sugar Bakery",
+    dagbaniLabel: "Tiim ni Paano Shee",
+    district: "Tishigu · North Central",
+    realDistanceFromInterchangeKm: 0.37,
+    isRepresentativeFictional: true,
+    authenticityNote:
+      "Representative community chemist and hot wood-oven sugar-bread bakery situated in bustling Tishigu.",
+    x: 18,
+    z: -32,
+    radius: 14,
+    type: "commercial",
+    enterable: true,
+    shopId: "tishigu_pharmacy_bakery",
+    interiorTitle: "Tishigu Pharmacy & Warm Bakery",
+    interiorDescription:
+      "Fresh loaves of sweet Tamale sugar bread cool on wooden racks alongside pharmacy hydration salts, herbal tonics, and pain relief.",
+  },
+  {
+    id: "kalpohin_hardware_carpentry",
+    name: "Kalpohin Building Supplies & Welding",
+    dagbaniLabel: "Mɛbu Nɛma Shee",
+    district: "Kalpohin · North East",
+    realDistanceFromInterchangeKm: 1.16,
+    isRepresentativeFictional: true,
+    authenticityNote:
+      "Representative building materials depot, carpentry joinery, and metal gate welding workshop serving developing residential suburbs.",
+    x: 86,
+    z: -78,
+    radius: 15,
+    type: "commercial",
+    enterable: true,
+    shopId: "kalpohin_hardware_carpentry",
+    interiorTitle: "Kalpohin Hardware, Welding & Carpentry Yard",
+    interiorDescription:
+      "Stacks of cement, zinc sheets, hardwood timber, and welding torches powering Tamale's fast-growing suburbs.",
+  },
+  {
+    id: "dungu_student_hub",
+    name: "Dungu Campus Café & Bookshop",
+    dagbaniLabel: "Dungu Karimbu ni Bindirigu",
+    district: "Dungu · University Avenue",
+    realDistanceFromInterchangeKm: 2.04,
+    isRepresentativeFictional: true,
+    authenticityNote:
+      "Representative student internet café, photocopy stand, and affordable rice-and-beans chop bar near Dungu Academic Quarter.",
+    x: -144,
+    z: 144,
+    radius: 14,
+    type: "commercial",
+    enterable: true,
+    shopId: "dungu_student_hub",
+    interiorTitle: "Dungu Campus Internet Café, Bookshop & Chop Bar",
+    interiorDescription:
+      "Students print lecture handouts, buy study guides, and gather over hot waakye and chilled sobolo late into the evening.",
+  },
+  {
+    id: "choggu_night_spot",
+    name: "Choggu Evening Spot & Grill",
+    dagbaniLabel: "Choggu Zaawuni Shee",
+    district: "Choggu · North West",
+    realDistanceFromInterchangeKm: 1.67,
+    isRepresentativeFictional: true,
+    authenticityNote:
+      "Representative Choggu neighbourhood open-air evening grill and music spot glowing with warm bulbs after sunset.",
+    x: -84,
+    z: -144,
+    radius: 14,
+    type: "commercial",
+    enterable: true,
+    shopId: "choggu_night_spot",
+    interiorTitle: "Choggu Evening Spot, Grill & Music Terrace",
+    interiorDescription:
+      "Charcoal grills smoke gently under fairy lights while friends play highlife & afrobeat rhythms and share grilled fish and banku.",
   },
 ];
 
@@ -662,7 +920,521 @@ export const SHOP_INVENTORIES: Record<string, ShopItem[]> = {
       description: "Hot spiced beef skewers sizzling over glowing charcoal at sunset and night.",
     },
   ],
+  nyohini_barber_salon: [
+    {
+      id: "shea_grooming_balm",
+      name: "Whipped Shea Beard & Hair Balm",
+      dagbaniName: "Kpakpili Tiim",
+      category: "craft",
+      price: 22,
+      description: "Natural scented Northern shea grooming butter sold at Nyohini Fade & Braids Studio.",
+    },
+  ],
+  jakarayili_guesthouse: [
+    {
+      id: "pure_water",
+      name: "Chilled Drinking Water",
+      dagbaniName: "Kom",
+      category: "food",
+      price: 5,
+      energyRestore: 15,
+      description: "Cool bottled or sachet water from the guest house reception cooler.",
+    },
+    {
+      id: "tishigu_butter_bread",
+      name: "Breakfast Tea & Sugar Bread",
+      dagbaniName: "Paano ni Tii",
+      category: "food",
+      price: 16,
+      energyRestore: 32,
+      description: "Morning tea and fresh Tamale butter bread served to travelers.",
+    },
+  ],
+  dabokpaa_fitness_cafe: [
+    {
+      id: "chilled_sobolo",
+      name: "Post-Workout Hibiscus Sobolo",
+      dagbaniName: "Sobolo Kom",
+      category: "food",
+      price: 10,
+      energyRestore: 25,
+      description: "Chilled ginger-hibiscus drink served fresh at Savannah Fitness Gym.",
+    },
+    {
+      id: "tamale_city_map_pack",
+      name: "Printed Tamale Community Almanac",
+      dagbaniName: "Tiŋa Karimbu Gbaŋ",
+      category: "craft",
+      price: 30,
+      description: "Color-printed neighbourhood directory and cultural calendar.",
+    },
+  ],
+  tishigu_pharmacy_bakery: [
+    {
+      id: "oral_hydration_tonic",
+      name: "Savannah Hydration & Vitamin Tonic",
+      dagbaniName: "Alaafee Kom",
+      category: "food",
+      price: 15,
+      energyRestore: 45,
+      description: "Electrolyte wellness drink from Northern Star / Tishigu Pharmacy.",
+    },
+    {
+      id: "tishigu_butter_bread",
+      name: "Hot Wood-Oven Sugar Bread",
+      dagbaniName: "Paano",
+      category: "food",
+      price: 12,
+      energyRestore: 30,
+      description: "Soft sweet Tamale loaf baked fresh from morning until evening.",
+    },
+  ],
+  kalpohin_hardware_carpentry: [
+    {
+      id: "carpentry_carving",
+      name: "Hand-Carved Rosewood Stool",
+      dagbaniName: "Kparigu",
+      category: "craft",
+      price: 68,
+      description: "Solid carved wooden stool crafted by Kalpohin joiners.",
+    },
+    {
+      id: "solar_torch",
+      name: "Heavy-Duty Workshop Lantern",
+      dagbaniName: "Fitila",
+      category: "craft",
+      price: 42,
+      description: "Bright rechargeable site lamp used by builders and welders.",
+    },
+  ],
+  dungu_student_hub: [
+    {
+      id: "waakye",
+      name: "Campus Waakye Special",
+      dagbaniName: "Bɛŋa ni Shinkaafa",
+      category: "food",
+      price: 14,
+      energyRestore: 34,
+      description: "Popular student lunch with gari, wele, spaghetti, and boiled egg.",
+    },
+    {
+      id: "dungu_study_polo",
+      name: "Dungu Campus Polo Shirt",
+      dagbaniName: "Karimbu Nɛma",
+      category: "clothing",
+      price: 65,
+      unlockOutfit: "polo",
+      description: "Crisp short-sleeve Tamale student shirt for campus life.",
+    },
+  ],
+  choggu_night_spot: [
+    {
+      id: "grilled_guinea_fowl",
+      name: "Choggu Flame-Grilled Tilapia & Banku",
+      dagbaniName: "Zim ni Banku",
+      category: "food",
+      price: 40,
+      energyRestore: 58,
+      description: "Hot evening grilled tilapia with green pepper sauce served under fairy lights.",
+    },
+    {
+      id: "night_chichinga",
+      name: "Spiced Chichinga & Yam Chips",
+      dagbaniName: "Nimdi ni Nyuli",
+      category: "food",
+      price: 20,
+      energyRestore: 38,
+      description: "Evening street favourite grilled over glowing charcoal.",
+    },
+    {
+      id: "chilled_sobolo",
+      name: "Iced Pineapple Sobolo",
+      dagbaniName: "Sobolo Kom",
+      category: "food",
+      price: 10,
+      energyRestore: 24,
+      description: "Cold spiced hibiscus drink with fresh ginger.",
+    },
+  ],
+  // Interactive Roadside & Mobile Street Hawkers
+  street_water_hawker: [
+    {
+      id: "pure_water",
+      name: "Ice-Cold Sachet Water",
+      dagbaniName: "Kom Maasim",
+      category: "food",
+      price: 2,
+      energyRestore: 16,
+      description: "Chilled drinking water carried in a head-pan cooler.",
+    },
+    {
+      id: "chilled_sobolo",
+      name: "Bottled Street Sobolo",
+      dagbaniName: "Sobolo Kom",
+      category: "food",
+      price: 8,
+      energyRestore: 22,
+      description: "Sweet spiced hibiscus drink sold cold along Tamale junctions.",
+    },
+  ],
+  street_koose_seller: [
+    {
+      id: "koose_breakfast",
+      name: "Hot Fried Kɔɔsɛ & Koko",
+      dagbaniName: "Kɔɔsɛ",
+      category: "food",
+      price: 8,
+      energyRestore: 28,
+      description: "Golden crispy cowpea fritters scooped hot from the roadside pan.",
+    },
+    {
+      id: "tuo_zaafi",
+      name: "Street Bowl of Waakye / Saɣim",
+      dagbaniName: "Bindirigu",
+      category: "food",
+      price: 15,
+      energyRestore: 36,
+      description: "Hearty hot northern dish served fresh from insulated food flasks.",
+    },
+  ],
+  street_groundnut_fruit: [
+    {
+      id: "roasted_groundnuts",
+      name: "Roasted Groundnuts & Kuli-Kuli",
+      dagbaniName: "Simli",
+      category: "food",
+      price: 6,
+      energyRestore: 20,
+      description: "Warm salted peanuts and crunchy kuli-kuli peanut rings.",
+    },
+    {
+      id: "roasted_yam_corn",
+      name: "Roasted Yam & Sweet Mango",
+      dagbaniName: "Nyuli ni Mango",
+      category: "food",
+      price: 10,
+      energyRestore: 25,
+      description: "Fresh Tamale roadside snack carried on a wooden tray.",
+    },
+  ],
 };
+
+export const SHOP_METADATA: Record<string, ShopMetadata> = {
+  market_provisions: {
+    id: "market_provisions",
+    title: "Tamale Central Market · Mama Fati's Provisions",
+    dagbaniTitle: "Tamale Daa",
+    district: "Dagbandabo Fong",
+    category: "market",
+    openHour: 6,
+    closeHour: 18.5,
+    authenticityStatus: "real-institution",
+    authenticityNote: "Set inside Tamale Central Market (OSM 9.40458° N, 0.84287° W).",
+  },
+  aboabo_electronics_cloth: {
+    id: "aboabo_electronics_cloth",
+    title: "Aboabo Market · Cloth, Solar & Chichinga Lane",
+    dagbaniTitle: "Aboabo Daa",
+    district: "Aboabo",
+    category: "market",
+    openHour: 6.5,
+    closeHour: 19.5,
+    authenticityStatus: "real-institution",
+    authenticityNote: "Set inside Aboabo Market (OSM 9.40132° N, 0.84911° W).",
+  },
+  lamashegu_parts: {
+    id: "lamashegu_parts",
+    title: "Lamashegu Hub · Pragya Parts & Kɔɔsɛ Stall",
+    dagbaniTitle: "Lamashegu Daa",
+    district: "Lamashegu",
+    category: "hardware_artisan",
+    openHour: 7,
+    closeHour: 18.5,
+    authenticityStatus: "real-institution",
+    authenticityNote: "Set at Lamashegu Market & Mechanic Hub (OSM 9.38790° N, 0.85460° W).",
+    services: [
+      {
+        id: "svc_pragya_tune",
+        label: "Tune-Up Pragya / Moto",
+        dagbaniLabel: "Maani Pragya",
+        price: 20,
+        serviceType: "repair",
+        description: "Quick oil & spark plug service by Lamashegu mechanics (+15 Culture XP).",
+        cultureXp: 15,
+      },
+    ],
+  },
+  kukuo_pottery: {
+    id: "kukuo_pottery",
+    title: "Kukuo Pottery Centre · Hand-Fired Duɣu Craft",
+    dagbaniTitle: "Kukuo Duɣu",
+    district: "Kukuo",
+    category: "cultural_craft",
+    openHour: 7,
+    closeHour: 18,
+    authenticityStatus: "real-institution",
+    authenticityNote: "Anchored on Kukuo's historic women's pottery quarter (OSM 9.39992° N, 0.82020° W).",
+  },
+  cultural_crafts: {
+    id: "cultural_crafts",
+    title: "Smock Weavers Guild & SCCA Artisan Desk",
+    dagbaniTitle: "Batakari & Kaya",
+    district: "Cultural Quarter / Vittin",
+    category: "cultural_craft",
+    openHour: 8,
+    closeHour: 17.5,
+    authenticityStatus: "real-institution",
+    authenticityNote: "Inspired by Tamale's Centre for National Culture and SCCA heritage studios.",
+  },
+  gbewaa_provisions_telecom: {
+    id: "gbewaa_provisions_telecom",
+    title: "Gbewaa High St Shops & Mobile Money",
+    dagbaniTitle: "Gbewaa Pali Daabilim",
+    district: "Central High Street",
+    category: "telecom_bank",
+    openHour: 7.5,
+    closeHour: 20.5,
+    authenticityStatus: "representative-fictional",
+    authenticityNote: "Representative Tamale High Street mobile-money & telecom kiosks.",
+    services: [
+      {
+        id: "svc_momo_airtime",
+        label: "Buy Call Credit & Data Bundle",
+        dagbaniLabel: "Kpehi Credit",
+        price: 15,
+        serviceType: "airtime_data",
+        description: "Top up airtime & mobile data to stay connected across Tamale (+10 Culture XP).",
+        cultureXp: 10,
+      },
+    ],
+  },
+  nightlife_grill_lounge: {
+    id: "nightlife_grill_lounge",
+    title: "Daa Waakye, Chichinga & Night Lounge",
+    dagbaniTitle: "Zaawuni Bindirigu Shee",
+    district: "Jakarayili / High St East",
+    category: "nightlife",
+    openHour: 16.5,
+    closeHour: 2.0,
+    authenticityStatus: "representative-fictional",
+    authenticityNote: "Representative Tamale evening chop bar and outdoor chichinga night spot.",
+  },
+  nyohini_barber_salon: {
+    id: "nyohini_barber_salon",
+    title: "Nyohini Fade & Braids Studio",
+    dagbaniTitle: "Zuɣu Pɔnibu Shee",
+    district: "Nyohini",
+    category: "barber_salon",
+    openHour: 8,
+    closeHour: 21,
+    authenticityStatus: "representative-fictional",
+    authenticityNote: "Representative Tamale neighbourhood barbering shop & hair salon.",
+    services: [
+      {
+        id: "svc_fresh_fade",
+        label: "Fresh Tamale Fade / Clean Trim",
+        dagbaniLabel: "Pɔni Zuɣu",
+        price: 25,
+        serviceType: "haircut",
+        description: "Clean haircut and hot towel refresh (+20 Energy, +20 Culture XP).",
+        energyRestore: 20,
+        cultureXp: 20,
+        advanceMinutes: 30,
+      },
+      {
+        id: "svc_braids_style",
+        label: "Braids / Headwrap Styling",
+        dagbaniLabel: "Pili Zuɣu",
+        price: 35,
+        serviceType: "haircut",
+        description: "Traditional braided styling & shea scalp care (+25 Energy, +25 Culture XP).",
+        energyRestore: 25,
+        cultureXp: 25,
+        advanceMinutes: 45,
+      },
+    ],
+  },
+  jakarayili_guesthouse: {
+    id: "jakarayili_guesthouse",
+    title: "Jubilee Rest Guest House",
+    dagbaniTitle: "Saamba Doɣu",
+    district: "Jakarayili",
+    category: "guesthouse",
+    openHour: 0,
+    closeHour: 24,
+    authenticityStatus: "representative-fictional",
+    authenticityNote: "Representative Tamale hospitality guest house (open 24 hours).",
+    services: [
+      {
+        id: "svc_rest_short",
+        label: "Midday Cool Fan Nap (3 hrs)",
+        dagbaniLabel: "Vuhi Bɛla",
+        price: 25,
+        serviceType: "rest_hotel",
+        description: "Rest in a cool room to restore 100% Energy and advance the clock 3 hours.",
+        energyRestore: 100,
+        advanceMinutes: 180,
+      },
+      {
+        id: "svc_rest_night",
+        label: "Overnight Guest Room (8 hrs)",
+        dagbaniLabel: "Gbiɛli Doɣu",
+        price: 45,
+        serviceType: "rest_hotel",
+        description: "Full night's sleep restoring 100% Energy and advancing the clock 8 hours.",
+        energyRestore: 100,
+        advanceMinutes: 480,
+        cultureXp: 10,
+      },
+    ],
+  },
+  dabokpaa_fitness_cafe: {
+    id: "dabokpaa_fitness_cafe",
+    title: "Savannah Fitness Gym & Print Hub",
+    dagbaniTitle: "Paŋ Tuma ni Karimbu",
+    district: "Dabokpaa",
+    category: "fitness_print",
+    openHour: 6,
+    closeHour: 21.5,
+    authenticityStatus: "representative-fictional",
+    authenticityNote: "Representative Dabokpaa gym & printing/photocopy shop.",
+    services: [
+      {
+        id: "svc_gym_session",
+        label: "Evening Weights & Cardio Session",
+        dagbaniLabel: "Kpaŋsi Nyaŋ",
+        price: 20,
+        serviceType: "gym_workout",
+        description: "Guided workout boost (+25 Culture XP & refreshes focus, +45 mins).",
+        cultureXp: 25,
+        advanceMinutes: 45,
+      },
+      {
+        id: "svc_print_flyers",
+        label: "Print Community Event Flyers",
+        dagbaniLabel: "Printi Gbanɔ",
+        price: 12,
+        serviceType: "print_doc",
+        description: "Print bright colour flyers for local Tamale events (+15 Culture XP).",
+        cultureXp: 15,
+      },
+    ],
+  },
+  tishigu_pharmacy_bakery: {
+    id: "tishigu_pharmacy_bakery",
+    title: "Tishigu Pharmacy & Sugar Bakery",
+    dagbaniTitle: "Tiim ni Paano Shee",
+    district: "Tishigu",
+    category: "pharmacy_bakery",
+    openHour: 7,
+    closeHour: 22,
+    authenticityStatus: "representative-fictional",
+    authenticityNote: "Representative Tamale neighbourhood pharmacy & hot wood-oven bakery.",
+  },
+  kalpohin_hardware_carpentry: {
+    id: "kalpohin_hardware_carpentry",
+    title: "Kalpohin Building Supplies & Welding",
+    dagbaniTitle: "Mɛbu Nɛma Shee",
+    district: "Kalpohin",
+    category: "hardware_artisan",
+    openHour: 7.5,
+    closeHour: 17.5,
+    authenticityStatus: "representative-fictional",
+    authenticityNote: "Representative Kalpohin hardware depot, carpentry, and welding yard.",
+  },
+  dungu_student_hub: {
+    id: "dungu_student_hub",
+    title: "Dungu Campus Café & Bookshop",
+    dagbaniTitle: "Dungu Karimbu Shee",
+    district: "Dungu",
+    category: "fitness_print",
+    openHour: 7.5,
+    closeHour: 22.5,
+    authenticityStatus: "representative-fictional",
+    authenticityNote: "Representative student café, internet printing, and chop bar near UDS Dungu.",
+    services: [
+      {
+        id: "svc_internet_session",
+        label: "1-Hour Campus Internet & Printing",
+        dagbaniLabel: "Computer Tuma",
+        price: 10,
+        serviceType: "print_doc",
+        description: "Browse Wikimedia archives & print campus study notes (+15 Culture XP).",
+        cultureXp: 15,
+        advanceMinutes: 30,
+      },
+    ],
+  },
+  choggu_night_spot: {
+    id: "choggu_night_spot",
+    title: "Choggu Evening Spot & Grill",
+    dagbaniTitle: "Choggu Zaawuni Shee",
+    district: "Choggu",
+    category: "nightlife",
+    openHour: 17,
+    closeHour: 2,
+    authenticityStatus: "representative-fictional",
+    authenticityNote: "Representative Choggu evening grill, music terrace, and social spot.",
+  },
+  street_water_hawker: {
+    id: "street_water_hawker",
+    title: "Street Water & Sobolo Hawker",
+    dagbaniTitle: "Kom Kohira",
+    district: "Tamale Sidewalks",
+    category: "street_vendor",
+    openHour: 6.5,
+    closeHour: 20.5,
+    authenticityStatus: "representative-fictional",
+    authenticityNote: "Everyday Tamale street hawker carrying chilled water & sobolo.",
+  },
+  street_koose_seller: {
+    id: "street_koose_seller",
+    title: "Roadside Kɔɔsɛ & Waakye Woman",
+    dagbaniTitle: "Kɔɔsɛ Kohira",
+    district: "Tamale Street Corners",
+    category: "street_vendor",
+    openHour: 5.5,
+    closeHour: 21.5,
+    authenticityStatus: "representative-fictional",
+    authenticityNote: "Everyday Tamale roadside breakfast & evening hot food vendor.",
+  },
+  street_groundnut_fruit: {
+    id: "street_groundnut_fruit",
+    title: "Groundnut, Yam & Fruit Hawker",
+    dagbaniTitle: "Simli ni Nyuli Kohira",
+    district: "Markets & Junctions",
+    category: "street_vendor",
+    openHour: 7,
+    closeHour: 19.5,
+    authenticityStatus: "representative-fictional",
+    authenticityNote: "Everyday Tamale mobile hawker selling roasted peanuts & sliced fruit.",
+  },
+};
+
+export function isShopOpenAtMinutes(shopId: string, gameMinutes: number): {
+  isOpen: boolean;
+  hoursLabel: string;
+} {
+  const meta = SHOP_METADATA[shopId];
+  if (!meta) return { isOpen: true, hoursLabel: "07:00 – 19:00" };
+  if (meta.openHour === 0 && meta.closeHour === 24) {
+    return { isOpen: true, hoursLabel: "Open 24 Hours" };
+  }
+  const fmt = (h: number) => {
+    const whole = Math.floor(h);
+    const mins = Math.round((h - whole) * 60);
+    return `${String(whole).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+  };
+  const hour = (((gameMinutes % 1440) + 1440) % 1440) / 60;
+  const isOpen =
+    meta.closeHour > meta.openHour
+      ? hour >= meta.openHour && hour < meta.closeHour
+      : hour >= meta.openHour || hour < meta.closeHour;
+  return {
+    isOpen,
+    hoursLabel: `${fmt(meta.openHour)} – ${fmt(meta.closeHour)}`,
+  };
+}
 
 export const INITIAL_ERRANDS: ErrandQuest[] = [
   {
@@ -674,7 +1446,7 @@ export const INITIAL_ERRANDS: ErrandQuest[] = [
     targetLandmarkName: "Centre for National Culture & Weavers Guild",
     description:
       "Mama Fati wants a calabash of fresh kpakpili (shea butter) carried from Central Market to Master Weaver Alhassan.",
-    rewardCedis: 40,
+    rewardCedis: 45,
     rewardCultureXp: 35,
     completed: false,
     active: false,
@@ -688,7 +1460,7 @@ export const INITIAL_ERRANDS: ErrandQuest[] = [
     targetLandmarkName: "Tishigu & Kalpohin School Precinct",
     description:
       "Yakubu's Pragya is parked near the Interchange. Ride north with study books for Teacher Mariama.",
-    rewardCedis: 50,
+    rewardCedis: 55,
     rewardCultureXp: 30,
     completed: false,
     active: false,
@@ -702,26 +1474,264 @@ export const INITIAL_ERRANDS: ErrandQuest[] = [
     targetLandmarkName: "Dakpema Chief's Palace",
     description:
       "Carry a freshly fired Kukuo earthenware cooling pot from Kukuo west to Dakpema Palace courtyard.",
-    rewardCedis: 65,
+    rewardCedis: 70,
     rewardCultureXp: 45,
     completed: false,
     active: false,
   },
   {
     id: "errand_parts_to_hospital",
-    title: "Deliver Medical Supplies from Interchange to Teaching Hospital",
+    title: "Deliver Medical Supplies to Teaching Hospital",
     dagbaniTitle: "Asibiti Tuma zaŋ chaŋ Changli",
     giverNpcId: "fuseini_mechanic",
     targetLandmarkId: "tamale_teaching_hospital",
     targetLandmarkName: "Tamale Teaching Hospital",
     description:
       "Bring a sealed box of clinic tools from Lamashegu east along Salaga Rd to Nurse Amina at Tamale Teaching Hospital.",
-    rewardCedis: 75,
+    rewardCedis: 80,
+    rewardCultureXp: 45,
+    completed: false,
+    active: false,
+  },
+  {
+    id: "errand_jerseys_to_stadium",
+    title: "Deliver Matchday Jerseys to Aliu Mahama Stadium",
+    dagbaniTitle: "Bɔɔli Nɛma zaŋ chaŋ Stadium",
+    giverNpcId: "yakubu_rider",
+    targetLandmarkId: "aliu_mahama_stadium",
+    targetLandmarkName: "Aliu Mahama Sports Stadium",
+    description:
+      "Bring a bundle of Northern youth team jerseys from Central Market northwest to Aliu Mahama Sports Stadium gate.",
+    rewardCedis: 85,
     rewardCultureXp: 40,
     completed: false,
     active: false,
   },
+  {
+    id: "errand_art_flyers_to_scca",
+    title: "Carry Exhibition Archive Prints to SCCA Vittin",
+    dagbaniTitle: "Baŋsim Gbanɔ zaŋ chaŋ SCCA",
+    giverNpcId: "ibrahim_curator",
+    targetLandmarkId: "scca_red_clay",
+    targetLandmarkName: "SCCA Tamale & Red Clay Studio Precinct",
+    description:
+      "Pick up newly printed Dagbon festival archive posters and carry them east along High Street to SCCA Tamale in Vittin.",
+    rewardCedis: 95,
+    rewardCultureXp: 55,
+    completed: false,
+    active: false,
+  },
+  {
+    id: "errand_tonic_to_dungu",
+    title: "Deliver Study Notes & Tonics to Dungu Campus",
+    dagbaniTitle: "Karimbu Nɛma zaŋ chaŋ Dungu",
+    giverNpcId: "nurse_amina",
+    targetLandmarkId: "dungu_campus",
+    targetLandmarkName: "Dungu Academic & Residential Quarter",
+    description:
+      "Take community health field booklets southwest along Salaga/Dungu Road for UDS medical students at Dungu.",
+    rewardCedis: 90,
+    rewardCultureXp: 50,
+    completed: false,
+    active: false,
+  },
+  {
+    id: "errand_passenger_to_airport",
+    title: "N10 Airport Express Dispatch Run",
+    dagbaniTitle: "Alopile Paaki Tuma",
+    giverNpcId: "yakubu_rider",
+    targetLandmarkId: "tamale_airport",
+    targetLandmarkName: "Tamale International Airport",
+    description:
+      "Ride straight north up Bolgatanga N10 past Kanvilli to deliver travel documents to Tamale International Airport.",
+    rewardCedis: 110,
+    rewardCultureXp: 50,
+    completed: false,
+    active: false,
+  },
+  {
+    id: "errand_smock_to_aboabo",
+    title: "Deliver Woven Indigo Strips to Aboabo Tailors",
+    dagbaniTitle: "Batakari Nɛma zaŋ chaŋ Aboabo",
+    giverNpcId: "alhassan_weaver",
+    targetLandmarkId: "aboabo_market",
+    targetLandmarkName: "Aboabo Market",
+    description:
+      "Master Alhassan finished weaving narrow cotton strips—deliver them west to the tailors at Aboabo Market.",
+    rewardCedis: 60,
+    rewardCultureXp: 40,
+    completed: false,
+    active: false,
+  },
+  {
+    id: "errand_hardware_to_kalpohin",
+    title: "Evening Grill Supply Run to Jakarayili Lounge",
+    dagbaniTitle: "Nimdi Nɛma zaŋ chaŋ High St",
+    giverNpcId: "mama_fati",
+    targetLandmarkId: "jubilee_night_spot",
+    targetLandmarkName: "Daa Waakye, Chichinga & Night Lounge",
+    description:
+      "Carry fresh spices and kuli-kuli peanut pepper to the evening grill spot on East High Street.",
+    rewardCedis: 55,
+    rewardCultureXp: 35,
+    completed: false,
+    active: false,
+  },
 ];
+
+const CITY_GIG_TEMPLATES: Array<Omit<CityGigTask, "id" | "distanceMeters">> = [
+  {
+    title: "Pragya Passenger Fare: Interchange → Teaching Hospital",
+    dagbaniTitle: "Pragya Chaŋ Asibiti",
+    category: "passenger_ride",
+    pickupLabel: "Central Rank",
+    targetLandmarkId: "tamale_teaching_hospital",
+    targetLandmarkName: "Tamale Teaching Hospital",
+    description: "Drop off a hospital visitor from central Tamale down Salaga/Changli Rd.",
+    rewardCedis: 65,
+    rewardCultureXp: 20,
+  },
+  {
+    title: "Hot Waakye & Chichinga Delivery → Aliu Mahama Stadium",
+    dagbaniTitle: "Zaŋ Bɛŋa chaŋ Stadium",
+    category: "food_delivery",
+    pickupLabel: "High St Spot",
+    targetLandmarkId: "aliu_mahama_stadium",
+    targetLandmarkName: "Aliu Mahama Sports Stadium",
+    description: "Deliver hot packed waakye and grilled skewers to coaches in Sagnarigu.",
+    rewardCedis: 75,
+    rewardCultureXp: 25,
+  },
+  {
+    title: "Moto Express Run → Tamale International Airport",
+    dagbaniTitle: "Moto Chaŋ Alopile Paaki",
+    category: "passenger_ride",
+    pickupLabel: "High Street",
+    targetLandmarkId: "tamale_airport",
+    targetLandmarkName: "Tamale International Airport",
+    description: "Fast northern corridor dispatch straight up N10 past Kanvilli.",
+    rewardCedis: 105,
+    rewardCultureXp: 30,
+  },
+  {
+    title: "Student Parcels & Bread → Dungu Campus Hub",
+    dagbaniTitle: "Paano zaŋ chaŋ Dungu",
+    category: "food_delivery",
+    pickupLabel: "Tishigu Bakery",
+    targetLandmarkId: "dungu_student_hub",
+    targetLandmarkName: "Dungu Campus Café & Bookshop",
+    description: "Carry fresh Tishigu sugar bread and printed course packs to Dungu hostels.",
+    rewardCedis: 85,
+    rewardCultureXp: 30,
+  },
+  {
+    title: "Building Tools & Hinges → Kalpohin Yard",
+    dagbaniTitle: "Mɛbu Nɛma zaŋ chaŋ Kalpohin",
+    category: "supply_run",
+    pickupLabel: "Lamashegu",
+    targetLandmarkId: "kalpohin_hardware_carpentry",
+    targetLandmarkName: "Kalpohin Building Supplies & Welding",
+    description: "Transport welding rods and door hinges northeast to Kalpohin artisans.",
+    rewardCedis: 60,
+    rewardCultureXp: 25,
+  },
+  {
+    title: "Cultural Field Photo Check → SCCA & Red Clay Vittin",
+    dagbaniTitle: "Anfooni Tuma zaŋ chaŋ SCCA",
+    category: "city_survey",
+    pickupLabel: "Archive Desk",
+    targetLandmarkId: "scca_red_clay",
+    targetLandmarkName: "SCCA Tamale & Red Clay Studio Precinct",
+    description: "Inspect and document the red-brick gallery facade on the Vittin eastern edge.",
+    rewardCedis: 95,
+    rewardCultureXp: 40,
+  },
+  {
+    title: "Earthenware Water Jars → Kukuo Pottery Market",
+    dagbaniTitle: "Duɣu Tuma zaŋ chaŋ Kukuo",
+    category: "supply_run",
+    pickupLabel: "Central Market",
+    targetLandmarkId: "kukuo_market_pottery",
+    targetLandmarkName: "Kukuo Market & Pottery Centre",
+    description: "Pick up market orders east in Kukuo's pottery courtyard.",
+    rewardCedis: 65,
+    rewardCultureXp: 25,
+  },
+  {
+    title: "Evening Grill Ride → Choggu Night Spot",
+    dagbaniTitle: "Chaŋ Choggu Zaawuni",
+    category: "passenger_ride",
+    pickupLabel: "Jubilee Park",
+    targetLandmarkId: "choggu_night_spot",
+    targetLandmarkName: "Choggu Evening Spot & Grill",
+    description: "Give evening diners a smooth lift northwest to Choggu's lighted grill terrace.",
+    rewardCedis: 70,
+    rewardCultureXp: 25,
+  },
+  {
+    title: "Pharmacy Refill → Nyohini Barber Studio",
+    dagbaniTitle: "Tiim zaŋ chaŋ Nyohini",
+    category: "supply_run",
+    pickupLabel: "Tishigu Pharmacy",
+    targetLandmarkId: "nyohini_barber_salon",
+    targetLandmarkName: "Nyohini Fade & Braids Studio",
+    description: "Deliver antiseptic grooming supplies and bottled water west to Nyohini.",
+    rewardCedis: 55,
+    rewardCultureXp: 20,
+  },
+  {
+    title: "Hospitality Linen Drop → Jubilee Rest Guest House",
+    dagbaniTitle: "Nɛma zaŋ chaŋ Saamba Doɣu",
+    category: "supply_run",
+    pickupLabel: "Aboabo Cloth",
+    targetLandmarkId: "jakarayili_guesthouse",
+    targetLandmarkName: "Jubilee Rest Guest House",
+    description: "Deliver freshly pressed cotton sheets to Jakarayili guest house reception.",
+    rewardCedis: 45,
+    rewardCultureXp: 20,
+  },
+];
+
+export function generateAvailableCityGigs(
+  playerX: number,
+  playerZ: number,
+  excludeLandmarkIds: string[] = []
+): CityGigTask[] {
+  const candidates = CITY_GIG_TEMPLATES.map((tpl, idx) => {
+    const lm = TAMALE_LANDMARKS.find((l) => l.id === tpl.targetLandmarkId);
+    const distUnits = lm ? Math.hypot(lm.x - playerX, lm.z - playerZ) : 90;
+    return {
+      ...tpl,
+      id: `gig_${idx}_${tpl.targetLandmarkId}`,
+      distanceMeters: Math.round(distUnits * 10),
+    };
+  }).filter((g) => !excludeLandmarkIds.includes(g.targetLandmarkId) && g.distanceMeters > 260);
+
+  const pool = candidates.length >= 4 ? candidates : CITY_GIG_TEMPLATES.map((tpl, idx) => {
+    const lm = TAMALE_LANDMARKS.find((l) => l.id === tpl.targetLandmarkId);
+    const distUnits = lm ? Math.hypot(lm.x - playerX, lm.z - playerZ) : 90;
+    return {
+      ...tpl,
+      id: `gig_${idx}_${tpl.targetLandmarkId}`,
+      distanceMeters: Math.round(distUnits * 10),
+    };
+  });
+
+  // Return balanced mix of categories sorted smoothly by distance
+  const sorted = [...pool].sort((a, b) => a.distanceMeters - b.distanceMeters);
+  const picked: CityGigTask[] = [];
+  if (sorted[0]) picked.push(sorted[0]);
+  if (sorted[Math.floor(sorted.length * 0.35)]) picked.push(sorted[Math.floor(sorted.length * 0.35)]);
+  if (sorted[Math.floor(sorted.length * 0.7)]) picked.push(sorted[Math.floor(sorted.length * 0.7)]);
+  if (sorted[sorted.length - 1]) picked.push(sorted[sorted.length - 1]);
+
+  const seen = new Set<string>();
+  return picked.filter((item) => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
 
 export const TAMALE_NPCS: NpcProfile[] = [
   {

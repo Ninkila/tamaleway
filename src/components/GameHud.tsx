@@ -49,6 +49,7 @@ interface GameHudProps {
     isErrandTarget: boolean;
   } | null;
   activeErrandTitle: string | null;
+  activeGigTitle?: string | null;
   activeCityEventLabel: string;
   weather: WeatherType;
   cameraMode: CameraMode;
@@ -99,6 +100,7 @@ export const GameHud: React.FC<GameHudProps> = ({
   nearbyChatter,
   nearestGuidance,
   activeErrandTitle,
+  activeGigTitle = null,
   activeCityEventLabel,
   weather,
   cameraMode,
@@ -174,6 +176,11 @@ export const GameHud: React.FC<GameHudProps> = ({
           {activeErrandTitle && (
             <div className="text-[11px] text-amber-300 mt-1 pt-1 border-t border-white/10 truncate">
               Errand: {activeErrandTitle}
+            </div>
+          )}
+          {activeGigTitle && (
+            <div className="text-[11px] text-emerald-300 mt-1 pt-1 border-t border-white/10 truncate">
+              Gig: {activeGigTitle}
             </div>
           )}
         </div>
@@ -391,54 +398,56 @@ export const GameHud: React.FC<GameHudProps> = ({
         )}
 
         {/* Desktop Contextual Prompts (On mobile touch mode, MobileTouchControls renders dedicated right-thumb buttons) */}
-        {!isTouchControlsVisible && !isDriving && (nearby || nearbyVehicle) && (
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {nearby && (
-              <button
-                type="button"
-                onClick={onTriggerInteract}
-                className="pointer-events-auto flex items-center gap-2.5 bg-[#171310]/95 hover:bg-[#221c17] border border-amber-500/50 rounded-xl px-4 py-2 shadow-lg transition-colors cursor-pointer"
-              >
-                <span className="font-mono-num text-xs font-bold bg-amber-500 text-[#12100e] px-2 py-0.5 rounded">
-                  {keyHint(keyBindings.interact)}
-                </span>
-                <div className="text-left">
-                  <div className="text-xs sm:text-sm font-semibold text-[#f8f5ef] whitespace-nowrap">
-                    {nearby.label}
-                  </div>
-                  {nearby.sublabel && (
-                    <div className="text-[11px] text-[#bfb7aa] whitespace-nowrap">
-                      {nearby.sublabel}
+        {!isTouchControlsVisible &&
+          ((!isDriving && (nearby || nearbyVehicle)) ||
+            (isDriving && nearby?.kind === "delivery")) && (
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {nearby && (
+                <button
+                  type="button"
+                  onClick={onTriggerInteract}
+                  className="pointer-events-auto flex items-center gap-2.5 bg-[#171310]/95 hover:bg-[#221c17] border border-amber-500/50 rounded-xl px-4 py-2 shadow-lg transition-colors cursor-pointer"
+                >
+                  <span className="font-mono-num text-xs font-bold bg-amber-500 text-[#12100e] px-2 py-0.5 rounded">
+                    {keyHint(keyBindings.interact)}
+                  </span>
+                  <div className="text-left">
+                    <div className="text-xs sm:text-sm font-semibold text-[#f8f5ef] whitespace-nowrap">
+                      {nearby.label}
                     </div>
-                  )}
-                </div>
-              </button>
-            )}
+                    {nearby.sublabel && (
+                      <div className="text-[11px] text-[#bfb7aa] whitespace-nowrap">
+                        {nearby.sublabel}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              )}
 
-            {nearbyVehicle && (
-              <button
-                type="button"
-                onClick={onToggleVehicle}
-                className="pointer-events-auto flex items-center gap-2.5 bg-[#142018]/95 hover:bg-[#1c2e22] border border-emerald-500/50 rounded-xl px-4 py-2 shadow-lg transition-colors cursor-pointer"
-              >
-                <span className="font-mono-num text-xs font-bold bg-emerald-500 text-[#071c0e] px-2 py-0.5 rounded">
-                  {keyHint(keyBindings.vehicleToggle)}
-                </span>
-                <div className="text-left">
-                  <div className="text-xs sm:text-sm font-semibold text-[#f8f5ef] whitespace-nowrap flex items-center gap-1.5">
-                    <Bike className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>{nearbyVehicle.label}</span>
-                  </div>
-                  {nearbyVehicle.sublabel && (
-                    <div className="text-[11px] text-[#b8d4c2] whitespace-nowrap">
-                      {nearbyVehicle.sublabel}
+              {!isDriving && nearbyVehicle && (
+                <button
+                  type="button"
+                  onClick={onToggleVehicle}
+                  className="pointer-events-auto flex items-center gap-2.5 bg-[#142018]/95 hover:bg-[#1c2e22] border border-emerald-500/50 rounded-xl px-4 py-2 shadow-lg transition-colors cursor-pointer"
+                >
+                  <span className="font-mono-num text-xs font-bold bg-emerald-500 text-[#071c0e] px-2 py-0.5 rounded">
+                    {keyHint(keyBindings.vehicleToggle)}
+                  </span>
+                  <div className="text-left">
+                    <div className="text-xs sm:text-sm font-semibold text-[#f8f5ef] whitespace-nowrap flex items-center gap-1.5">
+                      <Bike className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>{nearbyVehicle.label}</span>
                     </div>
-                  )}
-                </div>
-              </button>
-            )}
-          </div>
-        )}
+                    {nearbyVehicle.sublabel && (
+                      <div className="text-[11px] text-[#b8d4c2] whitespace-nowrap">
+                        {nearbyVehicle.sublabel}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              )}
+            </div>
+          )}
 
         {/* Driving Speedometer & Desktop/Touch Vehicle Info */}
         {isDriving && (

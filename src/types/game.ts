@@ -39,6 +39,42 @@ export interface DialogueTurn {
   source?: "curated" | "gemini" | "offline";
 }
 
+export interface ShopServiceAction {
+  id: string;
+  label: string;
+  dagbaniLabel: string;
+  price: number;
+  serviceType: "haircut" | "rest_hotel" | "gym_workout" | "airtime_data" | "print_doc" | "repair";
+  description: string;
+  energyRestore?: number;
+  advanceMinutes?: number;
+  cultureXp?: number;
+}
+
+export interface ShopMetadata {
+  id: string;
+  title: string;
+  dagbaniTitle: string;
+  district: string;
+  category:
+    | "market"
+    | "chop_bar"
+    | "nightlife"
+    | "pharmacy_bakery"
+    | "barber_salon"
+    | "guesthouse"
+    | "fitness_print"
+    | "hardware_artisan"
+    | "telecom_bank"
+    | "cultural_craft"
+    | "street_vendor";
+  openHour: number; // 0..24
+  closeHour: number; // 0..24 (can be < openHour for overnight/late-night spots)
+  authenticityStatus: "real-institution" | "representative-fictional";
+  authenticityNote: string;
+  services?: ShopServiceAction[];
+}
+
 export interface ShopItem {
   id: string;
   name: string;
@@ -74,6 +110,22 @@ export interface ErrandQuest {
   active: boolean;
 }
 
+export type CityGigCategory = "passenger_ride" | "food_delivery" | "supply_run" | "city_survey";
+
+export interface CityGigTask {
+  id: string;
+  title: string;
+  dagbaniTitle: string;
+  category: CityGigCategory;
+  pickupLabel: string;
+  targetLandmarkId: string;
+  targetLandmarkName: string;
+  description: string;
+  rewardCedis: number;
+  rewardCultureXp: number;
+  distanceMeters: number;
+}
+
 export type LandmarkType =
   | "market"
   | "mosque"
@@ -96,6 +148,10 @@ export interface LandmarkData {
   district: string;
   authenticityNote: string;
   osmCoords?: string;
+  realDistanceFromInterchangeKm?: number;
+  referenceImagePath?: string;
+  historicalSignificance?: string;
+  isRepresentativeFictional?: boolean;
   x: number;
   z: number;
   radius: number;
@@ -264,15 +320,17 @@ export interface NpcProfile {
   }>;
 }
 
-export type InteractionVerb = "talk" | "shop" | "enter" | "vehicle" | "deliver";
+export type InteractionVerb = "talk" | "shop" | "enter" | "vehicle" | "deliver" | "buy";
 
 export interface NearbyInteractable {
-  kind: "npc" | "vehicle" | "building" | "delivery";
+  kind: "npc" | "vehicle" | "building" | "delivery" | "vendor";
   id: string;
   label: string;
   sublabel?: string;
   interactionVerb?: InteractionVerb;
   vehicleKind?: "pragya" | "motorcycle";
+  shopId?: string;
+  isGigDelivery?: boolean;
 }
 
 export interface NearbyChatter {
@@ -345,5 +403,8 @@ export interface SavedGameState {
   learnedVocabIds: string[];
   activeErrandId: string | null;
   completedErrands: string[];
+  activeGig?: CityGigTask | null;
+  completedGigsCount?: number;
+  totalEarnedCedis?: number;
   playerPos: { x: number; z: number; rotY: number };
 }

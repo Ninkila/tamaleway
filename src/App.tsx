@@ -9,6 +9,7 @@ import { CommunityPortalModal } from "./components/CommunityPortalModal";
 import { CustomizeModal } from "./components/CustomizeModal";
 import { DagbaniGuideModal } from "./components/DagbaniGuideModal";
 import { DialogueModal } from "./components/DialogueModal";
+import { DiscoveryCardOverlay } from "./components/DiscoveryCardOverlay";
 import { GameHud } from "./components/GameHud";
 import { BuildingInteriorModal, PauseModal } from "./components/InteriorAndPauseModals";
 import { InventoryJournalModal } from "./components/InventoryJournalModal";
@@ -21,6 +22,7 @@ import { ShopModal } from "./components/ShopAndErrandsModal";
 import { TamaleEventsModal } from "./components/TamaleEventsModal";
 import { INITIAL_CITY_EVENT_DESCRIPTIONS } from "./data/tamaleExpansionData";
 import {
+  generateAvailableCityGigs,
   INITIAL_ERRANDS,
   TAMALE_LANDMARKS,
   TAMALE_NPCS,
@@ -29,6 +31,7 @@ import { TamaleAudioEngine } from "./game/audio";
 import { TamaleEngine } from "./game/TamaleEngine";
 import {
   ActiveCityEventMode,
+  CityGigTask,
   DEFAULT_KEY_BINDINGS,
   ErrandQuest,
   GameSettings,
@@ -40,6 +43,7 @@ import {
   PlayerCustomization,
   SavedGameState,
   ShopItem,
+  ShopServiceAction,
   TimePeriod,
   WeatherType,
 } from "./types/game";
@@ -152,6 +156,13 @@ export default function App() {
   const [discoveredLandmarks, setDiscoveredLandmarks] = useState<string[]>(["tamale_interchange"]);
   const [learnedVocabIds, setLearnedVocabIds] = useState<string[]>(["dasuba", "antire"]);
   const [errands, setErrands] = useState<ErrandQuest[]>(INITIAL_ERRANDS);
+  const [activeGig, setActiveGig] = useState<CityGigTask | null>(null);
+  const [availableGigs, setAvailableGigs] = useState<CityGigTask[]>(() =>
+    generateAvailableCityGigs(14, 14)
+  );
+  const [completedGigsCount, setCompletedGigsCount] = useState(0);
+  const [totalEarnedCedis, setTotalEarnedCedis] = useState(0);
+  const [activeDiscoveryCard, setActiveDiscoveryCard] = useState<LandmarkData | null>(null);
 
   // Live HUD state synced from engine
   const [district, setDistrict] = useState("Naa Gbewaa Interchange · Central Tamale");
@@ -193,6 +204,8 @@ export default function App() {
 
   const errandsRef = useRef(errands);
   errandsRef.current = errands;
+  const activeGigRef = useRef(activeGig);
+  activeGigRef.current = activeGig;
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
@@ -258,11 +271,31 @@ export default function App() {
         prev.map((e) => (e.id === active.id ? { ...e, active: false, completed: true } : e))
       );
       setMoneyCedis((m) => m + active.rewardCedis);
+      setTotalEarnedCedis((t) => t + active.rewardCedis);
       setCultureXp((xp) => xp + active.rewardCultureXp);
       engineRef.current?.setActiveErrandLandmark(null);
       audioRef.current?.playChime("success");
       showToast(
         `Errand completed! Earned GH₵ ${active.rewardCedis} & +${active.rewardCultureXp} Culture XP`
+      );
+    },
+    [showToast]
+  );
+
+  const handleCompleteActiveGig = useCallback(
+    (landmarkId: string) => {
+      const currentGig = activeGigRef.current;
+      if (!currentGig || currentGig.targetLandmarkId !== landmarkId) return;
+
+      setActiveGig(null);
+      setCompletedGigsCount((c) => c + 1);
+      setTotalEarnedCedis((t) => t + currentGig.rewardCedis);
+      setMoneyCedis((m) => m + currentGig.rewardCedis);
+      setCultureXp((xp) => xp + currentGig.rewardCultureXp);
+      engineRef.current?.setActiveGigLandmark(null);
+      audioRef.current?.playChime("success");
+      showToast(
+        `Gig completed! Earned GH₵ ${currentGig.rewardCedis} & +${currentGig.rewardCultureXp} Culture XP`
       );
     },
     [showToast]
@@ -299,6 +332,7 @@ export default function App() {
             const lm = TAMALE_LANDMARKS.find((l) => l.id === lmId);
             if (lm) {
               setCultureXp((xp) => xp + 10);
+              setActiveDiscoveryCard(lm);
               showToast(`Discovered ${lm.name} (${lm.dagbaniLabel})`);
             }
             return [...prev, lmId];
@@ -310,8 +344,14 @@ export default function App() {
           setActiveNpcId(item.id);
         } else if (item.kind === "building") {
           setActiveInteriorLandmarkId(item.id);
+        } else if (item.kind === "vendor") {
+          if (item.shopId) setActiveShopId(item.shopId);
         } else if (item.kind === "delivery") {
-          handleCompleteActiveErrand(item.id);
+          if (item.isGigDelivery) {
+            handleCompleteActiveGig(item.id);
+          } else {
+            handleCompleteActiveErrand(item.id);
+          }
         }
       },
       onWebGLContextChange: (lost) => setWebglLost(lost),
@@ -327,7 +367,7 @@ export default function App() {
       engineRef.current = null;
       audioRef.current = null;
     };
-  }, [applySettingsToEngines, handleCompleteActiveErrand, showToast]);
+  }, [applySettingsToEngines, handleCompleteActiveErrand, handleCompleteActiveGig, showToast]);
 
   // Pause engine whenever menu, exit screen, or any modal is open
   const anyModalOpen =
@@ -424,7 +464,7 @@ export default function App() {
   const handleSaveGame = useCallback(() => {
     const activeErr = errands.find((e) => e.active && !e.completed);
     const saveObj: SavedGameState = {
-      version: 2,
+      version: 3,
       moneyCedis,
       energy,
       cultureXp,
@@ -439,6 +479,9 @@ export default function App() {
       learnedVocabIds,
       activeErrandId: activeErr ? activeErr.id : null,
       completedErrands: errands.filter((e) => e.completed).map((e) => e.id),
+      activeGig,
+      completedGigsCount,
+      totalEarnedCedis,
       playerPos,
     };
     try {
@@ -463,6 +506,9 @@ export default function App() {
     friendships,
     discoveredLandmarks,
     learnedVocabIds,
+    activeGig,
+    completedGigsCount,
+    totalEarnedCedis,
     playerPos,
     showToast,
   ]);
@@ -516,6 +562,12 @@ export default function App() {
       } else {
         engineRef.current?.setActiveErrandLandmark(null);
       }
+      const loadedGig = s.activeGig ?? null;
+      setActiveGig(loadedGig);
+      setCompletedGigsCount(s.completedGigsCount ?? 0);
+      setTotalEarnedCedis(s.totalEarnedCedis ?? 0);
+      engineRef.current?.setActiveGigLandmark(loadedGig ? loadedGig.targetLandmarkId : null);
+
       if (s.playerPos) {
         engineRef.current?.teleportTo(s.playerPos.x, s.playerPos.z, s.playerPos.rotY);
       }
@@ -536,10 +588,16 @@ export default function App() {
     setWeather("clear");
     setActiveCityEvent("ordinary_day");
     setErrands(INITIAL_ERRANDS);
+    setActiveGig(null);
+    setCompletedGigsCount(0);
+    setTotalEarnedCedis(0);
+    setActiveDiscoveryCard(null);
+    setAvailableGigs(generateAvailableCityGigs(14, 14));
     engineRef.current?.setWeather("clear");
     engineRef.current?.setActiveCityEvent("ordinary_day");
     engineRef.current?.setGameMinutes(9 * 60 + 15);
     engineRef.current?.setActiveErrandLandmark(null);
+    engineRef.current?.setActiveGigLandmark(null);
     engineRef.current?.teleportTo(14, 14, -Math.PI * 0.78);
     setExitedScreen(false);
     setShowPause(false);
@@ -638,6 +696,24 @@ export default function App() {
     }
   };
 
+  const handleUseShopService = (service: ShopServiceAction) => {
+    if (moneyCedis < service.price) return;
+    setMoneyCedis((m) => m - service.price);
+    if (service.energyRestore) {
+      setEnergy((e) => Math.min(100, e + service.energyRestore!));
+    }
+    if (service.cultureXp) {
+      setCultureXp((xp) => xp + service.cultureXp!);
+    }
+    if (service.advanceMinutes) {
+      const nextMins = (((gameMinutes + service.advanceMinutes) % 1440) + 1440) % 1440;
+      setGameMinutes(nextMins);
+      engineRef.current?.setGameMinutes(nextMins);
+    }
+    audioRef.current?.playChime("success");
+    showToast(`${service.label} (${service.dagbaniLabel}) completed!`);
+  };
+
   const handleConsumeItem = (itemId: string) => {
     const item = inventory.find((i) => i.id === itemId);
     if (!item || !item.energyRestore) return;
@@ -664,6 +740,31 @@ export default function App() {
     setActiveNpcId(null);
     audioRef.current?.playChime("success");
     showToast(`Errand started: Head to ${err.targetLandmarkName} (amber beacon).`);
+  };
+
+  const handleAcceptGig = (gig: CityGigTask) => {
+    setActiveGig(gig);
+    engineRef.current?.setActiveGigLandmark(gig.targetLandmarkId);
+    setShowInventory(false);
+    audioRef.current?.playChime("success");
+    showToast(`Gig accepted: Head to ${gig.targetLandmarkName} (green beacon).`);
+  };
+
+  const handleAbandonGig = () => {
+    setActiveGig(null);
+    engineRef.current?.setActiveGigLandmark(null);
+    showToast("Active gig cancelled.");
+  };
+
+  const handleRefreshGigs = () => {
+    setAvailableGigs(
+      generateAvailableCityGigs(
+        playerPos.x,
+        playerPos.z,
+        activeGig ? [activeGig.targetLandmarkId] : []
+      )
+    );
+    showToast("Refreshed Tamale city dispatch board.");
   };
 
   const handleLearnVocab = useCallback((vocabIds: string[]) => {
@@ -788,6 +889,7 @@ export default function App() {
           nearbyChatter={nearbyChatter}
           nearestGuidance={nearestGuidance}
           activeErrandTitle={activeErrand ? activeErrand.title : null}
+          activeGigTitle={activeGig ? activeGig.title : null}
           activeCityEventLabel={INITIAL_CITY_EVENT_DESCRIPTIONS[activeCityEvent].label}
           weather={weather}
           cameraMode={settings.cameraMode}
@@ -828,6 +930,14 @@ export default function App() {
           }}
           onChangeCameraMode={(m) => updateSettings({ cameraMode: m })}
           onChangeLanguageMode={(m) => updateSettings({ languageMode: m })}
+        />
+      )}
+
+      {/* Non-blocking Landmark Discovery Card */}
+      {!inMainMenu && !exitedScreen && !anyModalOpen && activeDiscoveryCard && (
+        <DiscoveryCardOverlay
+          landmark={activeDiscoveryCard}
+          onClose={() => setActiveDiscoveryCard(null)}
         />
       )}
 
@@ -906,7 +1016,10 @@ export default function App() {
         <ShopModal
           shopId={activeShopId}
           moneyCedis={moneyCedis}
+          energy={energy}
+          gameMinutes={gameMinutes}
           onBuyItem={handleBuyItem}
+          onUseService={handleUseShopService}
           onClose={() => setActiveShopId(null)}
         />
       )}
@@ -933,7 +1046,12 @@ export default function App() {
           playerPos={playerPos}
           discoveredLandmarks={discoveredLandmarks}
           activeErrandLandmarkId={activeErrand ? activeErrand.targetLandmarkId : null}
+          activeGigLandmarkId={activeGig ? activeGig.targetLandmarkId : null}
           npcStates={npcStates}
+          onInspectLandmark={(lm) => {
+            setShowMap(false);
+            setActiveDiscoveryCard(lm);
+          }}
           onFastTravel={(lm: LandmarkData) => {
             let tx = lm.x;
             let tz = lm.z + 15;
@@ -1048,7 +1166,7 @@ export default function App() {
         />
       )}
 
-      {/* Bag, Errands & Progression */}
+      {/* Bag, Gigs, Errands & Progression */}
       {showInventory && (
         <InventoryJournalModal
           inventory={inventory}
@@ -1058,6 +1176,18 @@ export default function App() {
           cultureXp={cultureXp}
           discoveredCount={discoveredLandmarks.length}
           totalLandmarks={TAMALE_LANDMARKS.length}
+          playerPos={playerPos}
+          activeGig={activeGig}
+          availableGigs={availableGigs}
+          completedGigsCount={completedGigsCount}
+          totalEarnedCedis={totalEarnedCedis}
+          onAcceptGig={handleAcceptGig}
+          onAbandonGig={handleAbandonGig}
+          onRefreshGigs={handleRefreshGigs}
+          onAcceptErrand={(errandId) => {
+            handleAcceptErrand(errandId);
+            setShowInventory(false);
+          }}
           onConsumeItem={handleConsumeItem}
           onClose={() => setShowInventory(false)}
         />

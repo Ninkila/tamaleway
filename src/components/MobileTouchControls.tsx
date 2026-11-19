@@ -174,6 +174,10 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
       ? "TALK"
       : nearby?.interactionVerb === "enter"
       ? "ENTER"
+      : nearby?.interactionVerb === "buy"
+      ? "BUY"
+      : nearby?.interactionVerb === "deliver"
+      ? "DROP OFF"
       : "INTERACT";
 
   const ContextIcon =
@@ -317,6 +321,20 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
         </div>
       ) : (
         <div className="fixed right-4 bottom-5 sm:right-6 sm:bottom-6 flex flex-col items-end gap-2.5 pointer-events-none">
+          {nearby?.kind === "delivery" && (
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                vibrate(20);
+                onInteract();
+              }}
+              className="pointer-events-auto touch-gameplay-pad min-h-[48px] px-4 rounded-xl bg-emerald-500 active:scale-95 text-[#071c0e] border border-emerald-200 font-bold text-xs flex items-center justify-center gap-1.5 shadow-xl"
+            >
+              <ShoppingBag className="w-4 h-4 shrink-0" />
+              <span className="whitespace-nowrap">DROP OFF / COMPLETE</span>
+            </button>
+          )}
           {/* Top Utility Row: Horn, Handbrake, Exit Vehicle */}
           <div className="flex items-center gap-2">
             <button

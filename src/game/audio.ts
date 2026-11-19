@@ -3,7 +3,7 @@ interface SpatialEmitter {
   gain: GainNode;
   x: number;
   z: number;
-  kind: "market" | "sizzle" | "radio" | "mechanic" | "loom";
+  kind: "market" | "sizzle" | "radio" | "mechanic" | "loom" | "lounge";
   phaseOffset: number;
   lastBurstAt: number;
 }
@@ -325,6 +325,32 @@ export class TamaleAudioEngine {
       phaseOffset: 1.1,
       lastBurstAt: 0,
     });
+
+    // 5. Evening & Nightlife Lounges, Open-Air Grills & Spots (active 17:00 - 02:00)
+    const loungeSpots: Array<[number, number]> = [
+      [34, -12],   // Daa Waakye & Night Lounge
+      [86, 36],    // Jubilee Evening Plaza
+      [-120, 12],  // Aboabo Grill
+      [-84, 110],  // Lamashegu Evening Spot
+      [-84, -142], // Choggu Night Spot & Grill
+      [-144, 144], // Dungu Evening Student Café
+    ];
+    for (let i = 0; i < loungeSpots.length; i++) {
+      const [lx, lz] = loungeSpots[i];
+      const loungePanner = this.createSpatialPanner(lx, 1.8, lz, 7, 44);
+      const loungeGain = this.ctx.createGain();
+      loungeGain.gain.value = 1.0;
+      loungeGain.connect(loungePanner);
+      this.spatialEmitters.push({
+        panner: loungePanner,
+        gain: loungeGain,
+        x: lx,
+        z: lz,
+        kind: "lounge",
+        phaseOffset: i * 1.1,
+        lastBurstAt: 0,
+      });
+    }
   }
 
   public setIndoorMode(indoor: boolean) {
@@ -490,6 +516,12 @@ export class TamaleAudioEngine {
           em.lastBurstAt = time;
           this.playLoomShuttle(em.gain);
         }
+      } else if (em.kind === "lounge") {
+        const isNightSpotOpen = hour >= 17.0 || hour < 2.0;
+        if (isNightSpotOpen && dist < 40 && time - em.lastBurstAt > 0.28) {
+          em.lastBurstAt = time;
+          this.playNightLoungeBeat(em.gain, time);
+        }
       }
     }
 
@@ -599,6 +631,49 @@ export class TamaleAudioEngine {
     gain.connect(dest);
     osc.start(now);
     osc.stop(now + 0.07);
+  }
+
+  private playNightLoungeBeat(dest: AudioNode, time: number) {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const step = Math.floor(time * 3.5) % 8;
+    const bassFreqs = [110, 0, 146.83, 130.81, 110, 0, 164.81, 130.81];
+    const leadFreqs = [329.63, 392.0, 440.0, 392.0, 523.25, 440.0, 392.0, 329.63];
+
+    // Warm West African highlife bass pulse on downbeats
+    const bf = bassFreqs[step];
+    if (bf > 0) {
+      const bOsc = this.ctx.createOscillator();
+      const bGain = this.ctx.createGain();
+      bOsc.type = "triangle";
+      bOsc.frequency.setValueAtTime(bf, now);
+      bGain.gain.setValueAtTime(0.001, now);
+      bGain.gain.linearRampToValueAtTime(0.055, now + 0.015);
+      bGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      bOsc.connect(bGain);
+      bGain.connect(dest);
+      bOsc.start(now);
+      bOsc.stop(now + 0.24);
+    }
+
+    // Gentle filtered evening guitar/synth riff
+    if (Math.random() < 0.72) {
+      const mOsc = this.ctx.createOscillator();
+      const filter = this.ctx.createBiquadFilter();
+      const mGain = this.ctx.createGain();
+      mOsc.type = "sine";
+      mOsc.frequency.setValueAtTime(leadFreqs[step], now);
+      filter.type = "lowpass";
+      filter.frequency.value = 1400;
+      mGain.gain.setValueAtTime(0.001, now);
+      mGain.gain.linearRampToValueAtTime(0.032, now + 0.015);
+      mGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      mOsc.connect(filter);
+      filter.connect(mGain);
+      mGain.connect(dest);
+      mOsc.start(now);
+      mOsc.stop(now + 0.24);
+    }
   }
 
   private playCricketChirp(strength: number) {

@@ -61,14 +61,27 @@ export const BuildingInteriorModal: React.FC<BuildingInteriorModalProps> = ({
                 onClick={() => onOpenShop(landmark.shopId!)}
                 className="min-h-[44px] px-4 py-2 bg-amber-500 hover:bg-amber-400 text-[#12100e] font-semibold text-sm rounded-xl transition-colors whitespace-nowrap cursor-pointer"
               >
-                {landmark.id === "cultural_centre" || landmark.id === "scca_red_clay"
+                {landmark.shopId === "cultural_crafts"
                   ? "Visit Smock & Craft Guild"
-                  : landmark.id === "kukuo_market_pottery"
+                  : landmark.shopId === "kukuo_pottery"
                   ? "Browse Kukuo Pottery"
-                  : landmark.id === "lamashegu_market_hub"
-                  ? "Browse Parts & Kɔɔsɛ Stall"
-                  : landmark.id === "jubilee_night_spot"
+                  : landmark.shopId === "lamashegu_parts"
+                  ? "Open Parts & Tune-Up Stall"
+                  : landmark.shopId === "nightlife_grill_lounge" ||
+                    landmark.shopId === "choggu_night_spot"
                   ? "Order Grill, Waakye & Sobolo"
+                  : landmark.shopId === "nyohini_barber_salon"
+                  ? "Book Haircut / Braids"
+                  : landmark.shopId === "jakarayili_guesthouse"
+                  ? "Book Guest Room & Rest"
+                  : landmark.shopId === "dabokpaa_fitness_cafe"
+                  ? "Gym Workout & Print Desk"
+                  : landmark.shopId === "tishigu_pharmacy_bakery"
+                  ? "Pharmacy & Sugar Bread"
+                  : landmark.shopId === "kalpohin_hardware_carpentry"
+                  ? "Browse Timber & Tools"
+                  : landmark.shopId === "dungu_student_hub"
+                  ? "Campus Café, Printing & Waakye"
                   : "Browse Market & Goods"}
               </button>
             )}

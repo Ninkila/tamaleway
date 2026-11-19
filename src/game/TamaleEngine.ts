@@ -122,6 +122,7 @@ interface CrowdAgent {
   district: string;
   voiceName: "Kore" | "Puck" | "Charon" | "Fenrir" | "Zephyr";
   role: "walker" | "vendor" | "seated" | "student" | "child";
+  vendorShopId?: string;
   waypoints: Array<{ x: number; z: number }>;
   wpIndex: number;
   x: number;
@@ -134,6 +135,14 @@ interface CrowdAgent {
   speakingTimer: number;
   activePhrase: { dagbani: string; english: string } | null;
   speechSprite: THREE.Sprite | null;
+}
+
+interface SpatialSector {
+  gx: number;
+  gz: number;
+  centerX: number;
+  centerZ: number;
+  group: THREE.Group;
 }
 
 const DAGBANI_CROWD_PHRASES: Record<
@@ -209,11 +218,16 @@ export class TamaleEngine {
   private hemiLight!: THREE.HemisphereLight;
   private lampBulbMats: THREE.MeshStandardMaterial[] = [];
   private nightlifeMats: THREE.MeshStandardMaterial[] = [];
+  private nightLightPool: THREE.PointLight[] = [];
+  private nightSpotCoords: Array<{ x: number; y: number; z: number; color: number }> = [];
   private stadiumFloodlightMats: THREE.MeshStandardMaterial[] = [];
   private emberMats: THREE.MeshStandardMaterial[] = [];
   private windSwayTrees: Array<{ group: THREE.Group; phase: number }> = [];
   private activeCityEvent: ActiveCityEventMode = "ordinary_day";
   private eventGroups = new Map<ActiveCityEventMode, THREE.Group>();
+  private spatialSectors: SpatialSector[] = [];
+  private sectorStreamRadius = 215;
+  private lastSectorSync = -10;
 
   private playerRig!: CharacterRig;
   private playerPos = new THREE.Vector3(14, 0, 14);
@@ -263,7 +277,9 @@ export class TamaleEngine {
   private labelMaxDist = 195;
 
   private activeErrandLandmarkId: string | null = null;
+  private activeGigLandmarkId: string | null = null;
   private deliveryBeacon!: THREE.Mesh;
+  private gigBeacon!: THREE.Mesh;
 
   private weather: WeatherType = "clear";
   private gameMinutes = 9 * 60 + 15; // 09:15 AM
@@ -378,10 +394,43 @@ export class TamaleEngine {
     this.sunLight.shadow.normalBias = 0.025;
     this.scene.add(this.sunLight);
     this.scene.add(this.sunLight.target);
+
+    // Pooled dynamic point lights for evening/nightlife venues & streetlamps (zero shader bloat)
+    for (let i = 0; i < 4; i++) {
+      const pl = new THREE.PointLight(0xffb347, 0, 32, 1.65);
+      pl.position.set(0, 4.2, 0);
+      this.scene.add(pl);
+      this.nightLightPool.push(pl);
+    }
+
+    // Initialize 4x4 Spatial Sector Streaming grid (-240..240)
+    const sectorSize = 120;
+    for (let gx = 0; gx < 4; gx++) {
+      for (let gz = 0; gz < 4; gz++) {
+        const group = new THREE.Group();
+        group.name = `sector_${gx}_${gz}`;
+        this.scene.add(group);
+        this.spatialSectors.push({
+          gx,
+          gz,
+          centerX: -180 + gx * sectorSize,
+          centerZ: -180 + gz * sectorSize,
+          group,
+        });
+      }
+    }
+  }
+
+  private getSectorFor(x: number, z: number): THREE.Object3D {
+    const gx = THREE.MathUtils.clamp(Math.floor((x + 240) / 120), 0, 3);
+    const gz = THREE.MathUtils.clamp(Math.floor((z + 240) / 120), 0, 3);
+    const found = this.spatialSectors.find((s) => s.gx === gx && s.gz === gz);
+    return found ? found.group : this.scene;
   }
 
   private addWireSpan(x1: number, z1: number, x2: number, z2: number, y = 5.75) {
     const wireMat = new THREE.LineBasicMaterial({ color: "#1c1917", transparent: true, opacity: 0.75 });
+    const sector = this.getSectorFor((x1 + x2) / 2, (z1 + z2) / 2);
     for (const offset of [-0.45, 0, 0.45]) {
       const midX = (x1 + x2) / 2;
       const midZ = (z1 + z2) / 2;
@@ -391,7 +440,7 @@ export class TamaleEngine {
         new THREE.Vector3(x2 + offset, y, z2)
       );
       const geo = new THREE.BufferGeometry().setFromPoints(curve.getPoints(8));
-      this.scene.add(new THREE.Line(geo, wireMat));
+      sector.add(new THREE.Line(geo, wireMat));
     }
   }
 
@@ -589,7 +638,7 @@ export class TamaleEngine {
       const comp = createCompoundGroup(this.textures);
       comp.position.set(cx, 0, cz);
       comp.rotation.y = rot;
-      this.scene.add(comp);
+      this.getSectorFor(cx, cz).add(comp);
       this.addCollider(cx - 8, cx + 8, cz - 7.5, cz + 6);
     }
 
@@ -637,11 +686,11 @@ export class TamaleEngine {
       const mesh = createTamaleHouseVariant(h.variant, this.textures, h.primary, h.accent);
       mesh.position.set(h.x, 0, h.z);
       mesh.rotation.y = h.rotY;
-      this.scene.add(mesh);
+      this.getSectorFor(h.x, h.z).add(mesh);
       this.addCollider(h.x - h.halfW, h.x + h.halfW, h.z - h.halfD, h.z + h.halfD);
     }
 
-    // 19. Realistically Signposted Tamale Commercial Shops Across Districts
+    // 19. Realistically Signposted Tamale Commercial Shops & Neighbourhood Businesses
     const shopSpecs: Array<{
       x: number;
       z: number;
@@ -668,13 +717,21 @@ export class TamaleEngine {
       { x: -84, z: 142, rotY: 0, w: 8.8, h: 3.8, d: 6.2, wall: "#e2e8f0", awning: "#dc2626", name: "LAMASHEGU SPARE PARTS", sub: "BAJAJ PRAGYA & MOTO" },
       { x: 146, z: 14, rotY: Math.PI, w: 8.2, h: 3.7, d: 6.0, wall: "#ffedd5", awning: "#9a3412", name: "KUKUO PROVISIONS", sub: "SHEA BUTTER & GRAINS" },
       { x: 20, z: -144, rotY: 0, w: 8.6, h: 3.8, d: 6.0, wall: "#f1f5f9", awning: "#0369a1", name: "KANVILLI HIGHWAY MART", sub: "AIRPORT RD FUEL & DRINKS" },
+      // 7 New Enterable Neighbourhood Businesses & Services
+      { x: -146, z: -13, rotY: 0, w: 8.4, h: 3.7, d: 6.0, wall: "#f8fafc", awning: "#7c3aed", name: "NYOHINI FADE & BRAIDS", sub: "BARBER & SALON STUDIO" },
+      { x: 56, z: 32, rotY: -Math.PI / 2, w: 9.2, h: 4.3, d: 6.6, wall: "#fef3c7", awning: "#0f766e", name: "JUBILEE REST GUEST HOUSE", sub: "COOL ROOMS · OPEN 24H" },
+      { x: 150, z: 114, rotY: 0, w: 9.0, h: 3.9, d: 6.2, wall: "#e0f2fe", awning: "#dc2626", name: "SAVANNAH FITNESS & PRINT", sub: "GYM · PHOTOCOPY · DESIGN" },
+      { x: 18, z: -32, rotY: Math.PI / 2, w: 8.4, h: 3.8, d: 6.0, wall: "#ecfccb", awning: "#15803d", name: "TISHIGU PHARMACY & BAKERY", sub: "HOT SUGAR BREAD · TONICS" },
+      { x: 86, z: -78, rotY: 0, w: 9.2, h: 3.9, d: 6.4, wall: "#e2e8f0", awning: "#b45309", name: "KALPOHIN HARDWARE & WELDING", sub: "CEMENT · WOOD · STEEL" },
+      { x: -144, z: 144, rotY: 0, w: 8.8, h: 3.8, d: 6.2, wall: "#eff6ff", awning: "#1d4ed8", name: "DUNGU CAMPUS CAFE & BOOKS", sub: "INTERNET · PRINTS · WAAKYE" },
+      { x: -84, z: -144, rotY: 0, w: 8.8, h: 3.8, d: 6.2, wall: "#fff7ed", awning: "#ea580c", name: "CHOGGU EVENING SPOT", sub: "GRILLED TILAPIA · MUSIC" },
     ];
 
     for (const s of shopSpecs) {
       const shop = createShopBuilding(s.w, s.h, s.d, s.wall, s.awning, s.name, s.sub, this.textures);
       shop.position.set(s.x, 0, s.z);
       shop.rotation.y = s.rotY;
-      this.scene.add(shop);
+      this.getSectorFor(s.x, s.z).add(shop);
       this.addCollider(s.x - s.w / 2 - 0.3, s.x + s.w / 2 + 0.3, s.z - s.d / 2 - 0.3, s.z + s.d / 2 + 0.3);
     }
 
@@ -685,7 +742,7 @@ export class TamaleEngine {
       const pz = -8.2;
       const { group, bulbMat } = createUtilityPoleWithLamp();
       group.position.set(lx, 0, pz);
-      this.scene.add(group);
+      this.getSectorFor(lx, pz).add(group);
       this.lampBulbMats.push(bulbMat);
       this.addCollider(lx - 0.35, lx + 0.35, pz - 0.35, pz + 0.35);
 
@@ -702,7 +759,7 @@ export class TamaleEngine {
       const { group, bulbMat } = createUtilityPoleWithLamp();
       group.position.set(px, 0, lz);
       group.rotation.y = Math.PI / 2;
-      this.scene.add(group);
+      this.getSectorFor(px, lz).add(group);
       this.lampBulbMats.push(bulbMat);
       this.addCollider(px - 0.35, px + 0.35, lz - 0.35, lz + 0.35);
 
@@ -728,7 +785,7 @@ export class TamaleEngine {
       const s = 0.9 + Math.random() * 0.25;
       tree.scale.setScalar(s);
       tree.rotation.y = Math.random() * Math.PI * 2;
-      this.scene.add(tree);
+      this.getSectorFor(tx, tz).add(tree);
       this.windSwayTrees.push({ group: tree, phase: tx * 0.13 + tz * 0.17 });
       this.addCollider(tx - 0.9, tx + 0.9, tz - 0.9, tz + 0.9);
     }
@@ -753,7 +810,7 @@ export class TamaleEngine {
       laneMesh.rotation.x = -Math.PI / 2;
       laneMesh.position.set(lane.x, 0.015, lane.z);
       laneMesh.receiveShadow = true;
-      this.scene.add(laneMesh);
+      this.getSectorFor(lane.x, lane.z).add(laneMesh);
     }
 
     // 21c. Roadside Kiosks, Mobile-Money Booths, Charcoal Food Stalls, & Shade Benches
@@ -768,6 +825,8 @@ export class TamaleEngine {
       { kind: "food_vendor", x: 34, z: -10.8, rotY: 0, color: "#eab308" },
       { kind: "food_vendor", x: -120, z: 11.2, rotY: Math.PI, color: "#ea580c" },
       { kind: "food_vendor", x: -84, z: 109.5, rotY: 0, color: "#b45309" },
+      { kind: "food_vendor", x: -84, z: -140.5, rotY: 0, color: "#ea580c" },
+      { kind: "food_vendor", x: -144, z: 140.5, rotY: 0, color: "#15803d" },
       { kind: "mobile_money", x: 12, z: -10.2, rotY: 0, color: "#facc15" },
       { kind: "mobile_money", x: -24, z: 10.6, rotY: Math.PI, color: "#ef4444" },
       { kind: "mobile_money", x: -72, z: 10.4, rotY: Math.PI, color: "#0284c7" },
@@ -781,7 +840,7 @@ export class TamaleEngine {
       const built = createRoadsideStallMesh(sp.kind, sp.color, this.textures);
       built.group.position.set(sp.x, 0, sp.z);
       built.group.rotation.y = sp.rotY;
-      this.scene.add(built.group);
+      this.getSectorFor(sp.x, sp.z).add(built.group);
       if (built.emberMat) {
         this.emberMats.push(built.emberMat);
       }
@@ -798,24 +857,29 @@ export class TamaleEngine {
       [92, -110, Math.PI],
       [148, 22, 0],
       [24, 174, 0],
+      [84, 36, 0],
+      [-84, -138, 0],
     ];
     for (const [bx, bz, brot] of benchPlacements) {
       const bench = createRoadsideBenchMesh(this.textures);
       bench.position.set(bx, 0, bz);
       bench.rotation.y = brot;
-      this.scene.add(bench);
+      this.getSectorFor(bx, bz).add(bench);
     }
 
-    // 21c-2. Nightlife String Bulbs & Evening Chop-Bar Seating Along High Street, Aboabo, Lamashegu & Jubilee
-    const nightStringSpots: Array<[number, number]> = [
-      [34, -9.2],   // Daa Waakye & Night Lounge outdoor seating
-      [38, -9.2],
-      [20, -9.2],   // Gbewaa Mobile Money & Pharmacy frontage
-      [-120, 9.8],  // Aboabo Chichinga Grill
-      [-84, 111],   // Lamashegu evening chop bar
-      [86, 36],     // Jubilee evening plaza
+    // 21c-2. Nightlife String Bulbs & Dynamic Light Anchor Spots Across Tamale Night Hubs
+    const nightStringSpots: Array<{ x: number; z: number; color: number }> = [
+      { x: 34, z: -9.2, color: 0xffa73b },    // Daa Waakye & Night Lounge
+      { x: 38, z: -9.2, color: 0xffb347 },
+      { x: 20, z: -9.2, color: 0xfde047 },    // Gbewaa Mobile Money & Pharmacy frontage
+      { x: -120, z: 9.8, color: 0xfb923c },   // Aboabo Chichinga Grill
+      { x: -84, z: 111, color: 0xffa73b },    // Lamashegu evening chop bar
+      { x: 86, z: 36, color: 0xfacc15 },      // Jubilee evening plaza
+      { x: -84, z: -139, color: 0xfb923c },   // Choggu Evening Spot & Grill
+      { x: -144, z: 139, color: 0x38bdf8 },   // Dungu Student Hub Café
+      { x: 52, z: 32, color: 0xfde047 },      // Jubilee Rest Guest House entrance
     ];
-    for (const [nx, nz] of nightStringSpots) {
+    for (const spot of nightStringSpots) {
       const bulbMat = new THREE.MeshStandardMaterial({
         color: "#fef08a",
         emissive: "#f59e0b",
@@ -823,14 +887,16 @@ export class TamaleEngine {
         roughness: 0.35,
       });
       this.nightlifeMats.push(bulbMat);
+      this.nightSpotCoords.push({ x: spot.x, y: 3.5, z: spot.z, color: spot.color });
+      const sector = this.getSectorFor(spot.x, spot.z);
       for (const ox of [-1.2, 0, 1.2]) {
         const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), bulbMat);
-        bulb.position.set(nx + ox, 3.15, nz);
-        this.scene.add(bulb);
+        bulb.position.set(spot.x + ox, 3.15, spot.z);
+        sector.add(bulb);
       }
     }
 
-    // 21d. Parked Street Motorcycles Outside Shops, Markets & Compounds
+    // 21d. Parked Street Motorcycles Outside Shops, Markets, Ranks & Compounds
     const parkedMotos: Array<[number, number, number, string]> = [
       [-23, -10.5, 0.4, "#dc2626"],
       [-45, -13.5, -0.3, "#1d4ed8"],
@@ -842,12 +908,21 @@ export class TamaleEngine {
       [82, -10.8, -0.2, "#1e3a8a"],
       [144, 10.4, Math.PI + 0.2, "#ca8a04"],
       [28, -114, 0.3, "#dc2626"],
+      // Expanded neighbourhood motorcycle ranks (Nyohini, Stadium, Airport, Dungu, Choggu, Kukuo, Hospital)
+      [-142, -10.2, -0.2, "#7c3aed"],
+      [-128, -101, 0.35, "#dc2626"],
+      [12, -184, 0.1, "#0284c7"],
+      [-140, 141, -0.5, "#1d4ed8"],
+      [-78, -141, 0.4, "#ea580c"],
+      [154, 24, 0.2, "#15803d"],
+      [82, 104, -0.3, "#1e293b"],
+      [54, 28, Math.PI / 2, "#b45309"],
     ];
     for (const [mx, mz, mrot, col] of parkedMotos) {
       const moto = createMotorcycleMesh(col, this.textures);
       moto.group.position.set(mx, 0, mz);
       moto.group.rotation.y = mrot;
-      this.scene.add(moto.group);
+      this.getSectorFor(mx, mz).add(moto.group);
     }
 
     // 22. InstancedMesh Savannah Grass Tufts & Horizon Perimeter Groves
@@ -907,7 +982,7 @@ export class TamaleEngine {
     perimMesh.computeBoundingSphere();
     this.scene.add(perimMesh);
 
-    // 23. Delivery Errand Beacon
+    // 23. Delivery Errand & City Gig Beacons
     this.deliveryBeacon = new THREE.Mesh(
       new THREE.CylinderGeometry(1.1, 1.1, 14, 16, 1, true),
       new THREE.MeshBasicMaterial({
@@ -920,6 +995,19 @@ export class TamaleEngine {
     );
     this.deliveryBeacon.visible = false;
     this.scene.add(this.deliveryBeacon);
+
+    this.gigBeacon = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.25, 1.25, 15, 16, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: "#10b981",
+        transparent: true,
+        opacity: 0.32,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    );
+    this.gigBeacon.visible = false;
+    this.scene.add(this.gigBeacon);
   }
 
   private buildCityEventProps() {
@@ -1199,6 +1287,7 @@ export class TamaleEngine {
       skin: string;
       voice: "Kore" | "Puck" | "Charon" | "Fenrir" | "Zephyr";
       role?: "walker" | "vendor" | "seated" | "student" | "child";
+      vendorShopId?: string;
       waypoints: Array<{ x: number; z: number }>;
     }> = [
       // Tamale Central Market bustling crowd (front apron, east/west alleys, north lockups)
@@ -1484,7 +1573,7 @@ export class TamaleEngine {
         waypoints: [{ x: -42, z: -8.5 }, { x: -42, z: 8.5 }],
       },
       {
-        name: "Waakye Vendor",
+        name: "Waakye & Kɔɔsɛ Vendor",
         district: "Gbewaa High Street",
         outfit: "kaba",
         headwear: "headwrap",
@@ -1493,10 +1582,11 @@ export class TamaleEngine {
         skin: "#6b3f23",
         voice: "Kore",
         role: "vendor",
+        vendorShopId: "street_koose_seller",
         waypoints: [{ x: 34, z: -11.5 }, { x: 34.4, z: -11.5 }],
       },
       {
-        name: "Chichinga Seller",
+        name: "Chichinga Grill Seller",
         district: "Aboabo Market",
         outfit: "casual",
         headwear: "kufi",
@@ -1505,7 +1595,60 @@ export class TamaleEngine {
         skin: "#5c341b",
         voice: "Puck",
         role: "vendor",
+        vendorShopId: "nightlife_grill_lounge",
         waypoints: [{ x: -120, z: 12.1 }, { x: -120.4, z: 12.1 }],
+      },
+      {
+        name: "Kom Pure Water Hawker",
+        district: "Naa Gbewaa Interchange",
+        outfit: "kaba",
+        headwear: "headwrap",
+        primary: "#0284c7",
+        accent: "#ffffff",
+        skin: "#6b3f23",
+        voice: "Zephyr",
+        role: "vendor",
+        vendorShopId: "street_water_hawker",
+        waypoints: [{ x: 10, z: -10.2 }, { x: -8, z: -10.2 }],
+      },
+      {
+        name: "Roasted Yam & Simli Hawker",
+        district: "Central Market Lane",
+        outfit: "kaba",
+        headwear: "headwrap",
+        primary: "#15803d",
+        accent: "#fde047",
+        skin: "#62381f",
+        voice: "Kore",
+        role: "vendor",
+        vendorShopId: "street_groundnut_fruit",
+        waypoints: [{ x: -30, z: -12.5 }, { x: -46, z: -12.5 }],
+      },
+      {
+        name: "Dungu Kɔɔsɛ Morning Woman",
+        district: "Dungu Campus Gate",
+        outfit: "kaba",
+        headwear: "headwrap",
+        primary: "#ca8a04",
+        accent: "#fffbeb",
+        skin: "#6b3f23",
+        voice: "Kore",
+        role: "vendor",
+        vendorShopId: "street_koose_seller",
+        waypoints: [{ x: -140, z: 141.5 }, { x: -140.4, z: 141.5 }],
+      },
+      {
+        name: "Lamashegu Cold Water Seller",
+        district: "Lamashegu Junction",
+        outfit: "casual",
+        headwear: "none",
+        primary: "#0369a1",
+        accent: "#facc15",
+        skin: "#5c341b",
+        voice: "Puck",
+        role: "vendor",
+        vendorShopId: "street_water_hawker",
+        waypoints: [{ x: -84, z: 111.5 }, { x: -78, z: 111.5 }],
       },
       // Seated residents & elders on benches outside shops and compounds
       {
@@ -1633,9 +1776,7 @@ export class TamaleEngine {
     ];
 
     for (let i = 0; i < crowdSpecs.length; i++) {
-      const spec = crowdSpecs[i] as (typeof crowdSpecs)[number] & {
-        role?: "walker" | "vendor" | "seated" | "student" | "child";
-      };
+      const spec = crowdSpecs[i];
       const role = spec.role ?? "walker";
       const rig = createCharacterRig(
         {
@@ -1671,6 +1812,7 @@ export class TamaleEngine {
         district: spec.district,
         voiceName: spec.voice,
         role,
+        vendorShopId: spec.vendorShopId,
         waypoints: spec.waypoints,
         wpIndex: 1 % spec.waypoints.length,
         x: start.x,
@@ -2173,23 +2315,27 @@ export class TamaleEngine {
       this.crowdUpdateRadius = 56;
       this.trafficUpdateRadius = 115;
       this.labelMaxDist = 115;
+      this.sectorStreamRadius = 135;
     } else if (quality === "medium") {
       this.camera.far = 360;
       this.crowdUpdateRadius = 86;
       this.trafficUpdateRadius = 175;
       this.labelMaxDist = 155;
+      this.sectorStreamRadius = 175;
     } else {
       this.camera.far = 560;
       this.crowdUpdateRadius = 120;
       this.trafficUpdateRadius = 260;
       this.labelMaxDist = 195;
+      this.sectorStreamRadius = 225;
     }
+    this.lastSectorSync = -10;
     this.camera.updateProjectionMatrix();
   }
 
   private handlePrimaryInteract() {
-    if (this.drivingVehicle) return;
     if (!this.nearbyInteractable) return;
+    if (this.drivingVehicle && this.nearbyInteractable.kind !== "delivery") return;
 
     this.audio.playChime("interact");
     this.callbacks.onInteract(this.nearbyInteractable);
@@ -2285,6 +2431,19 @@ export class TamaleEngine {
     if (lm) {
       this.deliveryBeacon.position.set(lm.x, 7, lm.z);
       this.deliveryBeacon.visible = true;
+    }
+  }
+
+  public setActiveGigLandmark(landmarkId: string | null) {
+    this.activeGigLandmarkId = landmarkId;
+    if (!landmarkId) {
+      this.gigBeacon.visible = false;
+      return;
+    }
+    const lm = TAMALE_LANDMARKS.find((l) => l.id === landmarkId);
+    if (lm) {
+      this.gigBeacon.position.set(lm.x, 7.5, lm.z);
+      this.gigBeacon.visible = true;
     }
   }
 
@@ -2930,10 +3089,46 @@ export class TamaleEngine {
     for (const mat of this.lampBulbMats) {
       mat.emissiveIntensity = lampEmissive;
     }
-    const nightSpotEmissive = hour >= 17.5 || hour < 5.5 ? 2.6 : 0.12;
+    const nightSpotEmissive = hour >= 17.0 || hour < 5.5 ? 2.6 : 0.12;
     for (const mat of this.nightlifeMats) {
       mat.emissiveIntensity = nightSpotEmissive;
     }
+
+    // Update pooled dynamic PointLights at nearest nightlife spots during dusk & night
+    if (nightSpotEmissive > 1.0 && this.graphicsQuality !== "low") {
+      const sortedSpots = [...this.nightSpotCoords]
+        .map((s) => ({
+          ...s,
+          d: Math.hypot(s.x - this.playerPos.x, s.z - this.playerPos.z),
+        }))
+        .sort((a, b) => a.d - b.d);
+      for (let i = 0; i < this.nightLightPool.length; i++) {
+        const light = this.nightLightPool[i];
+        const spot = sortedSpots[i];
+        if (spot && spot.d < 90) {
+          light.position.set(spot.x, spot.y, spot.z);
+          light.color.setHex(spot.color);
+          light.intensity = 12.5 * (0.94 + 0.06 * Math.sin(elapsed * 4.2 + i));
+        } else {
+          light.intensity = 0;
+        }
+      }
+    } else {
+      for (const light of this.nightLightPool) {
+        light.intensity = 0;
+      }
+    }
+
+    // Spatial Sector Streaming: keep active geographical tiles visible around the player
+    if (elapsed - this.lastSectorSync > 0.25) {
+      this.lastSectorSync = elapsed;
+      const r = this.sectorStreamRadius;
+      for (const sec of this.spatialSectors) {
+        const dist = Math.hypot(sec.centerX - this.playerPos.x, sec.centerZ - this.playerPos.z);
+        sec.group.visible = dist <= r;
+      }
+    }
+
     for (const d of this.drivables) {
       d.headlightMat.emissiveIntensity = isNight || isDuskOrDawn ? 1.8 : 0.25;
     }
@@ -2974,6 +3169,9 @@ export class TamaleEngine {
 
     if (this.deliveryBeacon.visible) {
       this.deliveryBeacon.rotation.y = elapsed * 0.8;
+    }
+    if (this.gigBeacon.visible) {
+      this.gigBeacon.rotation.y = -elapsed * 1.05;
     }
 
     const districtName = getDistrictAt(this.playerPos.x, this.playerPos.z);
@@ -3054,24 +3252,44 @@ export class TamaleEngine {
     let closestVeh: NearbyInteractable | null = null;
     let bestVehDist = 4.8;
 
-    if (!this.drivingVehicle) {
-      if (this.activeErrandLandmarkId) {
-        const targetLm = TAMALE_LANDMARKS.find((l) => l.id === this.activeErrandLandmarkId);
-        if (targetLm) {
-          const d = Math.hypot(this.playerPos.x - targetLm.x, this.playerPos.z - targetLm.z);
-          if (d < 10.5) {
-            closest = {
-              kind: "delivery",
-              id: targetLm.id,
-              label: `Complete Errand at ${targetLm.name}`,
-              sublabel: "Deliver package & earn GH₵",
-              interactionVerb: "deliver",
-            };
-            bestDist = 0;
-          }
+    // Errands and Active City Gigs can be completed on foot OR directly from a Pragya/Moto!
+    if (this.activeErrandLandmarkId) {
+      const targetLm = TAMALE_LANDMARKS.find((l) => l.id === this.activeErrandLandmarkId);
+      if (targetLm) {
+        const d = Math.hypot(this.playerPos.x - targetLm.x, this.playerPos.z - targetLm.z);
+        if (d < Math.max(11.5, targetLm.radius * 0.65)) {
+          closest = {
+            kind: "delivery",
+            id: targetLm.id,
+            label: `Complete Errand at ${targetLm.name}`,
+            sublabel: "Deliver package & earn GH₵",
+            interactionVerb: "deliver",
+            isGigDelivery: false,
+          };
+          bestDist = 0;
         }
       }
+    }
 
+    if (!closest && this.activeGigLandmarkId) {
+      const gigLm = TAMALE_LANDMARKS.find((l) => l.id === this.activeGigLandmarkId);
+      if (gigLm) {
+        const d = Math.hypot(this.playerPos.x - gigLm.x, this.playerPos.z - gigLm.z);
+        if (d < Math.max(12.5, gigLm.radius * 0.7)) {
+          closest = {
+            kind: "delivery",
+            id: gigLm.id,
+            label: `Complete Gig at ${gigLm.name}`,
+            sublabel: "Drop off / complete dispatch to earn GH₵",
+            interactionVerb: "deliver",
+            isGigDelivery: true,
+          };
+          bestDist = 0;
+        }
+      }
+    }
+
+    if (!this.drivingVehicle) {
       for (const snap of npcSnapshots) {
         if (!snap.canTalk) continue;
         const d = Math.hypot(this.playerPos.x - snap.x, this.playerPos.z - snap.z);
@@ -3085,6 +3303,23 @@ export class TamaleEngine {
             label: `Talk to ${profile.name}`,
             sublabel: `${snap.activityLabel} · ${snap.destinationLabel}`,
             interactionVerb: "talk",
+          };
+        }
+      }
+
+      // Interactive street hawkers & food sellers
+      for (const agent of this.crowdAgents) {
+        if (!agent.rig.root.visible || agent.role !== "vendor" || !agent.vendorShopId) continue;
+        const d = Math.hypot(this.playerPos.x - agent.x, this.playerPos.z - agent.z);
+        if (d < bestDist) {
+          bestDist = d;
+          closest = {
+            kind: "vendor",
+            id: agent.speakerName,
+            label: `Buy from ${agent.speakerName}`,
+            sublabel: `${agent.district} · Street Vendor`,
+            interactionVerb: "buy",
+            shopId: agent.vendorShopId,
           };
         }
       }
@@ -3112,9 +3347,10 @@ export class TamaleEngine {
             closest = {
               kind: "building",
               id: lm.id,
-              label: `${lm.shopId ? "Interact · " : "Enter "}${lm.name}`,
+              label: `${lm.shopId ? "Visit " : "Enter "}${lm.name}`,
               sublabel: lm.dagbaniLabel,
               interactionVerb: lm.shopId ? "shop" : "enter",
+              shopId: lm.shopId,
             };
             break;
           }
@@ -3153,6 +3389,7 @@ export class TamaleEngine {
       }
     }
 
+    const guidanceTargetId = this.activeErrandLandmarkId || this.activeGigLandmarkId;
     this.callbacks.onHudUpdate({
       district: getDistrictAt(this.playerPos.x, this.playerPos.z),
       speedKmh,
@@ -3165,7 +3402,7 @@ export class TamaleEngine {
       nearestGuidance: getNearestLandmarkGuidance(
         this.playerPos.x,
         this.playerPos.z,
-        this.activeErrandLandmarkId
+        guidanceTargetId
       ),
       playerPos: { x: this.playerPos.x, z: this.playerPos.z, rotY: this.playerRotY },
       discoveredLandmarkId,
