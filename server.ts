@@ -127,7 +127,7 @@ Verified Dagbani vocabulary and expressions (use ONLY these verified words/phras
 - Proverb 2: "Zɔri suŋ gari laɣiri" (A good friend is better than money).
 `.trim();
 
-function getGeminiClient(): GoogleGenAI | null {
+function getGeminiClient(apiVersion: "v1beta" | "v1" = "v1beta"): GoogleGenAI | null {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey.trim() === "") {
     return null;
@@ -135,6 +135,7 @@ function getGeminiClient(): GoogleGenAI | null {
   return new GoogleGenAI({
     apiKey,
     httpOptions: {
+      apiVersion,
       headers: {
         "User-Agent": "aistudio-build",
       },
@@ -368,7 +369,7 @@ app.post("/api/npc/tts", async (req, res) => {
     return res.status(400).json({ error: "text is required." });
   }
 
-  const ai = getGeminiClient();
+  const ai = getGeminiClient("v1beta");
   if (!ai) {
     return res.status(503).json({
       error: "AI voice synthesis is not configured.",
@@ -383,26 +384,33 @@ app.post("/api/npc/tts", async (req, res) => {
       ? style.trim().slice(0, 220)
       : "Authentic native Dagomba speaker from Tamale, Northern Ghana, speaking with warm Northern Ghanaian Dagbani accent and rhythmic tonal cadence";
 
-  const cacheKey = `v2-dagbani::${voice}::${styleDesc}::${spokenText}`;
+  const cacheKey = `v3-dagbani::${voice}::${styleDesc}::${spokenText}`;
   const cached = ttsCache.get(cacheKey);
   if (cached) {
     return res.json({ audioBase64: cached, mimeType: "audio/wav", cached: true });
   }
 
-  const synthesizeWithModel = async (modelId: "gemini-3.8-flash-tts" | "gemini-3.8-flash-lite-tts") => {
+  const synthesizeGenerateContent = async (
+    modelId: "gemini-3.8-flash-lite-tts" | "gemini-3.8-flash-tts",
+    includeMetadata: boolean
+  ) => {
+    const part = includeMetadata
+      ? {
+          text: spokenText,
+          speechMetadata: {
+            style: styleDesc,
+          },
+        }
+      : {
+          text: `Speak with style (${styleDesc}): ${spokenText}`,
+        };
+
     const response = await ai.models.generateContent({
       model: modelId,
       contents: [
         {
           role: "user",
-          parts: [
-            {
-              text: spokenText,
-              speechMetadata: {
-                style: styleDesc,
-              },
-            },
-          ],
+          parts: [part],
         },
       ],
       config: {
@@ -417,16 +425,60 @@ app.post("/api/npc/tts", async (req, res) => {
     return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
   };
 
+  const synthesizeViaInteractions = async (
+    modelId: "gemini-3.8-flash-lite-tts" | "gemini-3.8-flash-tts"
+  ) => {
+    const interaction = await ai.interactions.create({
+      model: modelId,
+      input: [
+        {
+          type: "text",
+          text: spokenText,
+          annotations: [
+            {
+              type: "speech_metadata",
+              style: styleDesc,
+            },
+          ],
+        },
+      ],
+      response_format: { type: "audio" },
+      generation_config: {
+        speech_config: [
+          {
+            language: "en-US",
+            voice,
+          },
+        ],
+      },
+    });
+    return interaction.output_audio?.data;
+  };
+
   try {
     let base64Audio: string | undefined;
-    try {
-      base64Audio = await synthesizeWithModel("gemini-3.8-flash-tts");
-    } catch {
-      base64Audio = await synthesizeWithModel("gemini-3.8-flash-lite-tts");
+    const attempts: Array<() => Promise<string | undefined>> = [
+      () => synthesizeGenerateContent("gemini-3.8-flash-lite-tts", true),
+      () => synthesizeGenerateContent("gemini-3.8-flash-tts", true),
+      () => synthesizeViaInteractions("gemini-3.8-flash-lite-tts"),
+      () => synthesizeGenerateContent("gemini-3.8-flash-lite-tts", false),
+    ];
+
+    let lastErr: unknown = null;
+    for (const attempt of attempts) {
+      try {
+        base64Audio = await attempt();
+        if (base64Audio) break;
+      } catch (err) {
+        lastErr = err;
+      }
     }
 
     if (!base64Audio) {
-      return res.status(502).json({ error: "No audio returned by TTS model." });
+      if (lastErr) {
+        console.error("Gemini TTS error:", lastErr);
+      }
+      return res.status(502).json({ error: "Voice synthesis request failed." });
     }
 
     if (ttsCache.size >= MAX_TTS_CACHE) {

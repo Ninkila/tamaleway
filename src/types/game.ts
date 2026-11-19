@@ -264,11 +264,15 @@ export interface NpcProfile {
   }>;
 }
 
+export type InteractionVerb = "talk" | "shop" | "enter" | "vehicle" | "deliver";
+
 export interface NearbyInteractable {
   kind: "npc" | "vehicle" | "building" | "delivery";
   id: string;
   label: string;
   sublabel?: string;
+  interactionVerb?: InteractionVerb;
+  vehicleKind?: "pragya" | "motorcycle";
 }
 
 export interface NearbyChatter {
@@ -278,12 +282,51 @@ export interface NearbyChatter {
   district: string;
 }
 
+export type GraphicsQuality = "low" | "medium" | "high";
+export type ControlDisplayMode = "auto" | "touch" | "keyboard";
+
+export interface KeyBindings {
+  forward: string;
+  backward: string;
+  left: string;
+  right: string;
+  jump: string;
+  run: string;
+  interact: string;
+  vehicleToggle: string;
+  horn: string;
+  map: string;
+  inventory: string;
+  pause: string;
+}
+
+export const DEFAULT_KEY_BINDINGS: KeyBindings = {
+  forward: "KeyW",
+  backward: "KeyS",
+  left: "KeyA",
+  right: "KeyD",
+  jump: "Space",
+  run: "ShiftLeft",
+  interact: "KeyE",
+  vehicleToggle: "KeyF",
+  horn: "KeyH",
+  map: "KeyM",
+  inventory: "KeyI",
+  pause: "Escape",
+};
+
 export interface GameSettings {
   languageMode: LanguageMode;
   showSubtitles: boolean;
   audioEnabled: boolean;
   soundVolume: number;
   cameraMode: CameraMode;
+  graphicsQuality: GraphicsQuality;
+  resolutionScale: number;
+  cameraSensitivity: number;
+  vibrationEnabled: boolean;
+  controlMode: ControlDisplayMode;
+  keyBindings: KeyBindings;
 }
 
 export interface SavedGameState {
