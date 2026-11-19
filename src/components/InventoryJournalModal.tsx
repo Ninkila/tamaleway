@@ -21,6 +21,7 @@ interface InventoryJournalModalProps {
   onRefreshGigs: () => void;
   onAcceptErrand: (errandId: string) => void;
   onConsumeItem: (itemId: string) => void;
+  onOpenPhone?: () => void;
   onClose: () => void;
 }
 
@@ -68,6 +69,7 @@ export const InventoryJournalModal: React.FC<InventoryJournalModalProps> = ({
   onRefreshGigs,
   onAcceptErrand,
   onConsumeItem,
+  onOpenPhone,
   onClose,
 }) => {
   const [tab, setTab] = useState<"gigs" | "errands" | "bag">("gigs");
@@ -138,6 +140,18 @@ export const InventoryJournalModal: React.FC<InventoryJournalModalProps> = ({
           >
             Traveler Bag ({inventory.length})
           </button>
+          {onOpenPhone && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onOpenPhone();
+              }}
+              className="ml-auto px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-500/35 cursor-pointer"
+            >
+              Open City Phone &amp; Rides
+            </button>
+          )}
         </div>
 
         <div className="p-6 overflow-y-auto space-y-5">

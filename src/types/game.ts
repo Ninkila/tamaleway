@@ -59,6 +59,10 @@ export interface ShopMetadata {
   category:
     | "market"
     | "chop_bar"
+    | "restaurant"
+    | "fast_food"
+    | "supermarket"
+    | "cafe"
     | "nightlife"
     | "pharmacy_bakery"
     | "barber_salon"
@@ -72,6 +76,9 @@ export interface ShopMetadata {
   closeHour: number; // 0..24 (can be < openHour for overnight/late-night spots)
   authenticityStatus: "real-institution" | "representative-fictional";
   authenticityNote: string;
+  staffName?: string;
+  buyableSharePrice?: number;
+  dailyRevenueCedis?: number;
   services?: ShopServiceAction[];
 }
 
@@ -320,10 +327,27 @@ export interface NpcProfile {
   }>;
 }
 
-export type InteractionVerb = "talk" | "shop" | "enter" | "vehicle" | "deliver" | "buy";
+export type InteractionVerb =
+  | "talk"
+  | "shop"
+  | "enter"
+  | "vehicle"
+  | "deliver"
+  | "buy"
+  | "board_service"
+  | "pickup_passenger"
+  | "work"
+  | "repair";
 
 export interface NearbyInteractable {
-  kind: "npc" | "vehicle" | "building" | "delivery" | "vendor";
+  kind:
+    | "npc"
+    | "vehicle"
+    | "building"
+    | "delivery"
+    | "vendor"
+    | "service_provider"
+    | "job_action";
   id: string;
   label: string;
   sublabel?: string;
@@ -331,6 +355,8 @@ export interface NearbyInteractable {
   vehicleKind?: "pragya" | "motorcycle";
   shopId?: string;
   isGigDelivery?: boolean;
+  servicePhase?: "pickup_food_or_repair" | "board_ride";
+  jobActionMode?: "pickup_passenger" | "work_shift" | "mechanic_repair" | "photo_capture" | "sports_drill";
 }
 
 export interface NearbyChatter {
@@ -387,8 +413,179 @@ export interface GameSettings {
   keyBindings: KeyBindings;
 }
 
+export type SkillKey = "riding" | "trade" | "stamina" | "culture" | "craft";
+
+export interface CharacterSkills {
+  riding: number;   // 1..10
+  trade: number;    // 1..10
+  stamina: number;  // 1..10
+  culture: number;  // 1..10
+  craft: number;    // 1..10
+}
+
+export interface PlayableCharacterProfile {
+  id: string;
+  name: string;
+  nickname: string;
+  occupation: string;
+  dagbaniTitle: string;
+  homeDistrict: string;
+  homeLandmarkId: string;
+  spawnPos: { x: number; z: number; rotY: number };
+  startingMoney: number;
+  startingEnergy: number;
+  startingVehicleLabel: string;
+  startingVehicleKind?: "pragya" | "motorcycle";
+  bio: string;
+  dailyRoutineSummary: string;
+  careerTrack: string;
+  customization: PlayerCustomization;
+  initialSkills: CharacterSkills;
+  startingInventory: InventoryItem[];
+  startingFriendships: Record<string, number>;
+  startingDiscoveredLandmarks: string[];
+  startingVocabIds: string[];
+  recommendedJobCategories: CityTaskCategory[];
+}
+
+export type CityTaskCategory =
+  | "passenger_ride"
+  | "food_delivery"
+  | "grocery_delivery"
+  | "courier_delivery"
+  | "shop_assistant"
+  | "food_prep"
+  | "mechanic_repair"
+  | "market_trade"
+  | "business_ops"
+  | "student_activity"
+  | "cultural_activity"
+  | "event_crew"
+  | "sports_activity"
+  | "photography"
+  | "exploration"
+  | "social_activity"
+  | "community_errand";
+
+export type CityTaskExecutionMode =
+  | "transport_passenger"
+  | "pickup_and_deliver"
+  | "work_shift"
+  | "mechanic_dispatch"
+  | "photo_survey"
+  | "sports_drill"
+  | "business_manage";
+
+export interface CityTaskJob {
+  id: string;
+  title: string;
+  dagbaniTitle: string;
+  category: CityTaskCategory;
+  executionMode: CityTaskExecutionMode;
+  description: string;
+  pickupLandmarkId?: string;
+  pickupLabel: string;
+  targetLandmarkId: string;
+  targetLandmarkName: string;
+  requirements: string;
+  completionCondition: string;
+  rewardCedis: number;
+  rewardCultureXp: number;
+  energyCost: number;
+  skillReward: { skill: SkillKey; points: number };
+  recommendedVehicle?: "any" | "pragya" | "motorcycle" | "foot";
+  distanceMeters?: number;
+}
+
+export interface ActiveTaskRuntime {
+  job: CityTaskJob;
+  stage: "go_to_pickup" | "go_to_destination" | "ready_for_activity";
+  passengerBoarded?: boolean;
+  passengerName?: string;
+  startedAtMinutes: number;
+}
+
+export type ServiceRequestKind =
+  | "moto_ride"
+  | "pragya_ride"
+  | "taxi_ride"
+  | "food_delivery"
+  | "grocery_delivery"
+  | "parcel_delivery"
+  | "roadside_repair"
+  | "cargo_moving";
+
+export type ServiceRequestStatus =
+  | "searching"
+  | "en_route_to_player"
+  | "arrived_waiting"
+  | "in_transit_to_dest"
+  | "completed"
+  | "cancelled";
+
+export interface ServiceRequestRuntime {
+  id: string;
+  kind: ServiceRequestKind;
+  title: string;
+  providerName: string;
+  vehicleKind: "moto" | "pragya" | "taxi" | "cargo";
+  estimatedCostCedis: number;
+  distanceMeters: number;
+  etaSeconds: number;
+  status: ServiceRequestStatus;
+  statusNote: string;
+  destinationLandmarkId?: string;
+  destinationName?: string;
+  destinationX?: number;
+  destinationZ?: number;
+  deliveredItems?: Array<{
+    id: string;
+    name: string;
+    dagbaniName: string;
+    category: "food" | "clothing" | "craft";
+    energyRestore?: number;
+    description: string;
+  }>;
+  providerX?: number;
+  providerZ?: number;
+}
+
+export interface CapturedPhotoRecord {
+  id: string;
+  title: string;
+  district: string;
+  landmarkId?: string;
+  dataUrl: string;
+  capturedAtClock: string;
+}
+
+export interface CharacterRuntimeState {
+  characterId: string;
+  moneyCedis: number;
+  energy: number;
+  cultureXp: number;
+  careerLevel: number;
+  skills: CharacterSkills;
+  customization: PlayerCustomization;
+  inventory: InventoryItem[];
+  friendships: Record<string, number>;
+  discoveredLandmarks: string[];
+  learnedVocabIds: string[];
+  activeErrandId: string | null;
+  completedErrands: string[];
+  activeTask: ActiveTaskRuntime | null;
+  completedJobsCount: number;
+  totalEarnedCedis: number;
+  ownedBusinessIds: string[];
+  achievements: string[];
+  capturedPhotos: CapturedPhotoRecord[];
+  playerPos: { x: number; z: number; rotY: number };
+}
+
 export interface SavedGameState {
   version: number;
+  activeCharacterId?: string;
+  characterStates?: Record<string, CharacterRuntimeState>;
   moneyCedis: number;
   energy: number;
   cultureXp: number;
@@ -408,3 +605,4 @@ export interface SavedGameState {
   totalEarnedCedis?: number;
   playerPos: { x: number; z: number; rotY: number };
 }
+

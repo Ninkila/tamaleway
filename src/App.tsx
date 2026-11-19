@@ -3,8 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AboutTamaleModal } from "./components/AboutTamaleModal";
+import { CharacterSwitchModal } from "./components/CharacterSwitchModal";
 import { CommunityPortalModal } from "./components/CommunityPortalModal";
 import { CustomizeModal } from "./components/CustomizeModal";
 import { DagbaniGuideModal } from "./components/DagbaniGuideModal";
@@ -20,10 +21,23 @@ import { ReferenceArchiveModal } from "./components/ReferenceArchiveModal";
 import { SettingsAndControlsModal } from "./components/SettingsAndControlsModal";
 import { ShopModal } from "./components/ShopAndErrandsModal";
 import { TamaleEventsModal } from "./components/TamaleEventsModal";
+import { TamalePhoneModal } from "./components/TamalePhoneModal";
+import { WorkAndActivityModal } from "./components/WorkAndActivityModal";
+import {
+  computeCareerRankTitle,
+  createInitialCharacterState,
+  PLAYABLE_CHARACTERS,
+} from "./data/playableCharacters";
 import { INITIAL_CITY_EVENT_DESCRIPTIONS } from "./data/tamaleExpansionData";
+import {
+  calculateServiceFare,
+  generateJobsForCharacter,
+  SERVICE_CATALOG,
+} from "./data/tamaleJobsAndServices";
 import {
   generateAvailableCityGigs,
   INITIAL_ERRANDS,
+  SHOP_METADATA,
   TAMALE_LANDMARKS,
   TAMALE_NPCS,
 } from "./data/tamaleWorldData";
@@ -31,7 +45,12 @@ import { TamaleAudioEngine } from "./game/audio";
 import { TamaleEngine } from "./game/TamaleEngine";
 import {
   ActiveCityEventMode,
+  ActiveTaskRuntime,
+  CapturedPhotoRecord,
+  CharacterRuntimeState,
+  CharacterSkills,
   CityGigTask,
+  CityTaskJob,
   DEFAULT_KEY_BINDINGS,
   ErrandQuest,
   GameSettings,
@@ -42,22 +61,24 @@ import {
   NpcRuntimeSnapshot,
   PlayerCustomization,
   SavedGameState,
+  ServiceRequestKind,
+  ServiceRequestRuntime,
   ShopItem,
   ShopServiceAction,
+  SkillKey,
   TimePeriod,
   WeatherType,
 } from "./types/game";
 
 const SAVE_STORAGE_KEY = "tamale3d_save_v1";
 
-const DEFAULT_CUSTOMIZATION: PlayerCustomization = {
-  name: "Sulemana",
-  outfit: "batakari",
-  headwear: "kufi",
-  primaryColor: "#1e3a5f",
-  accentColor: "#b45309",
-  skinTone: "#62381f",
-};
+function buildDefaultCharacterStates(): Record<string, CharacterRuntimeState> {
+  const map: Record<string, CharacterRuntimeState> = {};
+  for (const profile of PLAYABLE_CHARACTERS) {
+    map[profile.id] = createInitialCharacterState(profile);
+  }
+  return map;
+}
 
 function createInitialSettings(): GameSettings {
   const isCompactOrTouch =
@@ -98,6 +119,9 @@ export default function App() {
   const engineRef = useRef<TamaleEngine | null>(null);
   const audioRef = useRef<TamaleAudioEngine | null>(null);
 
+  const initialProfile = PLAYABLE_CHARACTERS[0];
+  const initialCharState = createInitialCharacterState(initialProfile);
+
   const [inMainMenu, setInMainMenu] = useState(true);
   const [exitedScreen, setExitedScreen] = useState(false);
   const [hasSavedGame, setHasSavedGame] = useState(false);
@@ -131,43 +155,64 @@ export default function App() {
     };
   }, []);
 
-  // Core game progression & settings state
-  const [moneyCedis, setMoneyCedis] = useState(180);
-  const [energy, setEnergy] = useState(92);
-  const [cultureXp, setCultureXp] = useState(15);
+  // Multi-character state
+  const [activeCharacterId, setActiveCharacterId] = useState<string>(initialProfile.id);
+  const [characterStates, setCharacterStates] = useState<Record<string, CharacterRuntimeState>>(
+    () => buildDefaultCharacterStates()
+  );
+
+  // Active character runtime progression & world state
+  const [moneyCedis, setMoneyCedis] = useState(initialCharState.moneyCedis);
+  const [energy, setEnergy] = useState(initialCharState.energy);
+  const [cultureXp, setCultureXp] = useState(initialCharState.cultureXp);
+  const [skills, setSkills] = useState<CharacterSkills>(initialCharState.skills);
   const [gameMinutes, setGameMinutes] = useState(9 * 60 + 15);
   const [weather, setWeather] = useState<WeatherType>("clear");
   const [activeCityEvent, setActiveCityEvent] = useState<ActiveCityEventMode>("ordinary_day");
-  const [customization, setCustomization] = useState<PlayerCustomization>(DEFAULT_CUSTOMIZATION);
+  const [customization, setCustomization] = useState<PlayerCustomization>(
+    initialCharState.customization
+  );
   const [settings, setSettings] = useState<GameSettings>(createInitialSettings);
 
-  const [inventory, setInventory] = useState<InventoryItem[]>([
-    {
-      id: "pure_water",
-      name: "Chilled Drinking Water",
-      dagbaniName: "Kom",
-      category: "food",
-      quantity: 2,
-      energyRestore: 15,
-      description: "Cool refreshing water for walking under the savannah sun.",
-    },
-  ]);
-  const [friendships, setFriendships] = useState<Record<string, number>>({});
-  const [discoveredLandmarks, setDiscoveredLandmarks] = useState<string[]>(["tamale_interchange"]);
-  const [learnedVocabIds, setLearnedVocabIds] = useState<string[]>(["dasuba", "antire"]);
+  const [inventory, setInventory] = useState<InventoryItem[]>(initialCharState.inventory);
+  const [friendships, setFriendships] = useState<Record<string, number>>(
+    initialCharState.friendships
+  );
+  const [discoveredLandmarks, setDiscoveredLandmarks] = useState<string[]>(
+    initialCharState.discoveredLandmarks
+  );
+  const [learnedVocabIds, setLearnedVocabIds] = useState<string[]>(
+    initialCharState.learnedVocabIds
+  );
   const [errands, setErrands] = useState<ErrandQuest[]>(INITIAL_ERRANDS);
   const [activeGig, setActiveGig] = useState<CityGigTask | null>(null);
   const [availableGigs, setAvailableGigs] = useState<CityGigTask[]>(() =>
-    generateAvailableCityGigs(14, 14)
+    generateAvailableCityGigs(initialProfile.spawnPos.x, initialProfile.spawnPos.z)
   );
   const [completedGigsCount, setCompletedGigsCount] = useState(0);
   const [totalEarnedCedis, setTotalEarnedCedis] = useState(0);
+
+  // Enhanced Jobs, Businesses, Achievements, Photos & Live 3D Services
+  const [activeTask, setActiveTask] = useState<ActiveTaskRuntime | null>(null);
+  const [availableJobs, setAvailableJobs] = useState<CityTaskJob[]>(() =>
+    generateJobsForCharacter(
+      initialProfile.recommendedJobCategories,
+      initialProfile.spawnPos.x,
+      initialProfile.spawnPos.z
+    )
+  );
+  const [completedJobsCount, setCompletedJobsCount] = useState(0);
+  const [ownedBusinessIds, setOwnedBusinessIds] = useState<string[]>([]);
+  const [achievements, setAchievements] = useState<string[]>([]);
+  const [capturedPhotos, setCapturedPhotos] = useState<CapturedPhotoRecord[]>([]);
+  const [activeService, setActiveService] = useState<ServiceRequestRuntime | null>(null);
   const [activeDiscoveryCard, setActiveDiscoveryCard] = useState<LandmarkData | null>(null);
 
   // Live HUD state synced from engine
   const [district, setDistrict] = useState("Naa Gbewaa Interchange · Central Tamale");
   const [speedKmh, setSpeedKmh] = useState(0);
   const [isDriving, setIsDriving] = useState(false);
+  const [isRidingService, setIsRidingService] = useState(false);
   const [drivingLabel, setDrivingLabel] = useState<string | null>(null);
   const [drivingKind, setDrivingKind] = useState<"pragya" | "motorcycle" | null>(null);
   const [nearby, setNearby] = useState<NearbyInteractable | null>(null);
@@ -182,7 +227,8 @@ export default function App() {
     isErrandTarget: boolean;
   } | null>(null);
   const [showLabels, setShowLabels] = useState(true);
-  const [playerPos, setPlayerPos] = useState({ x: 14, z: 14, rotY: -Math.PI * 0.78 });
+  const [playerPos, setPlayerPos] = useState(initialCharState.playerPos);
+  const [servicePos, setServicePos] = useState<{ x: number; z: number } | null>(null);
   const [npcStates, setNpcStates] = useState<NpcRuntimeSnapshot[]>([]);
 
   // Active modals
@@ -192,7 +238,11 @@ export default function App() {
   const [showMap, setShowMap] = useState(false);
   const [showDagbaniGuide, setShowDagbaniGuide] = useState(false);
   const [showCustomize, setShowCustomize] = useState(false);
+  const [customizeTargetCharId, setCustomizeTargetCharId] = useState<string | null>(null);
   const [showInventory, setShowInventory] = useState(false);
+  const [showPhone, setShowPhone] = useState(false);
+  const [showCharacterSwitch, setShowCharacterSwitch] = useState(false);
+  const [showWorkModal, setShowWorkModal] = useState(false);
   const [showReferences, setShowReferences] = useState(false);
   const [showEvents, setShowEvents] = useState(false);
   const [showContributions, setShowContributions] = useState(false);
@@ -206,8 +256,15 @@ export default function App() {
   errandsRef.current = errands;
   const activeGigRef = useRef(activeGig);
   activeGigRef.current = activeGig;
+  const activeTaskRef = useRef(activeTask);
+  activeTaskRef.current = activeTask;
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
+  const settledServiceIdRef = useRef<string | null>(null);
+  const lastClockMinsRef = useRef<number>(9 * 60 + 15);
+  const ownedBusinessIdsRef = useRef<string[]>(ownedBusinessIds);
+  ownedBusinessIdsRef.current = ownedBusinessIds;
+  const menuPickedCharacterRef = useRef(false);
 
   const isPortraitPhone = viewportInfo.width < 768 && viewportInfo.height > viewportInfo.width;
   const isTouchControlsVisible =
@@ -223,6 +280,43 @@ export default function App() {
     const t = setTimeout(() => setToastMessage(null), 3500);
     return () => clearTimeout(t);
   }, [toastMessage]);
+
+  const activeProfile = useMemo(
+    () => PLAYABLE_CHARACTERS.find((p) => p.id === activeCharacterId) || PLAYABLE_CHARACTERS[0],
+    [activeCharacterId]
+  );
+
+  const activeCareerRank = useMemo(
+    () => computeCareerRankTitle(activeProfile, completedJobsCount, cultureXp),
+    [activeProfile, completedJobsCount, cultureXp]
+  );
+
+  // Sync player energy ratio into TamaleEngine
+  useEffect(() => {
+    engineRef.current?.setPlayerEnergyRatio(energy / 100);
+  }, [energy]);
+
+  // Declarative achievement tracker
+  useEffect(() => {
+    setAchievements((prev) => {
+      const next = new Set(prev);
+      if (completedJobsCount >= 1) next.add("first_hustle");
+      if (completedJobsCount >= 5) next.add("five_jobs");
+      if (discoveredLandmarks.length >= 5) next.add("city_explorer_5");
+      if (discoveredLandmarks.length >= 15) next.add("city_explorer_15");
+      if (learnedVocabIds.length >= 6) next.add("dagbani_speaker");
+      if (ownedBusinessIds.length >= 1) next.add("business_investor");
+      if (capturedPhotos.length >= 1) next.add("photo_archivist");
+      if (next.size === prev.length) return prev;
+      return Array.from(next);
+    });
+  }, [
+    completedJobsCount,
+    discoveredLandmarks.length,
+    learnedVocabIds.length,
+    ownedBusinessIds.length,
+    capturedPhotos.length,
+  ]);
 
   const applySettingsToEngines = useCallback((next: GameSettings) => {
     audioRef.current?.setEnabled(next.audioEnabled);
@@ -260,6 +354,14 @@ export default function App() {
     }
   }, []);
 
+  const awardSkillPoint = useCallback((skillKey: SkillKey, pts: number) => {
+    if (pts <= 0) return;
+    setSkills((prev) => ({
+      ...prev,
+      [skillKey]: Math.min(10, (prev[skillKey] ?? 1) + pts),
+    }));
+  }, []);
+
   const handleCompleteActiveErrand = useCallback(
     (landmarkId: string) => {
       const active = errandsRef.current.find(
@@ -273,6 +375,7 @@ export default function App() {
       setMoneyCedis((m) => m + active.rewardCedis);
       setTotalEarnedCedis((t) => t + active.rewardCedis);
       setCultureXp((xp) => xp + active.rewardCultureXp);
+      setCompletedJobsCount((c) => c + 1);
       engineRef.current?.setActiveErrandLandmark(null);
       audioRef.current?.playChime("success");
       showToast(
@@ -289,6 +392,7 @@ export default function App() {
 
       setActiveGig(null);
       setCompletedGigsCount((c) => c + 1);
+      setCompletedJobsCount((c) => c + 1);
       setTotalEarnedCedis((t) => t + currentGig.rewardCedis);
       setMoneyCedis((m) => m + currentGig.rewardCedis);
       setCultureXp((xp) => xp + currentGig.rewardCultureXp);
@@ -301,6 +405,31 @@ export default function App() {
     [showToast]
   );
 
+  const handleCompleteActiveTask = useCallback(
+    (bonusCedis = 0, photoRecord?: CapturedPhotoRecord) => {
+      const currentTask = activeTaskRef.current;
+      if (!currentTask) return;
+      const totalPay = currentTask.job.rewardCedis + bonusCedis;
+      setActiveTask(null);
+      engineRef.current?.setActiveTaskState(null);
+      setCompletedJobsCount((c) => c + 1);
+      setCompletedGigsCount((c) => c + 1);
+      setMoneyCedis((m) => m + totalPay);
+      setTotalEarnedCedis((t) => t + totalPay);
+      setCultureXp((xp) => xp + currentTask.job.rewardCultureXp);
+      setEnergy((e) => Math.max(8, e - currentTask.job.energyCost));
+      awardSkillPoint(currentTask.job.skillReward.skill, currentTask.job.skillReward.points);
+      if (photoRecord) {
+        setCapturedPhotos((prev) => [photoRecord, ...prev]);
+      }
+      audioRef.current?.playChime("success");
+      showToast(
+        `Job completed! +GH₵ ${totalPay}, +${currentTask.job.rewardCultureXp} XP & +${currentTask.job.skillReward.points} ${currentTask.job.skillReward.skill}`
+      );
+    },
+    [awardSkillPoint, showToast]
+  );
+
   // Initialize Three.js TamaleEngine once inside isolated canvasMountRef
   useEffect(() => {
     const mountEl = canvasMountRef.current;
@@ -309,11 +438,12 @@ export default function App() {
     const audio = new TamaleAudioEngine();
     audioRef.current = audio;
 
-    const engine = new TamaleEngine(mountEl, DEFAULT_CUSTOMIZATION, audio, {
+    const engine = new TamaleEngine(mountEl, initialProfile.customization, audio, {
       onHudUpdate: (data) => {
         setDistrict(data.district);
         setSpeedKmh(data.speedKmh);
         setIsDriving(data.isDriving);
+        setIsRidingService(data.isRidingService);
         setDrivingLabel(data.drivingLabel);
         setDrivingKind(data.drivingKind);
         setNearby(data.nearby);
@@ -321,9 +451,26 @@ export default function App() {
         setNearbyChatter(data.nearbyChatter);
         setNearestGuidance(data.nearestGuidance);
         setPlayerPos(data.playerPos);
+        setServicePos(data.servicePos);
         setNpcStates(data.npcStates);
         if (engineRef.current) {
-          setGameMinutes(engineRef.current.getGameMinutes());
+          const nextMins = engineRef.current.getGameMinutes();
+          const prevMins = lastClockMinsRef.current;
+          lastClockMinsRef.current = nextMins;
+          setGameMinutes(nextMins);
+
+          if (prevMins >= 23 * 60 && nextMins < 2 * 60 && ownedBusinessIdsRef.current.length > 0) {
+            const dividend = ownedBusinessIdsRef.current.reduce(
+              (sum, id) => sum + (SHOP_METADATA[id]?.dailyRevenueCedis ?? 35),
+              0
+            );
+            if (dividend > 0) {
+              setMoneyCedis((m) => m + dividend);
+              setTotalEarnedCedis((t) => t + dividend);
+              audioRef.current?.playChime("coin");
+              showToast(`Midnight Business Dividend: +GH₵ ${dividend} from your Tamale shops!`);
+            }
+          }
         }
         if (data.discoveredLandmarkId) {
           const lmId = data.discoveredLandmarkId;
@@ -346,18 +493,103 @@ export default function App() {
           setActiveInteriorLandmarkId(item.id);
         } else if (item.kind === "vendor") {
           if (item.shopId) setActiveShopId(item.shopId);
+        } else if (item.kind === "service_provider") {
+          if (item.servicePhase === "board_ride") {
+            engineRef.current?.boardServiceVehicle();
+          } else {
+            engineRef.current?.collectServiceDelivery();
+          }
+        } else if (item.kind === "job_action") {
+          const task = activeTaskRef.current;
+          if (!task) return;
+          if (
+            item.jobActionMode === "pickup_passenger" &&
+            task.stage === "go_to_pickup"
+          ) {
+            const updated: ActiveTaskRuntime = {
+              ...task,
+              stage: "go_to_destination",
+              passengerBoarded: task.job.executionMode === "transport_passenger",
+            };
+            setActiveTask(updated);
+            engineRef.current?.setActiveTaskState(updated);
+            audioRef.current?.playChime("success");
+            showToast(
+              `${
+                task.job.executionMode === "transport_passenger"
+                  ? "Passenger boarded!"
+                  : "Dispatch collected!"
+              } Now proceed to ${task.job.targetLandmarkName}.`
+            );
+          } else {
+            setShowWorkModal(true);
+          }
         } else if (item.kind === "delivery") {
-          if (item.isGigDelivery) {
+          const currentTask = activeTaskRef.current;
+          if (item.isGigDelivery && currentTask && currentTask.job.targetLandmarkId === item.id) {
+            handleCompleteActiveTask(0);
+          } else if (item.isGigDelivery) {
             handleCompleteActiveGig(item.id);
           } else {
             handleCompleteActiveErrand(item.id);
           }
         }
       },
+      onServiceUpdate: (req) => {
+        setActiveService(req);
+        if (req && req.status === "completed" && settledServiceIdRef.current !== req.id) {
+          settledServiceIdRef.current = req.id;
+          setMoneyCedis((m) => Math.max(0, m - req.estimatedCostCedis));
+          setAchievements((prev) =>
+            prev.includes("service_patron") ? prev : [...prev, "service_patron"]
+          );
+
+          if (req.deliveredItems && req.deliveredItems.length > 0) {
+            setInventory((prev) => {
+              const next = [...prev];
+              for (const dItem of req.deliveredItems!) {
+                const idx = next.findIndex((i) => i.id === dItem.id);
+                if (idx >= 0) {
+                  next[idx] = { ...next[idx], quantity: next[idx].quantity + 1 };
+                } else {
+                  next.push({
+                    id: dItem.id,
+                    name: dItem.name,
+                    dagbaniName: dItem.dagbaniName,
+                    category: dItem.category,
+                    quantity: 1,
+                    energyRestore: dItem.energyRestore,
+                    description: dItem.description,
+                  });
+                }
+              }
+              return next;
+            });
+            showToast(
+              `Delivered by ${req.providerName}! Items added to your bag (Paid GH₵ ${req.estimatedCostCedis}).`
+            );
+          } else if (req.kind === "roadside_repair") {
+            setEnergy((e) => Math.min(100, e + 20));
+            showToast(
+              `Master mechanic serviced your street ride & boosted energy (+20%) · Paid GH₵ ${req.estimatedCostCedis}.`
+            );
+          } else {
+            showToast(
+              `Arrived at ${req.destinationName ?? "destination"}! Paid GH₵ ${req.estimatedCostCedis}.`
+            );
+          }
+          audioRef.current?.playChime("success");
+        }
+      },
+      onEnergyDrain: (delta) => {
+        setEnergy((e) => Math.max(5, e - delta));
+      },
       onWebGLContextChange: (lost) => setWebglLost(lost),
     });
 
     engineRef.current = engine;
+    engine.setActivePlayableCharacter(initialProfile.id);
+    engine.setPlayerEnergyRatio(initialCharState.energy / 100);
     applySettingsToEngines(settingsRef.current);
     engine.setPaused(true); // Paused while on Main Menu
 
@@ -367,7 +599,164 @@ export default function App() {
       engineRef.current = null;
       audioRef.current = null;
     };
-  }, [applySettingsToEngines, handleCompleteActiveErrand, handleCompleteActiveGig, showToast]);
+  }, [
+    applySettingsToEngines,
+    handleCompleteActiveErrand,
+    handleCompleteActiveGig,
+    handleCompleteActiveTask,
+    initialCharState.energy,
+    initialProfile.customization,
+    initialProfile.id,
+    showToast,
+  ]);
+
+  // Helper returning current runtime state merged with characterStates map
+  const snapshotActiveCharacterState = useCallback((): CharacterRuntimeState => {
+    const activeErr = errands.find((e) => e.active && !e.completed);
+    return {
+      characterId: activeCharacterId,
+      moneyCedis,
+      energy,
+      cultureXp,
+      careerLevel: activeCareerRank.tier,
+      skills,
+      customization,
+      inventory,
+      friendships,
+      discoveredLandmarks,
+      learnedVocabIds,
+      activeErrandId: activeErr ? activeErr.id : null,
+      completedErrands: errands.filter((e) => e.completed).map((e) => e.id),
+      activeTask,
+      completedJobsCount,
+      totalEarnedCedis,
+      ownedBusinessIds,
+      achievements,
+      capturedPhotos,
+      playerPos,
+    };
+  }, [
+    activeCharacterId,
+    moneyCedis,
+    energy,
+    cultureXp,
+    activeCareerRank.tier,
+    skills,
+    customization,
+    inventory,
+    friendships,
+    discoveredLandmarks,
+    learnedVocabIds,
+    errands,
+    activeTask,
+    completedJobsCount,
+    totalEarnedCedis,
+    ownedBusinessIds,
+    achievements,
+    capturedPhotos,
+    playerPos,
+  ]);
+
+  const allCharacterStatesLive = useMemo(() => {
+    return {
+      ...characterStates,
+      [activeCharacterId]: snapshotActiveCharacterState(),
+    };
+  }, [characterStates, activeCharacterId, snapshotActiveCharacterState]);
+
+  const applyCharacterStateToRuntime = useCallback(
+    (charId: string, state: CharacterRuntimeState) => {
+      const profile =
+        PLAYABLE_CHARACTERS.find((p) => p.id === charId) || PLAYABLE_CHARACTERS[0];
+      setActiveCharacterId(charId);
+      setMoneyCedis(state.moneyCedis);
+      setEnergy(state.energy);
+      setCultureXp(state.cultureXp);
+      setSkills(state.skills);
+      setCustomization(state.customization);
+      setInventory(state.inventory);
+      setFriendships(state.friendships);
+      setDiscoveredLandmarks(state.discoveredLandmarks);
+      setLearnedVocabIds(state.learnedVocabIds);
+      setErrands(
+        INITIAL_ERRANDS.map((e) => ({
+          ...e,
+          completed: state.completedErrands.includes(e.id),
+          active: state.activeErrandId === e.id,
+        }))
+      );
+      setActiveTask(state.activeTask);
+      setCompletedJobsCount(state.completedJobsCount);
+      setTotalEarnedCedis(state.totalEarnedCedis);
+      setOwnedBusinessIds(state.ownedBusinessIds);
+      setAchievements(state.achievements);
+      setCapturedPhotos(state.capturedPhotos);
+      setPlayerPos(state.playerPos);
+      setAvailableJobs(
+        generateJobsForCharacter(
+          profile.recommendedJobCategories,
+          state.playerPos.x,
+          state.playerPos.z
+        )
+      );
+
+      if (engineRef.current) {
+        engineRef.current.setActivePlayableCharacter(charId);
+        engineRef.current.updatePlayerCustomization(state.customization);
+        engineRef.current.setPlayerEnergyRatio(state.energy / 100);
+        engineRef.current.setActiveTaskState(state.activeTask);
+        engineRef.current.setActiveErrandLandmark(
+          state.activeErrandId
+            ? INITIAL_ERRANDS.find((e) => e.id === state.activeErrandId)?.targetLandmarkId ?? null
+            : null
+        );
+        engineRef.current.teleportTo(
+          state.playerPos.x,
+          state.playerPos.z,
+          state.playerPos.rotY
+        );
+      }
+    },
+    []
+  );
+
+  const handleSwitchCharacter = useCallback(
+    (newCharId: string) => {
+      if (inMainMenu) {
+        menuPickedCharacterRef.current = true;
+      }
+      if (newCharId === activeCharacterId) {
+        setShowCharacterSwitch(false);
+        setShowPhone(false);
+        return;
+      }
+      engineRef.current?.cancelActiveService();
+      setActiveService(null);
+      const snapshot = snapshotActiveCharacterState();
+      const updatedMap = {
+        ...characterStates,
+        [activeCharacterId]: snapshot,
+      };
+      const targetProfile =
+        PLAYABLE_CHARACTERS.find((p) => p.id === newCharId) || PLAYABLE_CHARACTERS[0];
+      const targetState = updatedMap[newCharId] ?? createInitialCharacterState(targetProfile);
+      updatedMap[newCharId] = targetState;
+      setCharacterStates(updatedMap);
+      applyCharacterStateToRuntime(newCharId, targetState);
+      setShowCharacterSwitch(false);
+      setShowPhone(false);
+      audioRef.current?.playChime("success");
+      showToast(`Switched to ${targetProfile.name} (${targetProfile.occupation})`);
+    },
+    [
+      activeCharacterId,
+      applyCharacterStateToRuntime,
+      characterStates,
+      inMainMenu,
+      showToast,
+      snapshotActiveCharacterState,
+    ]
+  );
 
   // Pause engine whenever menu, exit screen, or any modal is open
   const anyModalOpen =
@@ -380,6 +769,9 @@ export default function App() {
     showDagbaniGuide ||
     showCustomize ||
     showInventory ||
+    showPhone ||
+    showCharacterSwitch ||
+    showWorkModal ||
     showReferences ||
     showEvents ||
     showContributions ||
@@ -413,6 +805,9 @@ export default function App() {
           showDagbaniGuide ||
           showCustomize ||
           showInventory ||
+          showPhone ||
+          showCharacterSwitch ||
+          showWorkModal ||
           showReferences ||
           showEvents ||
           showContributions ||
@@ -424,7 +819,11 @@ export default function App() {
           setShowMap(false);
           setShowDagbaniGuide(false);
           setShowCustomize(false);
+          setCustomizeTargetCharId(null);
           setShowInventory(false);
+          setShowPhone(false);
+          setShowCharacterSwitch(false);
+          setShowWorkModal(false);
           setShowReferences(false);
           setShowEvents(false);
           setShowContributions(false);
@@ -438,6 +837,10 @@ export default function App() {
         setShowDagbaniGuide(true);
       } else if (e.code === kb.inventory && !anyModalOpen) {
         setShowInventory(true);
+      } else if (e.code === "KeyP" && !anyModalOpen) {
+        setShowPhone(true);
+      } else if (e.code === "KeyC" && !anyModalOpen) {
+        setShowCharacterSwitch(true);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -455,6 +858,9 @@ export default function App() {
     showDagbaniGuide,
     showCustomize,
     showInventory,
+    showPhone,
+    showCharacterSwitch,
+    showWorkModal,
     showReferences,
     showEvents,
     showContributions,
@@ -463,8 +869,11 @@ export default function App() {
 
   const handleSaveGame = useCallback(() => {
     const activeErr = errands.find((e) => e.active && !e.completed);
+    const fullStates = allCharacterStatesLive;
     const saveObj: SavedGameState = {
-      version: 3,
+      version: 4,
+      activeCharacterId,
+      characterStates: fullStates,
       moneyCedis,
       energy,
       cultureXp,
@@ -488,11 +897,13 @@ export default function App() {
       localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(saveObj));
       setHasSavedGame(true);
       audioRef.current?.playChime("success");
-      showToast("Progress saved to browser storage.");
+      showToast("All Tamale characters & progress saved.");
     } catch {
       showToast("Unable to write save data in this browser session.");
     }
   }, [
+    allCharacterStatesLive,
+    activeCharacterId,
     errands,
     moneyCedis,
     energy,
@@ -518,20 +929,16 @@ export default function App() {
       const raw = localStorage.getItem(SAVE_STORAGE_KEY);
       if (!raw) return false;
       const s = JSON.parse(raw) as Partial<SavedGameState>;
-      setMoneyCedis(s.moneyCedis ?? 180);
-      setEnergy(s.energy ?? 90);
-      setCultureXp(s.cultureXp ?? 15);
+
       setGameMinutes(s.gameMinutes ?? 555);
+      lastClockMinsRef.current = s.gameMinutes ?? 555;
       const nextWeather = s.weather ?? "clear";
       setWeather(nextWeather);
       const ev = s.activeCityEvent ?? "ordinary_day";
       setActiveCityEvent(ev);
       engineRef.current?.setActiveCityEvent(ev);
-
-      if (s.customization) {
-        setCustomization(s.customization);
-        engineRef.current?.updatePlayerCustomization(s.customization);
-      }
+      engineRef.current?.setWeather(nextWeather);
+      engineRef.current?.setGameMinutes(s.gameMinutes ?? 555);
 
       const defaults = createInitialSettings();
       const loadedSettings: GameSettings = {
@@ -545,65 +952,88 @@ export default function App() {
       setSettings(loadedSettings);
       applySettingsToEngines(loadedSettings);
 
-      setInventory(s.inventory ?? []);
-      setFriendships(s.friendships ?? {});
-      setDiscoveredLandmarks(s.discoveredLandmarks ?? ["tamale_interchange"]);
-      setLearnedVocabIds(s.learnedVocabIds ?? []);
-      setErrands(
-        INITIAL_ERRANDS.map((e) => ({
-          ...e,
-          completed: s.completedErrands?.includes(e.id) ?? false,
-          active: s.activeErrandId === e.id,
-        }))
-      );
-      if (s.activeErrandId) {
-        const er = INITIAL_ERRANDS.find((e) => e.id === s.activeErrandId);
-        engineRef.current?.setActiveErrandLandmark(er ? er.targetLandmarkId : null);
+      const defaultsMap = buildDefaultCharacterStates();
+      if (s.characterStates && s.activeCharacterId) {
+        const mergedMap: Record<string, CharacterRuntimeState> = { ...defaultsMap };
+        for (const key of Object.keys(s.characterStates)) {
+          mergedMap[key] = {
+            ...defaultsMap[key],
+            ...s.characterStates[key],
+          };
+        }
+        const targetId = mergedMap[s.activeCharacterId]
+          ? s.activeCharacterId
+          : PLAYABLE_CHARACTERS[0].id;
+        setCharacterStates(mergedMap);
+        applyCharacterStateToRuntime(targetId, mergedMap[targetId]);
       } else {
-        engineRef.current?.setActiveErrandLandmark(null);
+        // Migrate v1–v3 single-character save cleanly into active character
+        const targetId = PLAYABLE_CHARACTERS[0].id;
+        const base = defaultsMap[targetId];
+        const migrated: CharacterRuntimeState = {
+          ...base,
+          moneyCedis: s.moneyCedis ?? base.moneyCedis,
+          energy: s.energy ?? base.energy,
+          cultureXp: s.cultureXp ?? base.cultureXp,
+          customization: s.customization ?? base.customization,
+          inventory: s.inventory ?? base.inventory,
+          friendships: s.friendships ?? base.friendships,
+          discoveredLandmarks: s.discoveredLandmarks ?? base.discoveredLandmarks,
+          learnedVocabIds: s.learnedVocabIds ?? base.learnedVocabIds,
+          activeErrandId: s.activeErrandId ?? null,
+          completedErrands: s.completedErrands ?? [],
+          completedJobsCount: s.completedGigsCount ?? 0,
+          totalEarnedCedis: s.totalEarnedCedis ?? 0,
+          playerPos: s.playerPos ?? base.playerPos,
+        };
+        defaultsMap[targetId] = migrated;
+        setCharacterStates(defaultsMap);
+        applyCharacterStateToRuntime(targetId, migrated);
       }
+
       const loadedGig = s.activeGig ?? null;
       setActiveGig(loadedGig);
       setCompletedGigsCount(s.completedGigsCount ?? 0);
-      setTotalEarnedCedis(s.totalEarnedCedis ?? 0);
-      engineRef.current?.setActiveGigLandmark(loadedGig ? loadedGig.targetLandmarkId : null);
-
-      if (s.playerPos) {
-        engineRef.current?.teleportTo(s.playerPos.x, s.playerPos.z, s.playerPos.rotY);
+      if (!s.characterStates) {
+        engineRef.current?.setActiveGigLandmark(loadedGig ? loadedGig.targetLandmarkId : null);
       }
-      engineRef.current?.setWeather(nextWeather);
-      engineRef.current?.setGameMinutes(s.gameMinutes ?? 555);
       return true;
     } catch {
       return false;
     }
-  }, [applySettingsToEngines]);
+  }, [applyCharacterStateToRuntime, applySettingsToEngines]);
 
   const handleNewGame = useCallback(() => {
     audioRef.current?.init();
-    setMoneyCedis(180);
-    setEnergy(95);
-    setCultureXp(15);
+    engineRef.current?.cancelActiveService();
+    setActiveService(null);
+    const freshMap = buildDefaultCharacterStates();
+    const startProfile =
+      PLAYABLE_CHARACTERS.find((p) => p.id === activeCharacterId) || PLAYABLE_CHARACTERS[0];
+    setCharacterStates(freshMap);
+    applyCharacterStateToRuntime(startProfile.id, freshMap[startProfile.id]);
+
     setGameMinutes(9 * 60 + 15);
+    lastClockMinsRef.current = 9 * 60 + 15;
     setWeather("clear");
     setActiveCityEvent("ordinary_day");
-    setErrands(INITIAL_ERRANDS);
     setActiveGig(null);
     setCompletedGigsCount(0);
-    setTotalEarnedCedis(0);
     setActiveDiscoveryCard(null);
-    setAvailableGigs(generateAvailableCityGigs(14, 14));
+    setAvailableGigs(
+      generateAvailableCityGigs(startProfile.spawnPos.x, startProfile.spawnPos.z)
+    );
     engineRef.current?.setWeather("clear");
     engineRef.current?.setActiveCityEvent("ordinary_day");
     engineRef.current?.setGameMinutes(9 * 60 + 15);
-    engineRef.current?.setActiveErrandLandmark(null);
     engineRef.current?.setActiveGigLandmark(null);
-    engineRef.current?.teleportTo(14, 14, -Math.PI * 0.78);
     setExitedScreen(false);
     setShowPause(false);
     setInMainMenu(false);
-    showToast("Dasuba! Explore Tamale — walk near residents, shops, or a Pragya.");
-  }, [showToast]);
+    showToast(
+      `Dasuba! Playing as ${startProfile.name} (${startProfile.occupation}). Press P for City Phone.`
+    );
+  }, [activeCharacterId, applyCharacterStateToRuntime, showToast]);
 
   const handleContinueGame = useCallback(() => {
     audioRef.current?.init();
@@ -620,12 +1050,19 @@ export default function App() {
   }, [handleNewGame, loadSavedGameFromStorage, showToast]);
 
   const handlePlay = useCallback(() => {
-    if (hasSavedGame) {
+    if (hasSavedGame && !menuPickedCharacterRef.current) {
       handleContinueGame();
     } else {
-      handleNewGame();
+      audioRef.current?.init();
+      menuPickedCharacterRef.current = false;
+      setExitedScreen(false);
+      setShowPause(false);
+      setInMainMenu(false);
+      showToast(
+        `Dasuba! Playing as ${activeProfile.name} (${activeProfile.occupation}). Press P for City Phone.`
+      );
     }
-  }, [handleContinueGame, handleNewGame, hasSavedGame]);
+  }, [activeProfile.name, activeProfile.occupation, handleContinueGame, hasSavedGame, showToast]);
 
   const handleLoadFromPause = useCallback(() => {
     audioRef.current?.init();
@@ -663,7 +1100,7 @@ export default function App() {
     }
   }, [viewportInfo.hasTouch]);
 
-  const handleBuyItem = (item: ShopItem, finalPrice: number) => {
+  const handleBuyItem = (item: ShopItem, finalPrice: number, consumeImmediately = false) => {
     if (moneyCedis < finalPrice) return;
     setMoneyCedis((m) => m - finalPrice);
     audioRef.current?.playChime("coin");
@@ -674,6 +1111,10 @@ export default function App() {
       engineRef.current?.updatePlayerCustomization(updated);
       setCultureXp((xp) => xp + 20);
       showToast(`Equipped ${item.name} (${item.dagbaniName})!`);
+    } else if (consumeImmediately && item.energyRestore) {
+      setEnergy((e) => Math.min(100, e + item.energyRestore!));
+      audioRef.current?.playChime("success");
+      showToast(`Ate ${item.name} fresh (+${item.energyRestore}% Energy)!`);
     } else {
       setInventory((prev) => {
         const existing = prev.find((i) => i.id === item.id);
@@ -708,11 +1149,35 @@ export default function App() {
     if (service.advanceMinutes) {
       const nextMins = (((gameMinutes + service.advanceMinutes) % 1440) + 1440) % 1440;
       setGameMinutes(nextMins);
+      lastClockMinsRef.current = nextMins;
       engineRef.current?.setGameMinutes(nextMins);
     }
     audioRef.current?.playChime("success");
     showToast(`${service.label} (${service.dagbaniLabel}) completed!`);
   };
+
+  const handleInvestBusiness = useCallback(
+    (shopId: string) => {
+      const meta = SHOP_METADATA[shopId];
+      if (!meta || !meta.buyableSharePrice) return;
+      if (ownedBusinessIds.includes(shopId)) {
+        showToast(`You already co-own ${meta.title}.`);
+        return;
+      }
+      if (moneyCedis < meta.buyableSharePrice) {
+        showToast(`Need GH₵ ${meta.buyableSharePrice} to invest in ${meta.title}.`);
+        return;
+      }
+      setMoneyCedis((m) => m - meta.buyableSharePrice!);
+      setOwnedBusinessIds((prev) => [...prev, shopId]);
+      awardSkillPoint("trade", 1);
+      audioRef.current?.playChime("success");
+      showToast(
+        `Co-owned ${meta.title}! You now earn +GH₵ ${meta.dailyRevenueCedis ?? 35}/day at midnight.`
+      );
+    },
+    [awardSkillPoint, moneyCedis, ownedBusinessIds, showToast]
+  );
 
   const handleConsumeItem = (itemId: string) => {
     const item = inventory.find((i) => i.id === itemId);
@@ -767,6 +1232,114 @@ export default function App() {
     showToast("Refreshed Tamale city dispatch board.");
   };
 
+  const handleAcceptTask = useCallback(
+    (job: CityTaskJob) => {
+      const needsPickup =
+        Boolean(job.pickupLandmarkId) &&
+        (job.executionMode === "transport_passenger" || job.executionMode === "pickup_and_deliver");
+      const task: ActiveTaskRuntime = {
+        job,
+        stage: needsPickup ? "go_to_pickup" : "ready_for_activity",
+        startedAtMinutes: gameMinutes,
+      };
+      setActiveTask(task);
+      engineRef.current?.setActiveTaskState(task);
+      setShowPhone(false);
+      audioRef.current?.playChime("success");
+      showToast(
+        needsPickup
+          ? `Accepted: Go to ${job.pickupLabel} first (green beacon).`
+          : `Accepted: Travel to ${job.targetLandmarkName} to begin!`
+      );
+    },
+    [gameMinutes, showToast]
+  );
+
+  const handleAbandonTask = useCallback(() => {
+    setActiveTask(null);
+    engineRef.current?.setActiveTaskState(null);
+    showToast("Active city job cancelled.");
+  }, [showToast]);
+
+  const handleDispatchService = useCallback(
+    (kind: ServiceRequestKind, destLandmarkId?: string, packageOptionId?: string) => {
+      const entry = SERVICE_CATALOG.find((s) => s.kind === kind);
+      if (!entry) return;
+      const destLm = destLandmarkId
+        ? TAMALE_LANDMARKS.find((l) => l.id === destLandmarkId)
+        : undefined;
+      const distMeters = destLm
+        ? Math.max(120, Math.round(Math.hypot(destLm.x - playerPos.x, destLm.z - playerPos.z) * 10))
+        : 450;
+      const pkg = entry.packageOptions?.find((p) => p.id === packageOptionId);
+      const fare = calculateServiceFare(entry, distMeters, pkg?.extraCostCedis ?? 0);
+
+      if (moneyCedis < fare) {
+        showToast(`Need GH₵ ${fare} for ${entry.title}.`);
+        return;
+      }
+
+      const providerName =
+        entry.providerNames[Math.floor(Math.random() * entry.providerNames.length)];
+      const req: ServiceRequestRuntime = {
+        id: `srv_${Date.now()}`,
+        kind,
+        title: entry.title,
+        providerName,
+        vehicleKind: entry.vehicleKind,
+        estimatedCostCedis: fare,
+        distanceMeters: distMeters,
+        etaSeconds: 10,
+        status: "en_route_to_player",
+        statusNote: `${providerName} dispatched and heading down Tamale roads.`,
+        destinationLandmarkId: destLm?.id,
+        destinationName: destLm?.name,
+        destinationX: destLm?.x,
+        destinationZ: destLm ? destLm.z + 12 : undefined,
+        deliveredItems: pkg?.items,
+      };
+
+      setShowPhone(false);
+      engineRef.current?.dispatchServiceRequest(req, {
+        x: playerPos.x + 2.5,
+        z: playerPos.z + 2.5,
+      });
+      showToast(`${providerName} is driving to your location on the road grid!`);
+    },
+    [moneyCedis, playerPos.x, playerPos.z, showToast]
+  );
+
+  const handleFastTravelToLandmark = useCallback(
+    (lm: LandmarkData) => {
+      let tx = lm.x;
+      let tz = lm.z + 15;
+      if (lm.id === "tamale_interchange") {
+        tx = 14;
+        tz = 14;
+      } else if (lm.id === "central_mosque") {
+        tx = 18;
+        tz = lm.z;
+      } else if (lm.id === "aliu_mahama_stadium") {
+        tx = lm.x;
+        tz = lm.z + 27;
+      } else if (lm.id === "tamale_teaching_hospital") {
+        tx = lm.x - 18;
+        tz = lm.z + 10;
+      } else if (lm.id === "scca_red_clay" || lm.id === "kukuo_market_pottery") {
+        tx = lm.x - 16;
+        tz = lm.z;
+      } else if (lm.id === "tamale_airport") {
+        tx = lm.x;
+        tz = lm.z + 14;
+      }
+      engineRef.current?.teleportTo(tx, tz, 0);
+      setShowMap(false);
+      setShowPhone(false);
+      showToast(`Arrived at ${lm.name}`);
+    },
+    [showToast]
+  );
+
   const handleLearnVocab = useCallback((vocabIds: string[]) => {
     setLearnedVocabIds((prev) => {
       const merged = new Set([...prev, ...vocabIds]);
@@ -789,6 +1362,12 @@ export default function App() {
     : null;
   const activeErrand = errands.find((e) => e.active && !e.completed) || null;
   const { period, label: timePeriodLabel } = getPeriodFromMinutes(gameMinutes);
+
+  const customizeTargetId = customizeTargetCharId || activeCharacterId;
+  const customizeTargetLook =
+    customizeTargetId === activeCharacterId
+      ? customization
+      : (allCharacterStatesLive[customizeTargetId]?.customization ?? customization);
 
   return (
     <div className="relative w-screen h-[100dvh] overflow-hidden bg-[#12100e]">
@@ -813,11 +1392,14 @@ export default function App() {
         <MainMenu
           hasSavedGame={hasSavedGame}
           languageMode={settings.languageMode}
+          activeCharacterName={customization.name || activeProfile.name}
+          activeCharacterOccupation={activeCareerRank.title}
+          activeCharacterMoney={moneyCedis}
           onChangeLanguageMode={(mode) => updateSettings({ languageMode: mode })}
           onPlay={handlePlay}
           onContinueGame={handleContinueGame}
           onNewGame={handleNewGame}
-          onOpenCustomize={() => setShowCustomize(true)}
+          onOpenCustomize={() => setShowCharacterSwitch(true)}
           onOpenSettings={() => {
             setSettingsTab("settings");
             setShowSettings(true);
@@ -881,7 +1463,10 @@ export default function App() {
           moneyCedis={moneyCedis}
           energy={energy}
           cultureXp={cultureXp}
+          activeCharacterName={customization.name || activeProfile.name}
+          activeCareerTitle={activeCareerRank.title}
           isDriving={isDriving}
+          isRidingService={isRidingService}
           drivingLabel={drivingLabel}
           speedKmh={speedKmh}
           nearby={nearby}
@@ -890,6 +1475,8 @@ export default function App() {
           nearestGuidance={nearestGuidance}
           activeErrandTitle={activeErrand ? activeErrand.title : null}
           activeGigTitle={activeGig ? activeGig.title : null}
+          activeTask={activeTask}
+          activeService={activeService}
           activeCityEventLabel={INITIAL_CITY_EVENT_DESCRIPTIONS[activeCityEvent].label}
           weather={weather}
           cameraMode={settings.cameraMode}
@@ -902,10 +1489,20 @@ export default function App() {
           onTriggerInteract={() => engineRef.current?.triggerNearbyInteraction()}
           onToggleVehicle={() => engineRef.current?.handleVehicleToggle()}
           onTriggerHorn={() => engineRef.current?.triggerHorn()}
+          onOpenPhone={() => setShowPhone(true)}
+          onOpenCharacterSwitch={() => setShowCharacterSwitch(true)}
+          onCancelService={() => {
+            engineRef.current?.cancelActiveService();
+            setActiveService(null);
+            showToast("Service dispatch cancelled.");
+          }}
           onOpenMap={() => setShowMap(true)}
           onOpenDagbaniGuide={() => setShowDagbaniGuide(true)}
           onOpenInventory={() => setShowInventory(true)}
-          onOpenCustomize={() => setShowCustomize(true)}
+          onOpenCustomize={() => {
+            setCustomizeTargetCharId(activeCharacterId);
+            setShowCustomize(true);
+          }}
           onOpenReferences={() => setShowReferences(true)}
           onOpenEvents={() => setShowEvents(true)}
           onOpenContributions={() => setShowContributions(true)}
@@ -926,6 +1523,7 @@ export default function App() {
           }}
           onChangeTimePreset={(mins) => {
             setGameMinutes(mins);
+            lastClockMinsRef.current = mins;
             engineRef.current?.setGameMinutes(mins);
           }}
           onChangeCameraMode={(m) => updateSettings({ cameraMode: m })}
@@ -945,6 +1543,7 @@ export default function App() {
       {!inMainMenu && !exitedScreen && !anyModalOpen && isTouchControlsVisible && (
         <MobileTouchControls
           isDriving={isDriving}
+          isRidingService={isRidingService}
           drivingKind={drivingKind}
           nearby={nearby}
           nearbyVehicle={nearbyVehicle}
@@ -976,6 +1575,8 @@ export default function App() {
             engineRef.current?.triggerHorn();
           }}
           onCameraRotate={(dx, dy) => engineRef.current?.rotateCamera(dx, dy)}
+          onOpenPhone={() => setShowPhone(true)}
+          onOpenCharacterSwitch={() => setShowCharacterSwitch(true)}
         />
       )}
 
@@ -984,6 +1585,77 @@ export default function App() {
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-[#171411]/95 border border-amber-500/45 text-[#f8f5ef] px-4 py-2 rounded-lg text-xs font-medium shadow-xl pointer-events-none max-w-[90vw] text-center">
           {toastMessage}
         </div>
+      )}
+
+      {/* Character Switcher */}
+      {showCharacterSwitch && (
+        <CharacterSwitchModal
+          activeCharacterId={activeCharacterId}
+          characterStates={allCharacterStatesLive}
+          onSelectCharacter={handleSwitchCharacter}
+          onOpenCustomize={(charId) => {
+            setCustomizeTargetCharId(charId);
+            setShowCharacterSwitch(false);
+            setShowCustomize(true);
+          }}
+          onClose={() => setShowCharacterSwitch(false)}
+        />
+      )}
+
+      {/* Tamale Smartphone: Jobs, 3D Services, Businesses, Skills & Album */}
+      {showPhone && (
+        <TamalePhoneModal
+          activeProfile={activeProfile}
+          characterState={allCharacterStatesLive[activeCharacterId]}
+          allCharacterStates={allCharacterStatesLive}
+          playerPos={playerPos}
+          gameMinutes={gameMinutes}
+          availableJobs={availableJobs}
+          activeTask={activeTask}
+          activeService={activeService}
+          onAcceptTask={handleAcceptTask}
+          onAbandonTask={handleAbandonTask}
+          onRefreshJobs={() => {
+            setAvailableJobs(
+              generateJobsForCharacter(
+                activeProfile.recommendedJobCategories,
+                playerPos.x,
+                playerPos.z
+              )
+            );
+            showToast("Updated nearby Tamale jobs by distance.");
+          }}
+          onDispatchService={handleDispatchService}
+          onCancelService={() => {
+            engineRef.current?.cancelActiveService();
+            setActiveService(null);
+            showToast("Dispatched service cancelled.");
+          }}
+          onSwitchCharacter={handleSwitchCharacter}
+          onOpenCustomize={() => {
+            setCustomizeTargetCharId(activeCharacterId);
+            setShowPhone(false);
+            setShowCustomize(true);
+          }}
+          onInvestBusiness={handleInvestBusiness}
+          onFastTravelLandmark={handleFastTravelToLandmark}
+          onClose={() => setShowPhone(false)}
+        />
+      )}
+
+      {/* Interactive On-Site Work, Mechanic, Photo Survey, Sports & Business Activity */}
+      {showWorkModal && activeTask && (
+        <WorkAndActivityModal
+          task={activeTask}
+          district={district}
+          gameMinutesFormatted={formatClock(gameMinutes)}
+          onCaptureSnapshot={() => engineRef.current?.captureViewportSnapshot() || ""}
+          onCompleteActivity={({ bonusCedis, photoRecord }) => {
+            setShowWorkModal(false);
+            handleCompleteActiveTask(bonusCedis ?? 0, photoRecord);
+          }}
+          onClose={() => setShowWorkModal(false)}
+        />
       )}
 
       {/* NPC Dialogue Modal */}
@@ -1018,8 +1690,14 @@ export default function App() {
           moneyCedis={moneyCedis}
           energy={energy}
           gameMinutes={gameMinutes}
+          ownedBusinessIds={ownedBusinessIds}
           onBuyItem={handleBuyItem}
           onUseService={handleUseShopService}
+          onInvestBusiness={handleInvestBusiness}
+          onOpenCityJobs={() => {
+            setActiveShopId(null);
+            setShowPhone(true);
+          }}
           onClose={() => setActiveShopId(null)}
         />
       )}
@@ -1046,41 +1724,22 @@ export default function App() {
           playerPos={playerPos}
           discoveredLandmarks={discoveredLandmarks}
           activeErrandLandmarkId={activeErrand ? activeErrand.targetLandmarkId : null}
-          activeGigLandmarkId={activeGig ? activeGig.targetLandmarkId : null}
+          activeGigLandmarkId={
+            activeTask
+              ? activeTask.stage === "go_to_pickup" && activeTask.job.pickupLandmarkId
+                ? activeTask.job.pickupLandmarkId
+                : activeTask.job.targetLandmarkId
+              : activeGig
+              ? activeGig.targetLandmarkId
+              : null
+          }
           npcStates={npcStates}
+          servicePos={servicePos}
           onInspectLandmark={(lm) => {
             setShowMap(false);
             setActiveDiscoveryCard(lm);
           }}
-          onFastTravel={(lm: LandmarkData) => {
-            let tx = lm.x;
-            let tz = lm.z + 15;
-            if (lm.id === "tamale_interchange") {
-              tx = 14;
-              tz = 14;
-            } else if (lm.id === "central_mosque") {
-              tx = 18;
-              tz = lm.z;
-            } else if (lm.id === "aliu_mahama_stadium") {
-              tx = lm.x;
-              tz = lm.z + 27;
-            } else if (lm.id === "tamale_teaching_hospital") {
-              tx = lm.x - 18;
-              tz = lm.z + 10;
-            } else if (lm.id === "scca_red_clay") {
-              tx = lm.x - 16;
-              tz = lm.z;
-            } else if (lm.id === "kukuo_market_pottery") {
-              tx = lm.x - 16;
-              tz = lm.z;
-            } else if (lm.id === "tamale_airport") {
-              tx = lm.x;
-              tz = lm.z + 14;
-            }
-            engineRef.current?.teleportTo(tx, tz, 0);
-            setShowMap(false);
-            showToast(`Arrived at ${lm.name}`);
-          }}
+          onFastTravel={handleFastTravelToLandmark}
           onFastTravelCoords={(x, z, label) => {
             engineRef.current?.teleportTo(x, z, 0);
             setShowMap(false);
@@ -1104,9 +1763,11 @@ export default function App() {
             engineRef.current?.setActiveCityEvent(mode);
             if (mode === "bugum_chugu" || mode === "ramadan_evening") {
               setGameMinutes(18 * 60 + 45);
+              lastClockMinsRef.current = 18 * 60 + 45;
               engineRef.current?.setGameMinutes(18 * 60 + 45);
             } else if (mode === "stadium_match") {
               setGameMinutes(17 * 60 + 50);
+              lastClockMinsRef.current = 17 * 60 + 50;
               engineRef.current?.setGameMinutes(17 * 60 + 50);
             }
             audioRef.current?.playChime("success");
@@ -1115,23 +1776,8 @@ export default function App() {
           onJumpToLandmark={(landmarkId) => {
             const lm = TAMALE_LANDMARKS.find((l) => l.id === landmarkId);
             if (!lm) return;
-            const tx =
-              lm.id === "tamale_interchange"
-                ? 14
-                : lm.id === "central_mosque"
-                ? 18
-                : lm.id === "scca_red_clay"
-                ? lm.x - 16
-                : lm.x;
-            const tz =
-              lm.id === "aliu_mahama_stadium"
-                ? lm.z + 27
-                : lm.id === "central_mosque"
-                ? lm.z
-                : lm.z + 15;
-            engineRef.current?.teleportTo(tx, tz, 0);
+            handleFastTravelToLandmark(lm);
             setInMainMenu(false);
-            showToast(`Arrived at ${lm.name}`);
           }}
           onClose={() => setShowEvents(false)}
         />
@@ -1156,13 +1802,27 @@ export default function App() {
       {/* Character Customisation */}
       {showCustomize && (
         <CustomizeModal
-          customization={customization}
+          customization={customizeTargetLook}
           onApply={(cust) => {
-            setCustomization(cust);
-            engineRef.current?.updatePlayerCustomization(cust);
+            if (customizeTargetId === activeCharacterId) {
+              setCustomization(cust);
+              engineRef.current?.updatePlayerCustomization(cust);
+            } else {
+              setCharacterStates((prev) => ({
+                ...prev,
+                [customizeTargetId]: {
+                  ...prev[customizeTargetId],
+                  customization: cust,
+                },
+              }));
+            }
+            setCustomizeTargetCharId(null);
             showToast(`Updated look for ${cust.name}`);
           }}
-          onClose={() => setShowCustomize(false)}
+          onClose={() => {
+            setCustomizeTargetCharId(null);
+            setShowCustomize(false);
+          }}
         />
       )}
 
@@ -1189,6 +1849,7 @@ export default function App() {
             setShowInventory(false);
           }}
           onConsumeItem={handleConsumeItem}
+          onOpenPhone={() => setShowPhone(true)}
           onClose={() => setShowInventory(false)}
         />
       )}

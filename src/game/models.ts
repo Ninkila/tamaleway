@@ -13,13 +13,72 @@ export interface CharacterRig {
   shadowPlane: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
 }
 
+export type NpcCarryProp =
+  | "none"
+  | "headpan"
+  | "basket"
+  | "backpack"
+  | "parcel_box"
+  | "water_pack"
+  | "umbrella_hand"
+  | "apron";
+
 export interface CharacterAppearance {
   outfit: OutfitStyle;
   headwear: HeadwearStyle;
   primaryColor: string;
   accentColor: string;
   skinTone: string;
+  carryProp?: NpcCarryProp;
+  ownShadowMaterial?: boolean;
 }
+
+const CHAR_STD_MAT_CACHE = new Map<string, THREE.MeshStandardMaterial>();
+function getCachedCharMat(
+  key: string,
+  factory: () => THREE.MeshStandardMaterial
+): THREE.MeshStandardMaterial {
+  let mat = CHAR_STD_MAT_CACHE.get(key);
+  if (!mat) {
+    mat = factory();
+    CHAR_STD_MAT_CACHE.set(key, mat);
+  }
+  return mat;
+}
+
+let SHARED_NPC_SHADOW_MAT: THREE.MeshBasicMaterial | null = null;
+
+const CHAR_GEOS = {
+  shadowPlane: new THREE.PlaneGeometry(1.15, 1.15),
+  upperLeg: new THREE.CylinderGeometry(0.11, 0.092, 0.72, 10),
+  foot: new THREE.BoxGeometry(0.16, 0.09, 0.28),
+  torsoWide: new THREE.BoxGeometry(0.54, 0.64, 0.28),
+  torsoStd: new THREE.BoxGeometry(0.46, 0.64, 0.28),
+  batakariFlare: new THREE.CylinderGeometry(0.28, 0.36, 0.38, 12),
+  batakariEmbroidery: new THREE.BoxGeometry(0.2, 0.22, 0.03),
+  kabaSkirt: new THREE.CylinderGeometry(0.24, 0.28, 0.52, 12),
+  collar: new THREE.CylinderGeometry(0.14, 0.16, 0.08, 10),
+  sleeve: new THREE.CylinderGeometry(0.095, 0.085, 0.24, 10),
+  forearm: new THREE.CylinderGeometry(0.072, 0.062, 0.38, 10),
+  neck: new THREE.CylinderGeometry(0.08, 0.09, 0.14, 10),
+  head: new THREE.SphereGeometry(0.18, 12, 10),
+  eye: new THREE.SphereGeometry(0.022, 6, 6),
+  kufi: new THREE.CylinderGeometry(0.175, 0.185, 0.15, 12),
+  headwrapTorus: new THREE.TorusGeometry(0.155, 0.07, 8, 14),
+  headwrapCrown: new THREE.SphereGeometry(0.165, 10, 8),
+  braidCap: new THREE.SphereGeometry(0.185, 10, 8),
+  braidStrand: new THREE.CylinderGeometry(0.022, 0.018, 0.24, 6),
+  shortHair: new THREE.SphereGeometry(0.182, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.58),
+  // Carry prop geometries
+  headpanBowl: new THREE.CylinderGeometry(0.29, 0.18, 0.16, 12),
+  headpanCloth: new THREE.TorusGeometry(0.14, 0.04, 6, 12),
+  headpanGoods: new THREE.DodecahedronGeometry(0.16, 0),
+  waterBundle: new THREE.BoxGeometry(0.36, 0.2, 0.28),
+  backpack: new THREE.BoxGeometry(0.34, 0.42, 0.16),
+  parcelBox: new THREE.BoxGeometry(0.36, 0.24, 0.3),
+  handBag: new THREE.BoxGeometry(0.12, 0.28, 0.24),
+  apron: new THREE.BoxGeometry(0.38, 0.56, 0.04),
+};
 
 export function createCharacterRig(
   appearance: CharacterAppearance,
@@ -27,15 +86,27 @@ export function createCharacterRig(
 ): CharacterRig {
   const root = new THREE.Group();
 
-  const shadowPlane = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.15, 1.15),
-    new THREE.MeshBasicMaterial({
+  let shadowMat: THREE.MeshBasicMaterial;
+  if (appearance.ownShadowMaterial) {
+    shadowMat = new THREE.MeshBasicMaterial({
       map: textures.contactShadow,
       transparent: true,
       depthWrite: false,
       opacity: 0.58,
-    })
-  );
+    });
+  } else {
+    if (!SHARED_NPC_SHADOW_MAT) {
+      SHARED_NPC_SHADOW_MAT = new THREE.MeshBasicMaterial({
+        map: textures.contactShadow,
+        transparent: true,
+        depthWrite: false,
+        opacity: 0.54,
+      });
+    }
+    shadowMat = SHARED_NPC_SHADOW_MAT;
+  }
+
+  const shadowPlane = new THREE.Mesh(CHAR_GEOS.shadowPlane, shadowMat);
   shadowPlane.rotation.x = -Math.PI / 2;
   shadowPlane.position.y = 0.02;
   root.add(shadowPlane);
@@ -43,56 +114,78 @@ export function createCharacterRig(
   const bodyGroup = new THREE.Group();
   root.add(bodyGroup);
 
-  const skinMat = new THREE.MeshStandardMaterial({
-    color: appearance.skinTone,
-    roughness: 0.66,
-    metalness: 0.02,
-  });
+  const skinMat = getCachedCharMat(
+    `skin:${appearance.skinTone}`,
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: appearance.skinTone,
+        roughness: 0.66,
+        metalness: 0.02,
+      })
+  );
 
   const outfitMat =
     appearance.outfit === "batakari"
-      ? new THREE.MeshStandardMaterial({
-          map: textures.batakariCloth,
-          color: appearance.primaryColor,
-          roughness: 0.86,
-          metalness: 0.02,
-        })
-      : new THREE.MeshStandardMaterial({
-          color: appearance.primaryColor,
-          roughness: 0.78,
-          metalness: 0.04,
-        });
+      ? getCachedCharMat(
+          `batakari:${appearance.primaryColor}`,
+          () =>
+            new THREE.MeshStandardMaterial({
+              map: textures.batakariCloth,
+              color: appearance.primaryColor,
+              roughness: 0.86,
+              metalness: 0.02,
+            })
+        )
+      : getCachedCharMat(
+          `outfit:${appearance.primaryColor}`,
+          () =>
+            new THREE.MeshStandardMaterial({
+              color: appearance.primaryColor,
+              roughness: 0.78,
+              metalness: 0.04,
+            })
+        );
 
-  const accentMat = new THREE.MeshStandardMaterial({
-    color: appearance.accentColor,
-    roughness: 0.72,
-    metalness: 0.05,
-  });
+  const accentMat = getCachedCharMat(
+    `accent:${appearance.accentColor}`,
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: appearance.accentColor,
+        roughness: 0.72,
+        metalness: 0.05,
+      })
+  );
 
-  const trouserMat = new THREE.MeshStandardMaterial({
-    color: appearance.outfit === "kaba" ? appearance.primaryColor : "#272b33",
-    roughness: 0.84,
-  });
+  const trouserColor = appearance.outfit === "kaba" ? appearance.primaryColor : "#272b33";
+  const trouserMat = getCachedCharMat(
+    `trouser:${trouserColor}`,
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: trouserColor,
+        roughness: 0.84,
+      })
+  );
 
-  const shoeMat = new THREE.MeshStandardMaterial({
-    color: "#221a15",
-    roughness: 0.55,
-    metalness: 0.1,
-  });
+  const shoeMat = getCachedCharMat(
+    "shoe:#221a15",
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: "#221a15",
+        roughness: 0.55,
+        metalness: 0.1,
+      })
+  );
 
   const makeLeg = (offsetX: number) => {
     const pivot = new THREE.Group();
     pivot.position.set(offsetX, 0.78, 0);
 
-    const upperLeg = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.11, 0.092, 0.72, 10),
-      trouserMat
-    );
+    const upperLeg = new THREE.Mesh(CHAR_GEOS.upperLeg, trouserMat);
     upperLeg.position.y = -0.36;
     upperLeg.castShadow = true;
     pivot.add(upperLeg);
 
-    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.09, 0.28), shoeMat);
+    const foot = new THREE.Mesh(CHAR_GEOS.foot, shoeMat);
     foot.position.set(0, -0.735, 0.05);
     foot.castShadow = true;
     pivot.add(foot);
@@ -106,7 +199,7 @@ export function createCharacterRig(
 
   const torsoWidth = appearance.outfit === "batakari" ? 0.54 : 0.46;
   const torso = new THREE.Mesh(
-    new THREE.BoxGeometry(torsoWidth, 0.64, 0.28),
+    appearance.outfit === "batakari" ? CHAR_GEOS.torsoWide : CHAR_GEOS.torsoStd,
     outfitMat
   );
   torso.position.y = 1.12;
@@ -115,33 +208,21 @@ export function createCharacterRig(
   bodyGroup.add(torso);
 
   if (appearance.outfit === "batakari") {
-    const flare = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.28, 0.36, 0.38, 12),
-      outfitMat
-    );
+    const flare = new THREE.Mesh(CHAR_GEOS.batakariFlare, outfitMat);
     flare.position.y = 0.72;
     flare.castShadow = true;
     bodyGroup.add(flare);
 
-    const embroidery = new THREE.Mesh(
-      new THREE.BoxGeometry(0.2, 0.22, 0.03),
-      accentMat
-    );
+    const embroidery = new THREE.Mesh(CHAR_GEOS.batakariEmbroidery, accentMat);
     embroidery.position.set(0, 1.18, 0.145);
     bodyGroup.add(embroidery);
   } else if (appearance.outfit === "kaba") {
-    const wrapSkirt = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.24, 0.28, 0.52, 12),
-      accentMat
-    );
+    const wrapSkirt = new THREE.Mesh(CHAR_GEOS.kabaSkirt, accentMat);
     wrapSkirt.position.y = 0.58;
     wrapSkirt.castShadow = true;
     bodyGroup.add(wrapSkirt);
   } else {
-    const collar = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.14, 0.16, 0.08, 10),
-      accentMat
-    );
+    const collar = new THREE.Mesh(CHAR_GEOS.collar, accentMat);
     collar.position.y = 1.44;
     bodyGroup.add(collar);
   }
@@ -150,18 +231,12 @@ export function createCharacterRig(
     const pivot = new THREE.Group();
     pivot.position.set(offsetX, 1.38, 0);
 
-    const sleeve = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.095, 0.085, 0.24, 10),
-      outfitMat
-    );
+    const sleeve = new THREE.Mesh(CHAR_GEOS.sleeve, outfitMat);
     sleeve.position.y = -0.1;
     sleeve.castShadow = true;
     pivot.add(sleeve);
 
-    const forearm = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.072, 0.062, 0.38, 10),
-      skinMat
-    );
+    const forearm = new THREE.Mesh(CHAR_GEOS.forearm, skinMat);
     forearm.position.y = -0.38;
     forearm.castShadow = true;
     pivot.add(forearm);
@@ -176,60 +251,139 @@ export function createCharacterRig(
   const headGroup = new THREE.Group();
   headGroup.position.set(0, 1.56, 0);
 
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.14, 10), skinMat);
+  const neck = new THREE.Mesh(CHAR_GEOS.neck, skinMat);
   neck.position.y = -0.06;
   headGroup.add(neck);
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 14, 12), skinMat);
+  const head = new THREE.Mesh(CHAR_GEOS.head, skinMat);
   head.position.y = 0.1;
   head.castShadow = true;
   headGroup.add(head);
 
-  const eyeMat = new THREE.MeshStandardMaterial({ color: "#151210", roughness: 0.3 });
-  const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 8), eyeMat);
+  const eyeMat = getCachedCharMat(
+    "eye:#151210",
+    () => new THREE.MeshStandardMaterial({ color: "#151210", roughness: 0.3 })
+  );
+  const leftEye = new THREE.Mesh(CHAR_GEOS.eye, eyeMat);
   leftEye.position.set(-0.06, 0.12, 0.155);
-  const rightEye = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 8), eyeMat);
+  const rightEye = new THREE.Mesh(CHAR_GEOS.eye, eyeMat);
   rightEye.position.set(0.06, 0.12, 0.155);
   headGroup.add(leftEye, rightEye);
 
-  const hairMat = new THREE.MeshStandardMaterial({ color: "#1a1512", roughness: 0.9 });
+  const hairMat = getCachedCharMat(
+    "hair:#1a1512",
+    () => new THREE.MeshStandardMaterial({ color: "#1a1512", roughness: 0.9 })
+  );
   if (appearance.headwear === "kufi") {
-    const cap = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.175, 0.185, 0.15, 14),
-      accentMat
-    );
+    const cap = new THREE.Mesh(CHAR_GEOS.kufi, accentMat);
     cap.position.y = 0.22;
     cap.castShadow = true;
     headGroup.add(cap);
   } else if (appearance.headwear === "headwrap") {
-    const wrap = new THREE.Mesh(
-      new THREE.TorusGeometry(0.155, 0.07, 10, 16),
-      accentMat
-    );
+    const wrap = new THREE.Mesh(CHAR_GEOS.headwrapTorus, accentMat);
     wrap.rotation.x = Math.PI / 2 - 0.15;
     wrap.position.y = 0.2;
     wrap.castShadow = true;
     headGroup.add(wrap);
-    const crown = new THREE.Mesh(new THREE.SphereGeometry(0.165, 12, 10), accentMat);
+    const crown = new THREE.Mesh(CHAR_GEOS.headwrapCrown, accentMat);
     crown.position.y = 0.21;
     headGroup.add(crown);
   } else if (appearance.headwear === "braids") {
-    const capHair = new THREE.Mesh(new THREE.SphereGeometry(0.185, 12, 10), hairMat);
+    const capHair = new THREE.Mesh(CHAR_GEOS.braidCap, hairMat);
     capHair.position.set(0, 0.14, -0.02);
     headGroup.add(capHair);
     for (let i = -2; i <= 2; i++) {
-      const braid = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.018, 0.24, 6), hairMat);
+      const braid = new THREE.Mesh(CHAR_GEOS.braidStrand, hairMat);
       braid.position.set(i * 0.055, 0.02, -0.15);
       braid.rotation.x = 0.22;
       headGroup.add(braid);
     }
   } else {
-    const shortHair = new THREE.Mesh(
-      new THREE.SphereGeometry(0.182, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.58),
-      hairMat
-    );
+    const shortHair = new THREE.Mesh(CHAR_GEOS.shortHair, hairMat);
     shortHair.position.y = 0.115;
     headGroup.add(shortHair);
+  }
+
+  // Optional Authentic Everyday Carried Props
+  const prop = appearance.carryProp ?? "none";
+  if (prop === "headpan" || prop === "basket" || prop === "water_pack") {
+    const pad = new THREE.Mesh(CHAR_GEOS.headpanCloth, accentMat);
+    pad.rotation.x = Math.PI / 2;
+    pad.position.y = 0.29;
+    headGroup.add(pad);
+
+    if (prop === "water_pack") {
+      const coolerMat = getCachedCharMat(
+        "prop:watercooler",
+        () => new THREE.MeshStandardMaterial({ color: "#0284c7", roughness: 0.4 })
+      );
+      const pack = new THREE.Mesh(CHAR_GEOS.waterBundle, coolerMat);
+      pack.position.y = 0.4;
+      pack.castShadow = true;
+      headGroup.add(pack);
+    } else {
+      const panMat =
+        prop === "headpan"
+          ? getCachedCharMat(
+              "prop:silverpan",
+              () => new THREE.MeshStandardMaterial({ color: "#cbd5e1", metalness: 0.72, roughness: 0.3 })
+            )
+          : getCachedCharMat(
+              "prop:wovenbasket",
+              () => new THREE.MeshStandardMaterial({ color: "#b45309", roughness: 0.88 })
+            );
+      const pan = new THREE.Mesh(CHAR_GEOS.headpanBowl, panMat);
+      pan.position.y = 0.38;
+      pan.castShadow = true;
+      headGroup.add(pan);
+
+      const goodsMat = getCachedCharMat(
+        prop === "headpan" ? "prop:fruit" : "prop:yams",
+        () =>
+          new THREE.MeshStandardMaterial({
+            color: prop === "headpan" ? "#ea580c" : "#eab308",
+            roughness: 0.72,
+          })
+      );
+      const mound = new THREE.Mesh(CHAR_GEOS.headpanGoods, goodsMat);
+      mound.position.y = 0.46;
+      mound.scale.set(1.2, 0.75, 1.2);
+      headGroup.add(mound);
+    }
+  } else if (prop === "backpack") {
+    const bagMat = getCachedCharMat(
+      "prop:backpack",
+      () => new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.82 })
+    );
+    const bag = new THREE.Mesh(CHAR_GEOS.backpack, bagMat);
+    bag.position.set(0, 1.15, -0.21);
+    bag.castShadow = true;
+    bodyGroup.add(bag);
+  } else if (prop === "parcel_box") {
+    const boxMat = getCachedCharMat(
+      "prop:parcel",
+      () => new THREE.MeshStandardMaterial({ color: "#c2854c", roughness: 0.86 })
+    );
+    const box = new THREE.Mesh(CHAR_GEOS.parcelBox, boxMat);
+    box.position.set(0, 1.05, 0.28);
+    box.castShadow = true;
+    bodyGroup.add(box);
+  } else if (prop === "umbrella_hand") {
+    const toteMat = getCachedCharMat(
+      "prop:tote",
+      () => new THREE.MeshStandardMaterial({ color: "#be123c", roughness: 0.78 })
+    );
+    const tote = new THREE.Mesh(CHAR_GEOS.handBag, toteMat);
+    tote.position.set(0, -0.58, 0.04);
+    rightArmPivot.add(tote);
+  } else if (prop === "apron") {
+    const apronMat = getCachedCharMat(
+      "prop:apron",
+      () => new THREE.MeshStandardMaterial({ color: "#f8fafc", roughness: 0.82 })
+    );
+    const apron = new THREE.Mesh(CHAR_GEOS.apron, apronMat);
+    apron.position.set(0, 1.02, 0.16);
+    bodyGroup.add(apron);
   }
 
   bodyGroup.add(headGroup);
@@ -244,6 +398,46 @@ export function createCharacterRig(
     rightLegPivot,
     shadowPlane,
   };
+}
+
+export function setCharacterPose(
+  rig: CharacterRig,
+  mode: "foot" | "pragya" | "motorcycle" | "bench"
+) {
+  if (mode === "foot") {
+    rig.bodyGroup.position.y = 0;
+    rig.leftLegPivot.rotation.x = 0;
+    rig.rightLegPivot.rotation.x = 0;
+    rig.leftArmPivot.rotation.x = 0;
+    rig.rightArmPivot.rotation.x = 0;
+    rig.shadowPlane.visible = true;
+    return;
+  }
+  if (mode === "bench") {
+    rig.bodyGroup.position.y = -0.34;
+    rig.leftLegPivot.rotation.x = -Math.PI * 0.45;
+    rig.rightLegPivot.rotation.x = -Math.PI * 0.45;
+    rig.leftArmPivot.rotation.x = -0.3;
+    rig.rightArmPivot.rotation.x = -0.3;
+    rig.shadowPlane.visible = true;
+    return;
+  }
+  if (mode === "pragya") {
+    rig.bodyGroup.position.y = -0.36;
+    rig.leftLegPivot.rotation.x = -Math.PI * 0.44;
+    rig.rightLegPivot.rotation.x = -Math.PI * 0.44;
+    rig.leftArmPivot.rotation.x = -0.82;
+    rig.rightArmPivot.rotation.x = -0.82;
+    rig.shadowPlane.visible = false;
+    return;
+  }
+  // motorcycle rider/passenger straddle
+  rig.bodyGroup.position.y = -0.3;
+  rig.leftLegPivot.rotation.x = -Math.PI * 0.34;
+  rig.rightLegPivot.rotation.x = -Math.PI * 0.34;
+  rig.leftArmPivot.rotation.x = -0.78;
+  rig.rightArmPivot.rotation.x = -0.78;
+  rig.shadowPlane.visible = false;
 }
 
 /**
@@ -1017,7 +1211,15 @@ export function createBicycleMesh(
  * Tamale Roadside Commercial Details: Wooden Kiosks, Charcoal Food Vendor Tables, Mobile-Money Booths
  */
 export function createRoadsideStallMesh(
-  kind: "kiosk" | "food_vendor" | "mobile_money",
+  kind:
+    | "kiosk"
+    | "food_vendor"
+    | "mobile_money"
+    | "accessories_cart"
+    | "cloth_table"
+    | "corn_grill"
+    | "ice_cream_cart"
+    | "household_table",
   accentColor: string,
   textures: ProceduralTextureSet
 ): { group: THREE.Group; emberMat?: THREE.MeshStandardMaterial } {
@@ -1066,7 +1268,6 @@ export function createRoadsideStallMesh(
     roof.castShadow = true;
     group.add(roof);
 
-    // Provision jars on counter
     for (const [jx, col] of [[-0.45, "#ef4444"], [0, "#22c55e"], [0.42, "#eab308"]] as const) {
       const jar = new THREE.Mesh(
         new THREE.CylinderGeometry(0.11, 0.11, 0.24, 8),
@@ -1079,7 +1280,6 @@ export function createRoadsideStallMesh(
   }
 
   if (kind === "mobile_money") {
-    // Bright roadside mobile-money umbrella booth + table + stool
     const pole = new THREE.Mesh(
       new THREE.CylinderGeometry(0.045, 0.045, 2.5, 8),
       new THREE.MeshStandardMaterial({ color: "#cbd5e1", metalness: 0.6 })
@@ -1103,6 +1303,138 @@ export function createRoadsideStallMesh(
     stool.position.set(0, 0.225, -0.35);
     group.add(pole, umb, desk, topCloth, stool);
     return { group };
+  }
+
+  if (kind === "accessories_cart") {
+    // Glass-fronted Tamale phone accessory push-cart
+    const frame = new THREE.Mesh(
+      new THREE.BoxGeometry(1.4, 0.85, 0.75),
+      new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.45, metalness: 0.6 })
+    );
+    frame.position.set(0, 0.65, 0);
+    frame.castShadow = true;
+    const glass = new THREE.Mesh(
+      new THREE.BoxGeometry(1.34, 0.68, 0.78),
+      new THREE.MeshPhysicalMaterial({ color: "#e0f2fe", transparent: true, opacity: 0.45, roughness: 0.1 })
+    );
+    glass.position.set(0, 1.28, 0);
+    const topCap = new THREE.Mesh(new THREE.BoxGeometry(1.44, 0.08, 0.82), accentMat);
+    topCap.position.set(0, 1.65, 0);
+    group.add(frame, glass, topCap);
+
+    const wheelGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.08, 10);
+    wheelGeo.rotateZ(Math.PI / 2);
+    const wheelMat = new THREE.MeshStandardMaterial({ color: "#18181b", roughness: 0.9 });
+    for (const [wx, wz] of [[-0.68, 0.28], [0.68, 0.28], [-0.68, -0.28], [0.68, -0.28]]) {
+      const w = new THREE.Mesh(wheelGeo, wheelMat);
+      w.position.set(wx, 0.16, wz);
+      group.add(w);
+    }
+    for (const [bx, col] of [[-0.4, "#ef4444"], [0, "#facc15"], [0.4, "#3b82f6"]] as const) {
+      const box = new THREE.Mesh(
+        new THREE.BoxGeometry(0.24, 0.18, 0.36),
+        new THREE.MeshStandardMaterial({ color: col, roughness: 0.5 })
+      );
+      box.position.set(bx, 1.2, 0);
+      group.add(box);
+    }
+    return { group };
+  }
+
+  if (kind === "cloth_table") {
+    // Tabletop footwear, folded wax prints & display rack
+    const table = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.76, 0.95), woodMat);
+    table.position.set(0, 0.38, 0);
+    table.castShadow = true;
+    group.add(table);
+
+    for (const [px, col] of [[-0.55, "#1d4ed8"], [-0.15, "#b45309"], [0.25, "#15803d"], [0.62, "#be123c"]] as const) {
+      const stack = new THREE.Mesh(
+        new THREE.BoxGeometry(0.32, 0.22, 0.48),
+        new THREE.MeshStandardMaterial({ color: col, roughness: 0.8 })
+      );
+      stack.position.set(px, 0.87, -0.1);
+      stack.rotation.y = px * 0.15;
+      group.add(stack);
+    }
+    return { group };
+  }
+
+  if (kind === "ice_cream_cart") {
+    const chest = new THREE.Mesh(
+      new THREE.BoxGeometry(1.45, 0.82, 0.78),
+      new THREE.MeshStandardMaterial({ color: "#f8fafc", roughness: 0.32, metalness: 0.15 })
+    );
+    chest.position.set(0, 0.58, 0);
+    chest.castShadow = true;
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(1.47, 0.18, 0.8), accentMat);
+    stripe.position.set(0, 0.76, 0);
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.035, 0.035, 1.9, 8),
+      new THREE.MeshStandardMaterial({ color: "#cbd5e1", metalness: 0.6 })
+    );
+    pole.position.set(0, 1.5, 0);
+    const canopy = new THREE.Mesh(
+      new THREE.ConeGeometry(1.25, 0.45, 8),
+      new THREE.MeshStandardMaterial({ color: accentColor, roughness: 0.68, side: THREE.DoubleSide })
+    );
+    canopy.position.set(0, 2.45, 0);
+    canopy.castShadow = true;
+    group.add(chest, stripe, pole, canopy);
+    const wheelGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.08, 10);
+    wheelGeo.rotateZ(Math.PI / 2);
+    const wMat = new THREE.MeshStandardMaterial({ color: "#18181b", roughness: 0.9 });
+    for (const [wx, wz] of [[-0.68, 0.28], [0.68, 0.28], [-0.68, -0.28], [0.68, -0.28]]) {
+      const w = new THREE.Mesh(wheelGeo, wMat);
+      w.position.set(wx, 0.16, wz);
+      group.add(w);
+    }
+    return { group };
+  }
+
+  if (kind === "household_table") {
+    const table = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.75, 0.98), woodMat);
+    table.position.set(0, 0.375, 0);
+    table.castShadow = true;
+    group.add(table);
+    for (const [bx, col] of [[-0.58, "#0284c7"], [0, "#ec4899"], [0.58, "#16a34a"]] as const) {
+      const basin = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.24, 0.16, 0.24, 10),
+        new THREE.MeshStandardMaterial({ color: col, roughness: 0.45 })
+      );
+      basin.position.set(bx, 0.87, 0);
+      group.add(basin);
+    }
+    return { group };
+  }
+
+  if (kind === "corn_grill") {
+    // Roadside roasted corn & kelewele charcoal drum brazier + umbrella
+    const grillBody = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.36, 0.32, 0.75, 12),
+      new THREE.MeshStandardMaterial({ color: "#334155", roughness: 0.8, metalness: 0.55 })
+    );
+    grillBody.position.set(0, 0.38, 0);
+    grillBody.castShadow = true;
+    const emberMat = new THREE.MeshStandardMaterial({
+      color: "#ea580c",
+      emissive: "#f97316",
+      emissiveIntensity: 0.95,
+      roughness: 0.55,
+    });
+    const embers = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.08, 12), emberMat);
+    embers.position.set(0, 0.77, 0);
+    const stool = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.42, 0.45), woodMat);
+    stool.position.set(-0.78, 0.21, 0);
+    const cornMat = new THREE.MeshStandardMaterial({ color: "#facc15", roughness: 0.65 });
+    for (const cx of [-0.12, 0.08]) {
+      const cob = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.24, 8), cornMat);
+      cob.rotation.z = Math.PI / 2;
+      cob.position.set(cx, 0.85, 0.05);
+      group.add(cob);
+    }
+    group.add(grillBody, embers, stool);
+    return { group, emberMat };
   }
 
   // "food_vendor": Roadside Waakye / Kɔɔsɛ / Chichinga Table + Aluminum Pot + Charcoal Brazier
@@ -2033,6 +2365,22 @@ export function createSchoolGroup(textures: ProceduralTextureSet): THREE.Group {
 /**
  * Detailed Tamale Commercial Shopfront (windows, shutters, zinc gable roof, signboard, rooftop Polytank)
  */
+export type ShopArchitecturalStyle =
+  | "default"
+  | "fast_food"
+  | "supermarket"
+  | "restaurant"
+  | "cafe"
+  | "salon"
+  | "mechanic"
+  | "electronics"
+  | "boutique"
+  | "bank_momo"
+  | "ice_cream";
+
+/**
+ * Detailed Tamale Commercial Shopfront (windows, shutters, zinc gable roof, signboard, architectural style props)
+ */
 export function createShopBuilding(
   width: number,
   height: number,
@@ -2041,7 +2389,8 @@ export function createShopBuilding(
   awningColor: string,
   shopName: string,
   shopSub: string,
-  textures: ProceduralTextureSet
+  textures: ProceduralTextureSet,
+  style: ShopArchitecturalStyle = "default"
 ): THREE.Group {
   const group = new THREE.Group();
 
@@ -2061,7 +2410,29 @@ export function createShopBuilding(
   });
   const awningMat = new THREE.MeshStandardMaterial({ color: awningColor, roughness: 0.72 });
   const doorMat = new THREE.MeshStandardMaterial({ color: "#475569", metalness: 0.65, roughness: 0.45 });
-  const windowMat = new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.2, metalness: 0.5 });
+  const litGlass =
+    style === "supermarket" ||
+    style === "fast_food" ||
+    style === "electronics" ||
+    style === "boutique" ||
+    style === "ice_cream" ||
+    style === "bank_momo";
+  const glassFrontMat = new THREE.MeshStandardMaterial({
+    color: litGlass ? "#bae6fd" : "#1e293b",
+    emissive:
+      style === "electronics"
+        ? "#0ea5e9"
+        : style === "boutique"
+        ? "#f472b6"
+        : style === "ice_cream"
+        ? "#fde047"
+        : litGlass
+        ? "#0284c7"
+        : "#000000",
+    emissiveIntensity: litGlass ? 0.28 : 0,
+    roughness: 0.16,
+    metalness: 0.45,
+  });
 
   const body = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), wallMat);
   body.position.y = height / 2;
@@ -2075,14 +2446,19 @@ export function createShopBuilding(
   roof.castShadow = true;
   group.add(roof);
 
-  // Metal roller-shutter shop door + louvered side windows
-  const door = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.3, 0.12), doorMat);
-  door.position.set(0, 1.15, depth / 2 + 0.03);
+  // Front door (wide glass doors for modern retail/bank/electronics, roller-shutter otherwise)
+  const doorW = style === "supermarket" || style === "bank_momo" ? 2.4 : 1.5;
+  const door = new THREE.Mesh(
+    new THREE.BoxGeometry(doorW, 2.35, 0.12),
+    litGlass ? glassFrontMat : doorMat
+  );
+  door.position.set(0, 1.18, depth / 2 + 0.03);
   group.add(door);
 
-  for (const wx of [-width * 0.32, width * 0.32]) {
-    const win = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.95, 0.1), windowMat);
-    win.position.set(wx, 1.85, depth / 2 + 0.03);
+  for (const wx of [-width * 0.34, width * 0.34]) {
+    const winW = style === "supermarket" || style === "boutique" || style === "electronics" ? 1.85 : 1.15;
+    const win = new THREE.Mesh(new THREE.BoxGeometry(winW, 1.2, 0.1), glassFrontMat);
+    win.position.set(wx, 1.75, depth / 2 + 0.03);
     group.add(win);
   }
 
@@ -2095,11 +2471,116 @@ export function createShopBuilding(
   // Ghanaian shop signboard fascia
   const signTex = createShopSignTexture(shopName, shopSub, awningColor, "#fef08a");
   const sign = new THREE.Mesh(
-    new THREE.BoxGeometry(width * 0.8, 0.78, 0.12),
-    new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.5 })
+    new THREE.BoxGeometry(width * 0.82, 0.82, 0.12),
+    new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.45 })
   );
-  sign.position.set(0, height - 0.15, depth / 2 + 0.1);
+  sign.position.set(0, height - 0.12, depth / 2 + 0.1);
   group.add(sign);
+
+  // Style-specific sidewalk atmosphere & exterior fixtures
+  if (style === "fast_food" || style === "cafe" || style === "restaurant" || style === "ice_cream") {
+    const tableMat = new THREE.MeshStandardMaterial({
+      color: style === "ice_cream" ? "#f8fafc" : "#78350f",
+      roughness: 0.72,
+    });
+    const patioUmbrellaMat = new THREE.MeshStandardMaterial({
+      color: awningColor,
+      roughness: 0.72,
+      side: THREE.DoubleSide,
+    });
+    for (const tx of [-width * 0.28, width * 0.28]) {
+      const table = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.08, 12), tableMat);
+      table.position.set(tx, 0.75, depth / 2 + 2.15);
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.35, 8), doorMat);
+      leg.position.set(tx, 1.18, depth / 2 + 2.15);
+      const umb = new THREE.Mesh(new THREE.ConeGeometry(1.15, 0.42, 8), patioUmbrellaMat);
+      umb.position.set(tx, 2.42, depth / 2 + 2.15);
+      umb.castShadow = true;
+      group.add(table, leg, umb);
+    }
+    if (style === "ice_cream") {
+      const cone = new THREE.Mesh(
+        new THREE.ConeGeometry(0.28, 0.7, 10),
+        new THREE.MeshStandardMaterial({ color: "#d97706", roughness: 0.8 })
+      );
+      cone.rotation.x = Math.PI;
+      cone.position.set(-width * 0.44, 0.65, depth / 2 + 0.65);
+      const scoop = new THREE.Mesh(
+        new THREE.SphereGeometry(0.32, 10, 10),
+        new THREE.MeshStandardMaterial({ color: "#f472b6", roughness: 0.45 })
+      );
+      scoop.position.set(-width * 0.44, 1.05, depth / 2 + 0.65);
+      group.add(cone, scoop);
+    }
+  } else if (style === "salon") {
+    const poleMat = new THREE.MeshStandardMaterial({ color: "#e2e8f0", roughness: 0.3 });
+    const barberStripe = new THREE.MeshStandardMaterial({
+      color: "#dc2626",
+      emissive: "#dc2626",
+      emissiveIntensity: 0.25,
+    });
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 1.1, 10), poleMat);
+    post.position.set(width * 0.42, 1.85, depth / 2 + 0.22);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.42, 10), barberStripe);
+    band.position.set(width * 0.42, 1.85, depth / 2 + 0.22);
+    group.add(post, band);
+  } else if (style === "mechanic") {
+    const tireMat = new THREE.MeshStandardMaterial({ color: "#18181b", roughness: 0.92 });
+    const drumMat = new THREE.MeshStandardMaterial({ color: "#0284c7", roughness: 0.5, metalness: 0.4 });
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.85, 12), drumMat);
+    drum.position.set(-width * 0.4, 0.425, depth / 2 + 0.75);
+    const tire = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.1, 8, 14), tireMat);
+    tire.position.set(width * 0.4, 0.4, depth / 2 + 0.65);
+    group.add(drum, tire);
+  } else if (style === "electronics") {
+    const panelMat = new THREE.MeshStandardMaterial({
+      color: "#1e3a8a",
+      metalness: 0.65,
+      roughness: 0.25,
+    });
+    const solarPanel = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.08, 1.3), panelMat);
+    solarPanel.position.set(-width * 0.22, height + 0.42, 0.2);
+    solarPanel.rotation.x = 0.35;
+    const rack = new THREE.Mesh(
+      new THREE.BoxGeometry(1.1, 1.35, 0.42),
+      new THREE.MeshStandardMaterial({ color: "#0f172a", roughness: 0.45 })
+    );
+    rack.position.set(-width * 0.38, 0.68, depth / 2 + 0.52);
+    group.add(solarPanel, rack);
+  } else if (style === "boutique") {
+    const rackMat = new THREE.MeshStandardMaterial({ color: "#cbd5e1", metalness: 0.75, roughness: 0.3 });
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.6, 8), rackMat);
+    bar.rotation.z = Math.PI / 2;
+    bar.position.set(width * 0.32, 1.3, depth / 2 + 0.62);
+    for (const dx of [-0.4, 0, 0.4]) {
+      const cloth = new THREE.Mesh(
+        new THREE.BoxGeometry(0.28, 0.75, 0.18),
+        new THREE.MeshStandardMaterial({
+          color: dx < 0 ? "#ec4899" : dx === 0 ? "#eab308" : "#0284c7",
+          roughness: 0.78,
+        })
+      );
+      cloth.position.set(width * 0.32 + dx, 0.9, depth / 2 + 0.62);
+      group.add(cloth);
+    }
+    group.add(bar);
+  } else if (style === "bank_momo") {
+    const atm = new THREE.Mesh(
+      new THREE.BoxGeometry(0.72, 1.55, 0.38),
+      new THREE.MeshStandardMaterial({ color: "#0369a1", roughness: 0.35, metalness: 0.5 })
+    );
+    atm.position.set(-width * 0.36, 0.95, depth / 2 + 0.22);
+    const atmScreen = new THREE.Mesh(
+      new THREE.BoxGeometry(0.46, 0.34, 0.05),
+      new THREE.MeshStandardMaterial({
+        color: "#7dd3fc",
+        emissive: "#38bdf8",
+        emissiveIntensity: 0.65,
+      })
+    );
+    atmScreen.position.set(-width * 0.36, 1.25, depth / 2 + 0.42);
+    group.add(atm, atmScreen);
+  }
 
   return group;
 }
@@ -2899,4 +3380,95 @@ export function createSpeechBubbleSprite(dagbani: string, english: string): THRE
   sprite.scale.set(3.9, 1.0, 1);
   return sprite;
 }
+
+/**
+ * Green Ghanaian street/neighbourhood direction signposts at intersections
+ */
+export function createStreetDirectionSignMesh(
+  title: string,
+  sub: string,
+  bgHex = "#065f46"
+): THREE.Group {
+  const group = new THREE.Group();
+  const poleMat = getCachedCharMat(
+    "street:pole",
+    () => new THREE.MeshStandardMaterial({ color: "#94a3b8", metalness: 0.7, roughness: 0.35 })
+  );
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 2.8, 8), poleMat);
+  pole.position.y = 1.4;
+  pole.castShadow = true;
+  group.add(pole);
+
+  const tex = createShopSignTexture(title, sub, bgHex, "#f8fafc");
+  const board = new THREE.Mesh(
+    new THREE.BoxGeometry(2.1, 0.68, 0.08),
+    new THREE.MeshStandardMaterial({ map: tex, roughness: 0.45 })
+  );
+  board.position.y = 2.65;
+  board.castShadow = true;
+  group.add(board);
+  return group;
+}
+
+/**
+ * Yellow-and-black asphalt speed hump on Tamale roads near markets, schools & hospital
+ */
+export function createSpeedHumpMesh(width = 9.0): THREE.Group {
+  const group = new THREE.Group();
+  const baseMat = getCachedCharMat(
+    "hump:black",
+    () => new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.88 })
+  );
+  const yellowMat = getCachedCharMat(
+    "hump:yellow",
+    () => new THREE.MeshStandardMaterial({ color: "#eab308", roughness: 0.72 })
+  );
+  const stripCount = 6;
+  const segW = width / stripCount;
+  for (let i = 0; i < stripCount; i++) {
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(segW * 0.96, 0.09, 0.75),
+      i % 2 === 0 ? yellowMat : baseMat
+    );
+    mesh.position.set(-width / 2 + segW * (i + 0.5), 0.045, 0);
+    group.add(mesh);
+  }
+  return group;
+}
+
+/**
+ * Concrete street planter or public waste bin along High Street & Civic plazas
+ */
+export function createRoadsidePlanterBinMesh(hasPlant: boolean): THREE.Group {
+  const group = new THREE.Group();
+  if (hasPlant) {
+    const potMat = getCachedCharMat(
+      "planter:pot",
+      () => new THREE.MeshStandardMaterial({ color: "#b45309", roughness: 0.86 })
+    );
+    const shrubMat = getCachedCharMat(
+      "planter:leaf",
+      () => new THREE.MeshStandardMaterial({ color: "#2f6b31", roughness: 0.82 })
+    );
+    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.32, 0.62, 10), potMat);
+    pot.position.y = 0.31;
+    pot.castShadow = true;
+    const shrub = new THREE.Mesh(new THREE.DodecahedronGeometry(0.48, 0), shrubMat);
+    shrub.position.y = 0.78;
+    shrub.scale.set(1, 0.85, 1);
+    shrub.castShadow = true;
+    group.add(pot, shrub);
+  } else {
+    const binMat = getCachedCharMat(
+      "bin:green",
+      () => new THREE.MeshStandardMaterial({ color: "#047857", roughness: 0.55 })
+    );
+    const bin = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.24, 0.82, 10), binMat);
+    bin.position.y = 0.41;
+    bin.castShadow = true;
+    group.add(bin);
+  }
+  return group;
+}
+
 

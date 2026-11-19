@@ -1,0 +1,773 @@
+import {
+  CityTaskCategory,
+  CityTaskJob,
+  ServiceRequestKind,
+  ShopItem,
+} from "../types/game";
+import { TAMALE_LANDMARKS } from "./tamaleWorldData";
+
+export const TASK_CATEGORIES_META: Array<{
+  id: CityTaskCategory | "all";
+  label: string;
+  dagbaniHint: string;
+}> = [
+  { id: "all", label: "All Jobs", dagbaniHint: "Tuma Zaa" },
+  { id: "passenger_ride", label: "Passenger Transport", dagbaniHint: "Pragya / Moto" },
+  { id: "food_delivery", label: "Food Delivery", dagbaniHint: "Bindirigu Tuma" },
+  { id: "grocery_delivery", label: "Grocery Delivery", dagbaniHint: "Daa Nɛma" },
+  { id: "courier_delivery", label: "Courier & Errands", dagbaniHint: "Gbaŋ Tuma" },
+  { id: "food_prep", label: "Restaurant & Kitchen", dagbaniHint: "Duɣibu Tuma" },
+  { id: "shop_assistant", label: "Shop & Trade Shift", dagbaniHint: "Daabilim" },
+  { id: "mechanic_repair", label: "Mechanic & Repair", dagbaniHint: "Maani Tuma" },
+  { id: "business_ops", label: "Business Management", dagbaniHint: "Daabilim Kpɛma" },
+  { id: "photography", label: "Photo & Press", dagbaniHint: "Anfooni" },
+  { id: "sports_activity", label: "Stadium & Sports", dagbaniHint: "Bɔɔli Paaki" },
+  { id: "cultural_activity", label: "Culture & Heritage", dagbaniHint: "Dagbon Kaya" },
+  { id: "student_activity", label: "Campus & Study", dagbaniHint: "Karimbu" },
+  { id: "exploration", label: "Exploration", dagbaniHint: "Tiŋa Gɔribu" },
+];
+
+export const TAMALE_JOB_BOARD: CityTaskJob[] = [
+  // 1. Real 3D Passenger Transport
+  {
+    id: "job_ride_interchange_hospital",
+    title: "Hospital Commuter Ride: Interchange → Teaching Hospital",
+    dagbaniTitle: "Pragya Chaŋ Asibiti",
+    category: "passenger_ride",
+    executionMode: "transport_passenger",
+    description:
+      "Pick up a clinic visitor waiting beside the Interchange rank and drive them smoothly south down Gukpegu & Salaga Rd to Tamale Teaching Hospital.",
+    pickupLandmarkId: "tamale_interchange",
+    pickupLabel: "Naa Gbewaa Interchange Rank",
+    targetLandmarkId: "tamale_teaching_hospital",
+    targetLandmarkName: "Tamale Teaching Hospital",
+    requirements: "Drive a Pragya or Motorcycle to the Interchange pickup pin, board your passenger, and deliver them safely.",
+    completionCondition: "Reach Teaching Hospital concourse with passenger aboard.",
+    rewardCedis: 75,
+    rewardCultureXp: 25,
+    energyCost: 8,
+    skillReward: { skill: "riding", points: 1 },
+    recommendedVehicle: "pragya",
+  },
+  {
+    id: "job_ride_aboabo_stadium",
+    title: "Matchday Fan Lift: Aboabo Market → Aliu Mahama Stadium",
+    dagbaniTitle: "Zaŋ Saa Chaŋ Stadium",
+    category: "passenger_ride",
+    executionMode: "transport_passenger",
+    description:
+      "A supporter outside Aboabo Market needs a ride straight north up Aboabo–Choggu Rd to Aliu Mahama Sports Stadium gate.",
+    pickupLandmarkId: "aboabo_market",
+    pickupLabel: "Aboabo Market Apron",
+    targetLandmarkId: "aliu_mahama_stadium",
+    targetLandmarkName: "Aliu Mahama Sports Stadium",
+    requirements: "Meet the waiting passenger at Aboabo, then ride north along Aboabo–Choggu Ave.",
+    completionCondition: "Drop passenger at the Stadium southern gate.",
+    rewardCedis: 70,
+    rewardCultureXp: 25,
+    energyCost: 8,
+    skillReward: { skill: "riding", points: 1 },
+    recommendedVehicle: "pragya",
+  },
+  {
+    id: "job_ride_airport_express",
+    title: "N10 Airport Express Passenger: High St → Tamale Airport",
+    dagbaniTitle: "Alopile Paaki Soli",
+    category: "passenger_ride",
+    executionMode: "transport_passenger",
+    description:
+      "Carry a traveler with luggage from Jubilee Rest Guest House north along Bolgatanga N10 past Kanvilli to Tamale International Airport.",
+    pickupLandmarkId: "jakarayili_guesthouse",
+    pickupLabel: "Jubilee Rest Guest House",
+    targetLandmarkId: "tamale_airport",
+    targetLandmarkName: "Tamale International Airport",
+    requirements: "Pick up guest outside Jubilee Rest and ride north along N10.",
+    completionCondition: "Drop off passenger at Airport Terminal forecourt.",
+    rewardCedis: 115,
+    rewardCultureXp: 35,
+    energyCost: 12,
+    skillReward: { skill: "riding", points: 1 },
+    recommendedVehicle: "motorcycle",
+  },
+  {
+    id: "job_ride_dungu_market",
+    title: "Student Morning Commute: Dungu Campus → Central Market",
+    dagbaniTitle: "Dungu Karimbi Daa Soli",
+    category: "passenger_ride",
+    executionMode: "transport_passenger",
+    description:
+      "Pick up a UDS student outside Dungu Campus Gate and bring them northeast through Lamashegu to Tamale Central Market.",
+    pickupLandmarkId: "dungu_campus",
+    pickupLabel: "Dungu Campus Gate",
+    targetLandmarkId: "central_market",
+    targetLandmarkName: "Tamale Central Market",
+    requirements: "Collect waiting student at Dungu and drop at Central Market apron.",
+    completionCondition: "Arrive at Central Market entrance.",
+    rewardCedis: 95,
+    rewardCultureXp: 30,
+    energyCost: 10,
+    skillReward: { skill: "riding", points: 1 },
+    recommendedVehicle: "any",
+  },
+
+  // 2. Food & Restaurant Delivery
+  {
+    id: "job_food_savannah_choggu",
+    title: "Hot Fried Chicken & Jollof Box → Choggu Evening Spot",
+    dagbaniTitle: "Bindirigu Zaŋ Chaŋ Choggu",
+    category: "food_delivery",
+    executionMode: "pickup_and_deliver",
+    description:
+      "Collect sealed hot fried chicken boxes from Savannah Fried Chicken on High Street East and rush them northwest to Choggu.",
+    pickupLandmarkId: "savannah_fast_food",
+    pickupLabel: "Savannah Fried Chicken & Burgers",
+    targetLandmarkId: "choggu_night_spot",
+    targetLandmarkName: "Choggu Evening Spot & Grill",
+    requirements: "Pick up order at Savannah Fried Chicken, then deliver hot.",
+    completionCondition: "Hand off order at Choggu Evening Spot.",
+    rewardCedis: 72,
+    rewardCultureXp: 25,
+    energyCost: 9,
+    skillReward: { skill: "riding", points: 1 },
+    recommendedVehicle: "motorcycle",
+  },
+  {
+    id: "job_food_waakye_dungu",
+    title: "Steaming Waakye & Chichinga Flask → Dungu Student Hub",
+    dagbaniTitle: "Bɛŋa ni Nimdi Chaŋ Dungu",
+    category: "food_delivery",
+    executionMode: "pickup_and_deliver",
+    description:
+      "Carry Adiza's insulated waakye and grilled beef platter from Daa Waakye Lounge southwest to hungry students at Dungu Café.",
+    pickupLandmarkId: "jubilee_night_spot",
+    pickupLabel: "Daa Waakye & Night Lounge",
+    targetLandmarkId: "dungu_student_hub",
+    targetLandmarkName: "Dungu Campus Café & Bookshop",
+    requirements: "Collect order at High St East Lounge and deliver to Dungu.",
+    completionCondition: "Deliver food flask at Dungu Student Hub.",
+    rewardCedis: 85,
+    rewardCultureXp: 30,
+    energyCost: 10,
+    skillReward: { skill: "stamina", points: 1 },
+    recommendedVehicle: "any",
+  },
+  {
+    id: "job_food_pizza_kukuo",
+    title: "Vittin Brick-Oven Pizza & Suya Pack → Teaching Hospital",
+    dagbaniTitle: "Vittin Bindirigu Chaŋ Asibiti",
+    category: "food_delivery",
+    executionMode: "pickup_and_deliver",
+    description:
+      "Duty nurses at Tamale Teaching Hospital ordered grilled suya wraps and pizza from Vittin Grill.",
+    pickupLandmarkId: "vittin_pizza_grill",
+    pickupLabel: "Vittin Smash Burger, Pizza & Suya",
+    targetLandmarkId: "tamale_teaching_hospital",
+    targetLandmarkName: "Tamale Teaching Hospital",
+    requirements: "Pick up hot boxes in Vittin and ride west along Salaga Corridor.",
+    completionCondition: "Hand over meal boxes at Hospital Main Concourse.",
+    rewardCedis: 68,
+    rewardCultureXp: 25,
+    energyCost: 8,
+    skillReward: { skill: "riding", points: 1 },
+    recommendedVehicle: "motorcycle",
+  },
+
+  // 3. Grocery & Supermarket Delivery
+  {
+    id: "job_grocery_supermarket_kalpohin",
+    title: "Supermarket Family Crate → Kalpohin Juice Café",
+    dagbaniTitle: "Daa Nɛma Chaŋ Kalpohin",
+    category: "grocery_delivery",
+    executionMode: "pickup_and_deliver",
+    description:
+      "Load fresh pineapples, sugar, drinking water packs, and milk cartons from Tamale Central Mart for Kalpohin Fresh Juice Café.",
+    pickupLandmarkId: "tamale_supermarket",
+    pickupLabel: "Tamale Central Mart & Supermarket",
+    targetLandmarkId: "kalpohin_juice_bakery",
+    targetLandmarkName: "Kalpohin Fresh Juice & Pastry Café",
+    requirements: "Pick up crate outside Tamale Central Mart and deliver northeast.",
+    completionCondition: "Unload groceries at Kalpohin Juice Café.",
+    rewardCedis: 66,
+    rewardCultureXp: 25,
+    energyCost: 10,
+    skillReward: { skill: "trade", points: 1 },
+    recommendedVehicle: "pragya",
+  },
+  {
+    id: "job_grocery_yam_aboabo",
+    title: "Market Trade Bulk Run: Central Market → Aboabo TZ Kitchen",
+    dagbaniTitle: "Nyuli ni Kpakpili Chaŋ Aboabo",
+    category: "market_trade",
+    executionMode: "pickup_and_deliver",
+    description:
+      "Negotiate pona yam tubers and dawadawa spice bags at Central Market and supply Hajia Memuna's Tuo Zaafi Kitchen in Aboabo.",
+    pickupLandmarkId: "central_market",
+    pickupLabel: "Tamale Central Market",
+    targetLandmarkId: "aboabo_tz_kitchen",
+    targetLandmarkName: "Hajia Memuna's Tuo Zaafi & Fufu Kitchen",
+    requirements: "Collect market sack in Central Market and bring west to Aboabo.",
+    completionCondition: "Deliver bulk provisions to Aboabo TZ Kitchen.",
+    rewardCedis: 58,
+    rewardCultureXp: 30,
+    energyCost: 9,
+    skillReward: { skill: "trade", points: 1 },
+    recommendedVehicle: "pragya",
+  },
+
+  // 4. Courier, Documents & Hardware Supply
+  {
+    id: "job_courier_print_scca",
+    title: "Print Shop Exhibition Catalogues → SCCA Tamale Vittin",
+    dagbaniTitle: "Gbanɔ Tuma Chaŋ SCCA",
+    category: "courier_delivery",
+    executionMode: "pickup_and_deliver",
+    description:
+      "Pick up freshly bound art catalogues from Savannah Fitness & Print Hub in Dabokpaa and carry them northeast to SCCA Red Clay Gallery.",
+    pickupLandmarkId: "dabokpaa_fitness_cafe",
+    pickupLabel: "Savannah Fitness Gym & Print Hub",
+    targetLandmarkId: "scca_red_clay",
+    targetLandmarkName: "SCCA Tamale & Red Clay Studio Precinct",
+    requirements: "Collect bound prints in Dabokpaa and head north along Vittin Ring.",
+    completionCondition: "Deliver catalogues to SCCA Exhibition Desk.",
+    rewardCedis: 78,
+    rewardCultureXp: 40,
+    energyCost: 9,
+    skillReward: { skill: "culture", points: 1 },
+    recommendedVehicle: "any",
+  },
+  {
+    id: "job_courier_textiles_tailor",
+    title: "Handwoven Batakari Strips → Northern Tailors & Sandals Row",
+    dagbaniTitle: "Batakari Nɛma Tuma",
+    category: "cultural_activity",
+    executionMode: "pickup_and_deliver",
+    description:
+      "Help Master Alhassan move freshly loomed indigo cotton strips from the Weavers Courtyard to the tailors & leatherworkers.",
+    pickupLandmarkId: "cultural_centre",
+    pickupLabel: "Centre for National Culture",
+    targetLandmarkId: "weavers_tailor_row",
+    targetLandmarkName: "Northern Tailors, Sandals & Craft Row",
+    requirements: "Collect cotton bundle at Weavers Guild and carry along Cultural Lane.",
+    completionCondition: "Deliver fabric rolls to Northern Tailors Row.",
+    rewardCedis: 45,
+    rewardCultureXp: 35,
+    energyCost: 6,
+    skillReward: { skill: "culture", points: 1 },
+    recommendedVehicle: "foot",
+  },
+
+  // 5. Interactive Restaurant / Kitchen Prep Shifts (Minigame)
+  {
+    id: "job_work_tz_kitchen",
+    title: "Chop Bar Kitchen Shift: Hajia Memuna's Tuo Zaafi & Fufu",
+    dagbaniTitle: "Duɣibu Tuma · Aboabo",
+    category: "food_prep",
+    executionMode: "work_shift",
+    description:
+      "Step behind the Aboabo chop bar serving counter: match hungry customers' orders of Saɣim, Waakye, Banku, and chilled Sobolo before bowls cool!",
+    pickupLandmarkId: "aboabo_tz_kitchen",
+    pickupLabel: "Aboabo TZ & Fufu Kitchen",
+    targetLandmarkId: "aboabo_tz_kitchen",
+    targetLandmarkName: "Hajia Memuna's Tuo Zaafi & Fufu Kitchen",
+    requirements: "Arrive at Hajia Memuna's Kitchen in Aboabo and run an interactive rush shift.",
+    completionCondition: "Serve 5 accurate customer food orders during shift.",
+    rewardCedis: 90,
+    rewardCultureXp: 35,
+    energyCost: 16,
+    skillReward: { skill: "craft", points: 1 },
+    recommendedVehicle: "foot",
+  },
+  {
+    id: "job_work_fast_food",
+    title: "Evening Grill & Counter Shift: Savannah Fried Chicken",
+    dagbaniTitle: "Bindirigu Kohibu Tuma",
+    category: "food_prep",
+    executionMode: "work_shift",
+    description:
+      "Work the High Street East fast-food counter packing crispy chicken wings, spicy yam fries, burgers, and ginger drinks for evening diners.",
+    pickupLandmarkId: "savannah_fast_food",
+    pickupLabel: "Savannah Fried Chicken & Burgers",
+    targetLandmarkId: "savannah_fast_food",
+    targetLandmarkName: "Savannah Fried Chicken & Burgers",
+    requirements: "Visit Savannah Fried Chicken on High Street East and begin counter shift.",
+    completionCondition: "Assemble 5 combo trays accurately.",
+    rewardCedis: 85,
+    rewardCultureXp: 30,
+    energyCost: 14,
+    skillReward: { skill: "trade", points: 1 },
+    recommendedVehicle: "foot",
+  },
+
+  // 6. Interactive Shop Assistant Shifts
+  {
+    id: "job_shop_supermarket_clerk",
+    title: "Supermarket Counter & Stocking Shift: Tamale Central Mart",
+    dagbaniTitle: "Daa Tuma · Supermarket",
+    category: "shop_assistant",
+    executionMode: "work_shift",
+    description:
+      "Assist customers at Tamale Central Mart on Gbewaa High St West—price-check groceries, cold drinks, solar torches, and shea jars accurately.",
+    pickupLandmarkId: "tamale_supermarket",
+    pickupLabel: "Tamale Central Mart & Supermarket",
+    targetLandmarkId: "tamale_supermarket",
+    targetLandmarkName: "Tamale Central Mart & Supermarket",
+    requirements: "Head to Tamale Central Mart and take over the checkout & shelf counter.",
+    completionCondition: "Process 5 supermarket shopper checkouts cleanly.",
+    rewardCedis: 80,
+    rewardCultureXp: 30,
+    energyCost: 14,
+    skillReward: { skill: "trade", points: 1 },
+    recommendedVehicle: "foot",
+  },
+  {
+    id: "job_shop_juice_bakery",
+    title: "Morning Juice & Pastry Shift: Kalpohin Juice Café",
+    dagbaniTitle: "Paano ni Sobolo Tuma",
+    category: "shop_assistant",
+    executionMode: "work_shift",
+    description:
+      "Blend fresh mango-ginger juices and serve warm Tamale sugar bread to Kalpohin commuters and school teachers.",
+    pickupLandmarkId: "kalpohin_juice_bakery",
+    pickupLabel: "Kalpohin Fresh Juice & Pastry Café",
+    targetLandmarkId: "kalpohin_juice_bakery",
+    targetLandmarkName: "Kalpohin Fresh Juice & Pastry Café",
+    requirements: "Go to Kalpohin Juice Café and complete the breakfast counter rush.",
+    completionCondition: "Complete 5 drink & pastry orders.",
+    rewardCedis: 76,
+    rewardCultureXp: 30,
+    energyCost: 12,
+    skillReward: { skill: "trade", points: 1 },
+    recommendedVehicle: "foot",
+  },
+
+  // 7. Interactive Mechanic Diagnostics & Roadside Repair
+  {
+    id: "job_mechanic_lamashegu",
+    title: "Workshop Engine Overhaul: Lamashegu Mechanic Hub",
+    dagbaniTitle: "Pragya Maanibu Tuma",
+    category: "mechanic_repair",
+    executionMode: "mechanic_dispatch",
+    description:
+      "Diagnose a sputtering 4-stroke Bajaj Pragya at Lamashegu's mechanic yard—inspect carburettor, replace spark plug, align chain tension, and test throttle.",
+    pickupLandmarkId: "lamashegu_market_hub",
+    pickupLabel: "Lamashegu Market & Mechanic Hub",
+    targetLandmarkId: "lamashegu_market_hub",
+    targetLandmarkName: "Lamashegu Market & Mechanic Hub",
+    requirements: "Report to Lamashegu Mechanic Hub and perform the interactive 4-step service check.",
+    completionCondition: "Pass all mechanic diagnostic steps.",
+    rewardCedis: 98,
+    rewardCultureXp: 35,
+    energyCost: 15,
+    skillReward: { skill: "craft", points: 1 },
+    recommendedVehicle: "pragya",
+  },
+  {
+    id: "job_mechanic_airport_moto",
+    title: "Roadside Rider Rescue: Kalpohin Hardware Yard",
+    dagbaniTitle: "Moto Maanibu Tuma",
+    category: "mechanic_repair",
+    executionMode: "mechanic_dispatch",
+    description:
+      "A delivery rider's motorcycle broke a drive chain and lost spark near Kalpohin Welding & Hardware Yard. Bring your spanners and fix it on site.",
+    pickupLandmarkId: "kalpohin_hardware_carpentry",
+    pickupLabel: "Kalpohin Building Supplies & Welding",
+    targetLandmarkId: "kalpohin_hardware_carpentry",
+    targetLandmarkName: "Kalpohin Building Supplies & Welding",
+    requirements: "Travel to Kalpohin Hardware Yard and complete the roadside bike repair.",
+    completionCondition: "Repair chain, spark plug, and tire pressure.",
+    rewardCedis: 92,
+    rewardCultureXp: 30,
+    energyCost: 14,
+    skillReward: { skill: "craft", points: 1 },
+    recommendedVehicle: "motorcycle",
+  },
+
+  // 8. Live 3D Field Photography Surveys
+  {
+    id: "job_photo_mosque",
+    title: "Heritage Lens Survey: Tamale Central Mosque Architecture",
+    dagbaniTitle: "Anfooni · Jiŋli Titali",
+    category: "photography",
+    executionMode: "photo_survey",
+    description:
+      "Frame and shoot an authentic 3D field photograph of the emerald dome and twin louvered minarets of Tamale Central Mosque for the SCCA community archive.",
+    pickupLandmarkId: "central_mosque",
+    pickupLabel: "Tamale Central Mosque Forecourt",
+    targetLandmarkId: "central_mosque",
+    targetLandmarkName: "Tamale Central Mosque",
+    requirements: "Stand near Central Mosque, aim the 3D camera toward the dome/minarets, and capture the frame.",
+    completionCondition: "Save field photograph using the live camera shutter.",
+    rewardCedis: 75,
+    rewardCultureXp: 45,
+    energyCost: 8,
+    skillReward: { skill: "culture", points: 1 },
+    recommendedVehicle: "foot",
+  },
+  {
+    id: "job_photo_interchange",
+    title: "Civic Press Assignment: Naa Gbewaa Interchange Viaduct",
+    dagbaniTitle: "Anfooni · Naa Gbewaa Flyover",
+    category: "photography",
+    executionMode: "photo_survey",
+    description:
+      "Document afternoon traffic, Pragyas, and the concrete box-girder overpass of Naa Gbewaa Interchange for the Tamale Civic Almanac.",
+    pickupLandmarkId: "tamale_interchange",
+    pickupLabel: "Naa Gbewaa Interchange",
+    targetLandmarkId: "tamale_interchange",
+    targetLandmarkName: "Tamale Interchange (Naa Gbewaa)",
+    requirements: "Stand beside the Interchange roundabout, frame the flyover cleanly, and snap a live shot.",
+    completionCondition: "Capture & archive city photograph.",
+    rewardCedis: 70,
+    rewardCultureXp: 40,
+    energyCost: 7,
+    skillReward: { skill: "culture", points: 1 },
+    recommendedVehicle: "foot",
+  },
+
+  // 9. Sports & Stadium Activity
+  {
+    id: "job_sports_stadium_drill",
+    title: "RTU Community Football Penalty & Sprint Drill",
+    dagbaniTitle: "Bɔɔli Tuma · Aliu Mahama Stadium",
+    category: "sports_activity",
+    executionMode: "sports_drill",
+    description:
+      "Join Tamale youth coaches outside Aliu Mahama Sports Stadium for a timing-based penalty kick & sprint conditioning session.",
+    pickupLandmarkId: "aliu_mahama_stadium",
+    pickupLabel: "Aliu Mahama Sports Stadium",
+    targetLandmarkId: "aliu_mahama_stadium",
+    targetLandmarkName: "Aliu Mahama Sports Stadium",
+    requirements: "Travel northwest to Aliu Mahama Stadium and complete the interactive match drill.",
+    completionCondition: "Score at least 3 of 5 timed shots on target.",
+    rewardCedis: 80,
+    rewardCultureXp: 35,
+    energyCost: 18,
+    skillReward: { skill: "stamina", points: 1 },
+    recommendedVehicle: "any",
+  },
+
+  // 10. Business Operations & Student Campus Tasks
+  {
+    id: "job_business_market_audit",
+    title: "Co-op Trade Audit & Restock: Tamale Central Market",
+    dagbaniTitle: "Daabilim Gbaŋ Tuma",
+    category: "business_ops",
+    executionMode: "business_manage",
+    description:
+      "Balance daily shea butter, pona yam, and woven kaba stock books inside Tamale Central Market and authorize afternoon vendor margins.",
+    pickupLandmarkId: "central_market",
+    pickupLabel: "Central Market Co-op",
+    targetLandmarkId: "central_market",
+    targetLandmarkName: "Tamale Central Market",
+    requirements: "Meet traders inside Central Market and run the daily ledger check.",
+    completionCondition: "Verify stock counts & approve profitable market pricing.",
+    rewardCedis: 95,
+    rewardCultureXp: 35,
+    energyCost: 10,
+    skillReward: { skill: "trade", points: 1 },
+    recommendedVehicle: "foot",
+  },
+  {
+    id: "job_student_tishigu_books",
+    title: "Campus Library & Print Pack → Tishigu School",
+    dagbaniTitle: "Karimbu Gbanɔ Chaŋ Tishigu",
+    category: "student_activity",
+    executionMode: "pickup_and_deliver",
+    description:
+      "Collect printed Dagbani literacy worksheets from Dungu Campus Bookshop and bring them northeast to Teacher Mariama at Tishigu School.",
+    pickupLandmarkId: "dungu_student_hub",
+    pickupLabel: "Dungu Campus Café & Bookshop",
+    targetLandmarkId: "tamale_school",
+    targetLandmarkName: "Tishigu & Kalpohin School Precinct",
+    requirements: "Collect course pack at Dungu and deliver to Tishigu School.",
+    completionCondition: "Hand off printed sheets at Tishigu School.",
+    rewardCedis: 88,
+    rewardCultureXp: 45,
+    energyCost: 10,
+    skillReward: { skill: "culture", points: 1 },
+    recommendedVehicle: "any",
+  },
+  {
+    id: "job_explore_kukuo_pottery",
+    title: "Artisan Heritage Visit: Kukuo Women's Pottery Courtyard",
+    dagbaniTitle: "Kukuo Duɣu Gɔribu",
+    category: "exploration",
+    executionMode: "photo_survey",
+    description:
+      "Ride east to Kukuo Market & Pottery Centre, inspect the sun-fired earthenware duɣu jars, and capture a reference photo for the city archive.",
+    pickupLandmarkId: "kukuo_market_pottery",
+    pickupLabel: "Kukuo Market & Pottery Centre",
+    targetLandmarkId: "kukuo_market_pottery",
+    targetLandmarkName: "Kukuo Market & Pottery Centre",
+    requirements: "Travel east to Kukuo Courtyard and photograph the clay vessels.",
+    completionCondition: "Capture Kukuo pottery photo in person.",
+    rewardCedis: 82,
+    rewardCultureXp: 45,
+    energyCost: 11,
+    skillReward: { skill: "culture", points: 1 },
+    recommendedVehicle: "any",
+  },
+];
+
+export function generateJobsForCharacter(
+  recommendedCategories: CityTaskCategory[],
+  playerX: number,
+  playerZ: number
+): CityTaskJob[] {
+  const enriched = TAMALE_JOB_BOARD.map((job) => {
+    const lm = TAMALE_LANDMARKS.find((l) => l.id === job.targetLandmarkId);
+    const dist = lm ? Math.round(Math.hypot(lm.x - playerX, lm.z - playerZ) * 10) : 500;
+    const isRecommended = recommendedCategories.includes(job.category);
+    return {
+      ...job,
+      distanceMeters: dist,
+      _priority: isRecommended ? 0 : 1,
+    };
+  });
+
+  enriched.sort((a, b) => {
+    if (a._priority !== b._priority) return a._priority - b._priority;
+    return (a.distanceMeters ?? 0) - (b.distanceMeters ?? 0);
+  });
+
+  return enriched.map(({ _priority: _ignored, ...rest }) => rest);
+}
+
+export interface ServiceCatalogEntry {
+  kind: ServiceRequestKind;
+  title: string;
+  dagbaniTitle: string;
+  vehicleKind: "moto" | "pragya" | "taxi" | "cargo";
+  baseFareCedis: number;
+  perKmCedis: number;
+  requiresDestination: boolean;
+  speedHint: string;
+  description: string;
+  providerNames: string[];
+  packageOptions?: Array<{
+    id: string;
+    label: string;
+    extraCostCedis: number;
+    items: Array<Omit<ShopItem, "price">>;
+  }>;
+}
+
+export const SERVICE_CATALOG: ServiceCatalogEntry[] = [
+  {
+    kind: "moto_ride",
+    title: "Moto Express Ride (Okada / Private)",
+    dagbaniTitle: "Moto Soli",
+    vehicleKind: "moto",
+    baseFareCedis: 12,
+    perKmCedis: 7,
+    requiresDestination: true,
+    speedHint: "Fastest road pickup · 1 rider",
+    description:
+      "Request a real 3D Tamale motorcycle rider to navigate the street grid to your roadside, board you, and ride directly to any community or landmark.",
+    providerNames: ["Iddrisu Express", "Sulemana Rider", "Haruna Moto"],
+  },
+  {
+    kind: "pragya_ride",
+    title: "Pragya Tricycle Ride (Yellow-Yellow)",
+    dagbaniTitle: "Pragya Soli",
+    vehicleKind: "pragya",
+    baseFareCedis: 10,
+    perKmCedis: 6,
+    requiresDestination: true,
+    speedHint: "Shaded Bajaj canopy · Steady city fare",
+    description:
+      "Hail a Blue or Yellow Bajaj Pragya tricycle to drive down real Tamale roads to your position and carry you across town.",
+    providerNames: ["Alhassan Pragya", "Yakubu Yellow-Yellow", "Bawa Bajaj"],
+  },
+  {
+    kind: "taxi_ride",
+    title: "Tamale Yellow-Wing Taxi",
+    dagbaniTitle: "Taxi Lɔɔri",
+    vehicleKind: "taxi",
+    baseFareCedis: 18,
+    perKmCedis: 9,
+    requiresDestination: true,
+    speedHint: "Saloon comfort · Across metro highways",
+    description:
+      "Dispatch an authentic Ghanaian yellow-fendered saloon taxi to pull up on your street and chauffeur you along main arterials.",
+    providerNames: ["Salifu Taxi", "Abdulai High St Cab", "Mahama Metro Cab"],
+  },
+  {
+    kind: "food_delivery",
+    title: "Hot Food & Restaurant Dispatch",
+    dagbaniTitle: "Bindirigu Tumtuma",
+    vehicleKind: "moto",
+    baseFareCedis: 10,
+    perKmCedis: 3,
+    requiresDestination: false,
+    speedHint: "Delivered directly to your street spot",
+    description:
+      "Order hot Waakye, Tuo Zaafi, Savannah Fried Chicken, or Chichinga delivered by a real 3D courier motorbike right to your location.",
+    providerNames: ["Tamale Bites Moto", "Aboabo Food Courier"],
+    packageOptions: [
+      {
+        id: "pkg_fried_chicken",
+        label: "Savannah Fried Chicken & Spicy Jollof Combo (GH₵ 36)",
+        extraCostCedis: 36,
+        items: [
+          {
+            id: "savannah_chicken_box",
+            name: "Savannah Fried Chicken & Jollof Box",
+            dagbaniName: "Noo ni Shinkaafa",
+            category: "food",
+            energyRestore: 52,
+            description: "Hot crispy spiced chicken thighs over smoky party jollof rice.",
+          },
+          {
+            id: "chilled_sobolo",
+            name: "Chilled Ginger Sobolo",
+            dagbaniName: "Sobolo Kom",
+            category: "food",
+            energyRestore: 22,
+            description: "Iced hibiscus-ginger drink.",
+          },
+        ],
+      },
+      {
+        id: "pkg_waakye_platter",
+        label: "Adiza's Waakye, Guinea Fowl & Chichinga Pack (GH₵ 42)",
+        extraCostCedis: 42,
+        items: [
+          {
+            id: "waakye",
+            name: "Tamale Waakye Special Bowl",
+            dagbaniName: "Bɛŋa ni Shinkaafa",
+            category: "food",
+            energyRestore: 38,
+            description: "Warm sorghum-leaf waakye with egg and shito.",
+          },
+          {
+            id: "grilled_guinea_fowl",
+            name: "Spiced Grilled Guinea Fowl",
+            dagbaniName: "Kpaɣli Nimdi",
+            category: "food",
+            energyRestore: 50,
+            description: "Tamale evening classic grilled over charcoal.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    kind: "grocery_delivery",
+    title: "Supermarket & Market Grocery Dispatch",
+    dagbaniTitle: "Daa Nɛma Tumtuma",
+    vehicleKind: "pragya",
+    baseFareCedis: 12,
+    perKmCedis: 3,
+    requiresDestination: false,
+    speedHint: "Fresh market basket via Pragya",
+    description:
+      "Have Tamale Central Mart & Market provisions—water packs, fresh yam, shea butter, and warm sugar bread—driven straight to you.",
+    providerNames: ["Central Market Pragya", "Tamale Mart Basket"],
+    packageOptions: [
+      {
+        id: "pkg_market_essentials",
+        label: "Weekly Tamale Basket (Water x2, Bread, Shea Butter) (GH₵ 38)",
+        extraCostCedis: 38,
+        items: [
+          {
+            id: "pure_water",
+            name: "Chilled Drinking Water",
+            dagbaniName: "Kom",
+            category: "food",
+            energyRestore: 15,
+            description: "Fresh bottled Tamale water.",
+          },
+          {
+            id: "tishigu_butter_bread",
+            name: "Hot Wood-Oven Sugar Bread",
+            dagbaniName: "Paano",
+            category: "food",
+            energyRestore: 30,
+            description: "Soft sweet Tamale loaf.",
+          },
+          {
+            id: "shea_butter",
+            name: "Pure Tamale Shea Butter",
+            dagbaniName: "Kpakpili",
+            category: "craft",
+            description: "Hand-whipped golden Tamale shea butter.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    kind: "parcel_delivery",
+    title: "City Courier & Power/Supplies Dispatch",
+    dagbaniTitle: "Nɛma Tumtuma",
+    vehicleKind: "moto",
+    baseFareCedis: 14,
+    perKmCedis: 4,
+    requiresDestination: false,
+    speedHint: "Point-to-point moto courier",
+    description:
+      "Call a dispatch rider to bring solar torches, study almanacs, or phone power banks from High Street straight to where you stand.",
+    providerNames: ["N10 Courier Express", "Savannah Dispatch"],
+    packageOptions: [
+      {
+        id: "pkg_field_kit",
+        label: "Explorer Field Pack (Solar Lantern + Hydration Tonic) (GH₵ 48)",
+        extraCostCedis: 48,
+        items: [
+          {
+            id: "solar_torch",
+            name: "Rechargeable Solar Lantern",
+            dagbaniName: "Fitila",
+            category: "craft",
+            description: "Handy rechargeable lantern for evening walks.",
+          },
+          {
+            id: "oral_hydration_tonic",
+            name: "Savannah Hydration & Vitamin Tonic",
+            dagbaniName: "Alaafee Kom",
+            category: "food",
+            energyRestore: 45,
+            description: "Electrolyte wellness drink.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    kind: "roadside_repair",
+    title: "Roadside Pragya & Moto Mechanic",
+    dagbaniTitle: "Maani Tumtuma",
+    vehicleKind: "moto",
+    baseFareCedis: 18,
+    perKmCedis: 4,
+    requiresDestination: false,
+    speedHint: "Lamashegu mechanic on wheels",
+    description:
+      "Summon Master Fuseini's mobile mechanic rider along Tamale roads to tune nearby parked vehicles, restore energy tonics, and pack spare kits.",
+    providerNames: ["Master Fuseini Mobile Bay", "Lamashegu Wrench Squad"],
+  },
+  {
+    kind: "cargo_moving",
+    title: "Motor King Cargo & Group Relocation",
+    dagbaniTitle: "Motor King Nɛma",
+    vehicleKind: "cargo",
+    baseFareCedis: 20,
+    perKmCedis: 8,
+    requiresDestination: true,
+    speedHint: "Heavy Motor King trike haulage",
+    description:
+      "Hire a heavy Motor King three-wheeler truck to drive to you, load up, and haul you and your goods across any neighbourhood.",
+    providerNames: ["Lamashegu Motor King", "Gunayili Haulage"],
+  },
+];
+
+export function calculateServiceFare(
+  entry: ServiceCatalogEntry,
+  distanceMeters: number,
+  packageExtraCedis = 0
+): number {
+  const km = Math.max(0.25, distanceMeters / 1000);
+  return Math.round(entry.baseFareCedis + entry.perKmCedis * km + packageExtraCedis);
+}

@@ -13,17 +13,21 @@ import {
   MoreHorizontal,
   Package,
   Pause,
+  Smartphone,
   Tag,
   User,
+  Users,
   Volume2,
   VolumeX,
 } from "lucide-react";
 import {
+  ActiveTaskRuntime,
   CameraMode,
   KeyBindings,
   LanguageMode,
   NearbyChatter,
   NearbyInteractable,
+  ServiceRequestRuntime,
   WeatherType,
 } from "../types/game";
 
@@ -34,7 +38,10 @@ interface GameHudProps {
   moneyCedis: number;
   energy: number;
   cultureXp: number;
+  activeCharacterName?: string;
+  activeCareerTitle?: string;
   isDriving: boolean;
+  isRidingService?: boolean;
   drivingLabel: string | null;
   speedKmh: number;
   nearby: NearbyInteractable | null;
@@ -50,6 +57,8 @@ interface GameHudProps {
   } | null;
   activeErrandTitle: string | null;
   activeGigTitle?: string | null;
+  activeTask?: ActiveTaskRuntime | null;
+  activeService?: ServiceRequestRuntime | null;
   activeCityEventLabel: string;
   weather: WeatherType;
   cameraMode: CameraMode;
@@ -62,6 +71,9 @@ interface GameHudProps {
   onTriggerInteract: () => void;
   onToggleVehicle: () => void;
   onTriggerHorn: () => void;
+  onOpenPhone?: () => void;
+  onOpenCharacterSwitch?: () => void;
+  onCancelService?: () => void;
   onOpenMap: () => void;
   onOpenDagbaniGuide: () => void;
   onOpenInventory: () => void;
@@ -92,7 +104,10 @@ export const GameHud: React.FC<GameHudProps> = ({
   moneyCedis,
   energy,
   cultureXp,
+  activeCharacterName,
+  activeCareerTitle,
   isDriving,
+  isRidingService = false,
   drivingLabel,
   speedKmh,
   nearby,
@@ -101,6 +116,8 @@ export const GameHud: React.FC<GameHudProps> = ({
   nearestGuidance,
   activeErrandTitle,
   activeGigTitle = null,
+  activeTask = null,
+  activeService = null,
   activeCityEventLabel,
   weather,
   cameraMode,
@@ -113,6 +130,9 @@ export const GameHud: React.FC<GameHudProps> = ({
   onTriggerInteract,
   onToggleVehicle,
   onTriggerHorn,
+  onOpenPhone,
+  onOpenCharacterSwitch,
+  onCancelService,
   onOpenMap,
   onOpenDagbaniGuide,
   onOpenInventory,
@@ -139,11 +159,19 @@ export const GameHud: React.FC<GameHudProps> = ({
     <div className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-2 sm:p-4">
       {/* Top Row: Compact Responsive Corner Anchors */}
       <div className="flex items-start justify-between gap-2 sm:gap-4">
-        {/* Top-Left: Location, Clock, Wallet & GPS Guidance */}
-        <div className="pointer-events-auto bg-[#14110f]/88 border border-white/12 rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 max-w-[60vw] sm:max-w-md backdrop-blur-sm">
-          <div className="font-display text-xs sm:text-sm font-semibold text-[#f8f5ef] truncate">
-            {district}
+        {/* Top-Left: Location, Character, Clock, Wallet & GPS Guidance */}
+        <div className="pointer-events-auto bg-[#14110f]/88 border border-white/12 rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 max-w-[58vw] sm:max-w-md backdrop-blur-sm">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-display text-xs sm:text-sm font-semibold text-[#f8f5ef] truncate">
+              {district}
+            </span>
           </div>
+          {activeCharacterName && (
+            <div className="text-[11px] text-amber-300/95 truncate mt-0.5">
+              {activeCharacterName}
+              {activeCareerTitle ? ` · ${activeCareerTitle}` : ""}
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] sm:text-xs text-[#cfc8bc] mt-0.5 font-mono-num">
             <span>{formattedTime}</span>
             <span className="hidden sm:inline" aria-hidden="true">
@@ -173,24 +201,71 @@ export const GameHud: React.FC<GameHudProps> = ({
               </span>
             </div>
           )}
-          {activeErrandTitle && (
+          {activeTask && (
+            <div className="text-[11px] text-emerald-300 mt-1 pt-1 border-t border-white/10 truncate">
+              Task ({activeTask.stage === "go_to_pickup" ? "Pickup" : "Target"}):{" "}
+              {activeTask.job.title}
+            </div>
+          )}
+          {activeErrandTitle && !activeTask && (
             <div className="text-[11px] text-amber-300 mt-1 pt-1 border-t border-white/10 truncate">
               Errand: {activeErrandTitle}
             </div>
           )}
-          {activeGigTitle && (
+          {activeGigTitle && !activeTask && (
             <div className="text-[11px] text-emerald-300 mt-1 pt-1 border-t border-white/10 truncate">
               Gig: {activeGigTitle}
+            </div>
+          )}
+          {activeService && activeService.status !== "completed" && activeService.status !== "cancelled" && (
+            <div className="mt-1 pt-1 border-t border-white/10 flex items-center justify-between gap-2 text-[11px] text-sky-300">
+              <span className="truncate">
+                {activeService.providerName}: {activeService.statusNote}
+                {activeService.etaSeconds > 0 ? ` (${activeService.etaSeconds}s)` : ""}
+              </span>
+              {onCancelService && (
+                <button
+                  type="button"
+                  onClick={onCancelService}
+                  className="text-[10px] font-semibold text-red-300 hover:text-red-200 shrink-0 cursor-pointer"
+                >
+                  Cancel
+                </button>
+              )}
             </div>
           )}
         </div>
 
         {/* Top-Right: Responsive Single-Row Action Bar */}
         <div className="pointer-events-auto relative flex items-center gap-1 bg-[#14110f]/88 border border-white/12 rounded-xl p-1 backdrop-blur-sm">
+          {onOpenPhone && (
+            <button
+              type="button"
+              onClick={onOpenPhone}
+              title="Tamale Phone: Jobs, Rides & Services (P)"
+              className="min-h-[40px] sm:min-h-[34px] flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-[#12100e] bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <Smartphone className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
+              <span className="hidden sm:inline">Phone</span>
+            </button>
+          )}
+
+          {onOpenCharacterSwitch && (
+            <button
+              type="button"
+              onClick={onOpenCharacterSwitch}
+              title="Switch Playable Character (C)"
+              className="hidden sm:flex min-h-[34px] items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-[#ede8de] hover:bg-white/10 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <Users className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden md:inline">Switch</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onOpenMap}
-            title="Tamale City Map"
+            title="Tamale City Map (M)"
             className="min-h-[40px] sm:min-h-[34px] flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-[#ede8de] hover:bg-white/10 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <MapIcon className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-amber-400" />
@@ -200,7 +275,7 @@ export const GameHud: React.FC<GameHudProps> = ({
           <button
             type="button"
             onClick={onOpenInventory}
-            title="Bag & Errands"
+            title="Bag & Errands (I)"
             className="min-h-[40px] sm:min-h-[34px] flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-[#ede8de] hover:bg-white/10 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <Package className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-amber-400" />
@@ -211,7 +286,7 @@ export const GameHud: React.FC<GameHudProps> = ({
           <button
             type="button"
             onClick={onOpenDagbaniGuide}
-            title="Dagbani Phrasebook"
+            title="Dagbani Phrasebook (L)"
             className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-[#ede8de] hover:bg-white/10 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <BookOpen className="w-3.5 h-3.5 text-amber-400" />
@@ -221,7 +296,7 @@ export const GameHud: React.FC<GameHudProps> = ({
             type="button"
             onClick={onOpenCustomize}
             title="Wardrobe & Appearance"
-            className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-[#ede8de] hover:bg-white/10 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-[#ede8de] hover:bg-white/10 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <User className="w-3.5 h-3.5 text-amber-400" />
             <span>Look</span>
@@ -248,7 +323,7 @@ export const GameHud: React.FC<GameHudProps> = ({
             type="button"
             onClick={onOpenContributions}
             title="Community Knowledge & Photo Portal"
-            className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-[#ede8de] hover:bg-white/10 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="hidden xl:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-[#ede8de] hover:bg-white/10 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <MessageSquarePlus className="w-3.5 h-3.5 text-amber-400" />
             <span>Contribute</span>
@@ -296,14 +371,27 @@ export const GameHud: React.FC<GameHudProps> = ({
           </button>
 
           {mobileMoreOpen && (
-            <div className="lg:hidden absolute right-0 top-full mt-2 w-48 bg-[#171411]/98 border border-white/15 rounded-xl p-1.5 shadow-2xl space-y-1 z-30">
+            <div className="lg:hidden absolute right-0 top-full mt-2 w-52 bg-[#171411]/98 border border-white/15 rounded-xl p-1.5 shadow-2xl space-y-1 z-30">
+              {onOpenCharacterSwitch && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMoreOpen(false);
+                    onOpenCharacterSwitch();
+                  }}
+                  className="w-full min-h-[42px] px-3 py-1.5 text-left text-xs text-[#f5f2eb] hover:bg-white/10 rounded-lg flex items-center gap-2 cursor-pointer"
+                >
+                  <Users className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Switch Character</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
                   setMobileMoreOpen(false);
                   onOpenDagbaniGuide();
                 }}
-                className="w-full min-h-[40px] px-3 py-1.5 text-left text-xs text-[#f5f2eb] hover:bg-white/10 rounded-lg flex items-center gap-2 cursor-pointer"
+                className="w-full min-h-[42px] px-3 py-1.5 text-left text-xs text-[#f5f2eb] hover:bg-white/10 rounded-lg flex items-center gap-2 cursor-pointer"
               >
                 <BookOpen className="w-3.5 h-3.5 text-amber-400" />
                 <span>Dagbani Phrasebook</span>
@@ -314,10 +402,10 @@ export const GameHud: React.FC<GameHudProps> = ({
                   setMobileMoreOpen(false);
                   onOpenCustomize();
                 }}
-                className="w-full min-h-[40px] px-3 py-1.5 text-left text-xs text-[#f5f2eb] hover:bg-white/10 rounded-lg flex items-center gap-2 cursor-pointer"
+                className="w-full min-h-[42px] px-3 py-1.5 text-left text-xs text-[#f5f2eb] hover:bg-white/10 rounded-lg flex items-center gap-2 cursor-pointer"
               >
                 <User className="w-3.5 h-3.5 text-amber-400" />
-                <span>Select Character</span>
+                <span>Customize Wardrobe</span>
               </button>
               <button
                 type="button"
@@ -400,7 +488,7 @@ export const GameHud: React.FC<GameHudProps> = ({
         {/* Desktop Contextual Prompts (On mobile touch mode, MobileTouchControls renders dedicated right-thumb buttons) */}
         {!isTouchControlsVisible &&
           ((!isDriving && (nearby || nearbyVehicle)) ||
-            (isDriving && nearby?.kind === "delivery")) && (
+            (isDriving && (nearby?.kind === "delivery" || nearby?.kind === "job_action"))) && (
             <div className="flex flex-wrap items-center justify-center gap-2">
               {nearby && (
                 <button
@@ -448,6 +536,27 @@ export const GameHud: React.FC<GameHudProps> = ({
               )}
             </div>
           )}
+
+        {/* Service Ride Passenger Status Bar */}
+        {isRidingService && activeService && (
+          <div className="pointer-events-auto flex items-center gap-3 bg-[#121a22]/94 border border-sky-400/50 rounded-xl px-3.5 py-2 shadow-lg">
+            <div className="text-xs text-[#d8e6f3] truncate max-w-[180px] sm:max-w-none">
+              Passenger on {activeService.providerName} → {activeService.destinationName}
+            </div>
+            <div className="font-mono-num text-sm font-bold text-sky-300 whitespace-nowrap">
+              {speedKmh} km/h
+            </div>
+            {!isTouchControlsVisible && (
+              <button
+                type="button"
+                onClick={onToggleVehicle}
+                className="text-xs font-medium bg-red-500/20 hover:bg-red-500/35 text-red-200 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+              >
+                Disembark ({keyHint(keyBindings.vehicleToggle)})
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Driving Speedometer & Desktop/Touch Vehicle Info */}
         {isDriving && (

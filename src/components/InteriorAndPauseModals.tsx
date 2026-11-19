@@ -65,11 +65,20 @@ export const BuildingInteriorModal: React.FC<BuildingInteriorModalProps> = ({
                   ? "Visit Smock & Craft Guild"
                   : landmark.shopId === "kukuo_pottery"
                   ? "Browse Kukuo Pottery"
-                  : landmark.shopId === "lamashegu_parts"
-                  ? "Open Parts & Tune-Up Stall"
+                  : landmark.shopId === "lamashegu_parts" ||
+                    landmark.shopId === "lamashegu_market_hub"
+                  ? "Open Parts & Mechanic Bay"
                   : landmark.shopId === "nightlife_grill_lounge" ||
-                    landmark.shopId === "choggu_night_spot"
-                  ? "Order Grill, Waakye & Sobolo"
+                    landmark.shopId === "choggu_night_spot" ||
+                    landmark.shopId === "aboabo_tz_kitchen"
+                  ? "Order Waakye, Tuo Zaafi & Grill"
+                  : landmark.shopId === "savannah_fast_food" ||
+                    landmark.shopId === "vittin_pizza_grill"
+                  ? "Order Fast Food & Grill"
+                  : landmark.shopId === "tamale_supermarket"
+                  ? "Shop Supermarket Aisles"
+                  : landmark.shopId === "kalpohin_juice_bakery"
+                  ? "Order Fresh Juice & Pastries"
                   : landmark.shopId === "nyohini_barber_salon"
                   ? "Book Haircut / Braids"
                   : landmark.shopId === "jakarayili_guesthouse"

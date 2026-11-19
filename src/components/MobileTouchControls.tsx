@@ -10,12 +10,16 @@ import {
   OctagonX,
   RotateCcw,
   ShoppingBag,
+  Smartphone,
+  Users,
   Volume2,
+  Wrench,
 } from "lucide-react";
 import { NearbyInteractable } from "../types/game";
 
 interface MobileTouchControlsProps {
   isDriving: boolean;
+  isRidingService?: boolean;
   drivingKind: "pragya" | "motorcycle" | null;
   nearby: NearbyInteractable | null;
   nearbyVehicle: NearbyInteractable | null;
@@ -34,10 +38,13 @@ interface MobileTouchControlsProps {
   }) => void;
   onHorn: () => void;
   onCameraRotate: (dx: number, dy: number) => void;
+  onOpenPhone?: () => void;
+  onOpenCharacterSwitch?: () => void;
 }
 
 export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
   isDriving,
+  isRidingService = false,
   drivingKind,
   nearby,
   nearbyVehicle,
@@ -51,6 +58,8 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
   onVehicleControls,
   onHorn,
   onCameraRotate,
+  onOpenPhone,
+  onOpenCharacterSwitch,
 }) => {
   const [runActive, setRunActive] = useState(false);
   const [stickOffset, setStickOffset] = useState({ x: 0, y: 0 });
@@ -170,7 +179,21 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
   };
 
   const contextLabel =
-    nearby?.interactionVerb === "talk"
+    nearby?.kind === "service_provider"
+      ? nearby.servicePhase === "board_ride"
+        ? "BOARD RIDE"
+        : "COLLECT"
+      : nearby?.kind === "job_action"
+      ? nearby.jobActionMode === "pickup_passenger"
+        ? "PICK UP"
+        : nearby.jobActionMode === "mechanic_repair"
+        ? "REPAIR"
+        : nearby.jobActionMode === "photo_capture"
+        ? "PHOTO"
+        : nearby.jobActionMode === "sports_drill"
+        ? "DRILL"
+        : "WORK SHIFT"
+      : nearby?.interactionVerb === "talk"
       ? "TALK"
       : nearby?.interactionVerb === "enter"
       ? "ENTER"
@@ -185,6 +208,10 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
       ? MessageCircle
       : nearby?.interactionVerb === "enter"
       ? DoorOpen
+      : nearby?.interactionVerb === "repair"
+      ? Wrench
+      : nearby?.kind === "service_provider"
+      ? Bike
       : ShoppingBag;
 
   return (
@@ -199,8 +226,42 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
         className="pointer-events-auto touch-gameplay-pad fixed top-14 right-0 bottom-0 w-1/2"
       />
 
+      {/* Quick Mobile Phone & Character Switch Dock (Above Left Joystick/Pad) */}
+      {(onOpenPhone || onOpenCharacterSwitch) && (
+        <div className="fixed left-3 bottom-40 sm:left-5 sm:bottom-44 flex items-center gap-2 pointer-events-none">
+          {onOpenPhone && (
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                vibrate(12);
+                onOpenPhone();
+              }}
+              className="pointer-events-auto touch-gameplay-pad min-h-[44px] px-3 rounded-xl bg-[#14110f]/88 border border-amber-500/45 text-amber-300 text-xs font-bold flex items-center gap-1.5 shadow-lg"
+            >
+              <Smartphone className="w-4 h-4" />
+              <span>PHONE</span>
+            </button>
+          )}
+          {onOpenCharacterSwitch && (
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                vibrate(12);
+                onOpenCharacterSwitch();
+              }}
+              className="pointer-events-auto touch-gameplay-pad min-h-[44px] px-3 rounded-xl bg-[#14110f]/88 border border-white/25 text-[#f5f2eb] text-xs font-semibold flex items-center gap-1.5 shadow-lg"
+            >
+              <Users className="w-4 h-4 text-amber-400" />
+              <span>SWITCH</span>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* LEFT SIDE CONTROLS */}
-      {!isDriving ? (
+      {!isDriving && !isRidingService ? (
         <div className="fixed left-4 bottom-5 sm:left-6 sm:bottom-6 pointer-events-auto touch-gameplay-pad">
           <div
             onPointerDown={handleStickDown}
@@ -222,7 +283,7 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
             MOVE
           </div>
         </div>
-      ) : (
+      ) : isDriving ? (
         <div className="fixed left-4 bottom-5 sm:left-6 sm:bottom-6 pointer-events-auto touch-gameplay-pad">
           <div
             onPointerDown={handleSteerDown}
@@ -245,10 +306,25 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
             STEER {drivingKind === "motorcycle" ? "MOTO" : "PRAGYA"}
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* RIGHT SIDE CONTROLS */}
-      {!isDriving ? (
+      {isRidingService ? (
+        <div className="fixed right-4 bottom-5 sm:right-6 sm:bottom-6 flex flex-col items-end gap-2.5 pointer-events-none">
+          <button
+            type="button"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              vibrate(18);
+              onEnterVehicle();
+            }}
+            className="pointer-events-auto touch-gameplay-pad min-h-[52px] px-4 rounded-xl bg-red-600/92 active:scale-95 text-white border border-red-300/60 font-bold text-xs flex items-center justify-center gap-1.5 shadow-xl"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="whitespace-nowrap">EXIT SERVICE RIDE</span>
+          </button>
+        </div>
+      ) : !isDriving ? (
         <div className="fixed right-4 bottom-5 sm:right-6 sm:bottom-6 flex flex-col items-end gap-2.5 pointer-events-none">
           {/* Contextual Buttons Row */}
           <div className="flex items-center gap-2.5">
@@ -321,7 +397,7 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
         </div>
       ) : (
         <div className="fixed right-4 bottom-5 sm:right-6 sm:bottom-6 flex flex-col items-end gap-2.5 pointer-events-none">
-          {nearby?.kind === "delivery" && (
+          {(nearby?.kind === "delivery" || nearby?.kind === "job_action") && (
             <button
               type="button"
               onPointerDown={(e) => {
@@ -332,7 +408,7 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
               className="pointer-events-auto touch-gameplay-pad min-h-[48px] px-4 rounded-xl bg-emerald-500 active:scale-95 text-[#071c0e] border border-emerald-200 font-bold text-xs flex items-center justify-center gap-1.5 shadow-xl"
             >
               <ShoppingBag className="w-4 h-4 shrink-0" />
-              <span className="whitespace-nowrap">DROP OFF / COMPLETE</span>
+              <span className="whitespace-nowrap">{contextLabel}</span>
             </button>
           )}
           {/* Top Utility Row: Horn, Handbrake, Exit Vehicle */}

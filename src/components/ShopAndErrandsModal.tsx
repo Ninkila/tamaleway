@@ -12,8 +12,11 @@ interface ShopModalProps {
   moneyCedis: number;
   energy: number;
   gameMinutes: number;
-  onBuyItem: (item: ShopItem, finalPrice: number) => void;
+  ownedBusinessIds?: string[];
+  onBuyItem: (item: ShopItem, finalPrice: number, consumeImmediately?: boolean) => void;
   onUseService: (service: ShopServiceAction, shopId: string) => void;
+  onInvestBusiness?: (shopId: string) => void;
+  onOpenCityJobs?: () => void;
   onClose: () => void;
 }
 
@@ -22,8 +25,11 @@ export const ShopModal: React.FC<ShopModalProps> = ({
   moneyCedis,
   energy,
   gameMinutes,
+  ownedBusinessIds = [],
   onBuyItem,
   onUseService,
+  onInvestBusiness,
+  onOpenCityJobs,
   onClose,
 }) => {
   const items = SHOP_INVENTORIES[shopId] || [];
@@ -34,6 +40,7 @@ export const ShopModal: React.FC<ShopModalProps> = ({
 
   const title = meta?.title || "Tamale Market Stall";
   const services = meta?.services || [];
+  const isOwned = ownedBusinessIds.includes(shopId);
 
   const handleBargain = () => {
     if (bargained || !isOpen) return;
@@ -159,6 +166,48 @@ export const ShopModal: React.FC<ShopModalProps> = ({
             </div>
           )}
 
+          {meta?.buyableSharePrice && onInvestBusiness && (
+            <div className="p-3.5 rounded-xl bg-[#201b17] border border-amber-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="text-xs font-semibold text-amber-400">
+                  Local Business Partnership
+                </div>
+                <div className="text-xs text-[#cfc8bc] mt-0.5">
+                  Co-own {title} to earn GH₵ {meta.dailyRevenueCedis ?? 35}/day at midnight.
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isOwned || moneyCedis < meta.buyableSharePrice}
+                onClick={() => {
+                  onInvestBusiness(shopId);
+                  setFeedback(`Became a co-owner of ${title}!`);
+                }}
+                className={`min-h-[44px] px-4 py-2 text-xs font-semibold rounded-lg whitespace-nowrap shrink-0 cursor-pointer font-mono-num ${
+                  isOwned
+                    ? "bg-emerald-500/20 text-emerald-200 border border-emerald-500/35"
+                    : "bg-amber-500 hover:bg-amber-400 disabled:bg-white/10 disabled:text-[#7c7468] text-[#12100e]"
+                }`}
+              >
+                {isOwned
+                  ? `Co-Owner (+GH₵ ${meta.dailyRevenueCedis ?? 35}/day)`
+                  : `Invest Share · GH₵ ${meta.buyableSharePrice}`}
+              </button>
+            </div>
+          )}
+
+          {onOpenCityJobs && (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={onOpenCityJobs}
+                className="min-h-[42px] px-4 py-2 rounded-lg bg-[#241f1a] hover:bg-white/10 border border-white/12 text-xs font-semibold text-amber-300 cursor-pointer"
+              >
+                Browse City Jobs &amp; Shifts
+              </button>
+            </div>
+          )}
+
           {items.length > 0 && (
             <div className="space-y-2.5">
               <div className="text-xs font-semibold uppercase tracking-wider text-amber-400">
@@ -186,19 +235,36 @@ export const ShopModal: React.FC<ShopModalProps> = ({
                         </div>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      disabled={!isOpen || !canAfford}
-                      onClick={() => {
-                        onBuyItem(item, finalPrice);
-                        setFeedback(
-                          `Purchased ${item.name} (${item.dagbaniName}) for GH₵ ${finalPrice}.`
-                        );
-                      }}
-                      className="px-4 py-2 text-xs font-semibold rounded-md bg-amber-500 hover:bg-amber-400 disabled:bg-white/10 disabled:text-[#7c7468] text-[#12100e] transition-colors whitespace-nowrap shrink-0 cursor-pointer font-mono-num"
-                    >
-                      Buy · GH₵ {finalPrice}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      {item.energyRestore && (
+                        <button
+                          type="button"
+                          disabled={!isOpen || !canAfford}
+                          onClick={() => {
+                            onBuyItem(item, finalPrice, true);
+                            setFeedback(
+                              `Enjoyed ${item.name} fresh (+${item.energyRestore}% Energy) for GH₵ ${finalPrice}.`
+                            );
+                          }}
+                          className="min-h-[42px] px-3.5 py-2 text-xs font-semibold rounded-md bg-emerald-500 hover:bg-emerald-400 disabled:bg-white/10 disabled:text-[#7c7468] text-[#071c0e] transition-colors whitespace-nowrap cursor-pointer font-mono-num"
+                        >
+                          Eat Now · GH₵ {finalPrice}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        disabled={!isOpen || !canAfford}
+                        onClick={() => {
+                          onBuyItem(item, finalPrice, false);
+                          setFeedback(
+                            `Purchased ${item.name} (${item.dagbaniName}) for GH₵ ${finalPrice}.`
+                          );
+                        }}
+                        className="min-h-[42px] px-4 py-2 text-xs font-semibold rounded-md bg-amber-500 hover:bg-amber-400 disabled:bg-white/10 disabled:text-[#7c7468] text-[#12100e] transition-colors whitespace-nowrap cursor-pointer font-mono-num"
+                      >
+                        {item.energyRestore ? `Pack · GH₵ ${finalPrice}` : `Buy · GH₵ ${finalPrice}`}
+                      </button>
+                    </div>
                   </div>
                 );
               })}

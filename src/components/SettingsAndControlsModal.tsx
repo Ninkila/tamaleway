@@ -330,8 +330,10 @@ export const SettingsAndControlsModal: React.FC<SettingsAndControlsModalProps> =
                   </li>
                   <li>
                     <strong className="text-[#f8f5ef]">Right Action Buttons:</strong> Jump &amp;
-                    Run on foot, plus contextual TALK, INTERACT, ENTER, and ENTER VEHICLE buttons.
-                    Switches automatically to GAS, BRAKE / REV, HORN, and EXIT inside vehicles.
+                    Run on foot, plus contextual TALK, INTERACT, ENTER, BOARD RIDE, WORK, REPAIR,
+                    PHOTO, and ENTER VEHICLE buttons. Switches automatically to GAS, BRAKE / REV,
+                    HORN, and EXIT inside vehicles, while quick PHONE &amp; SWITCH buttons sit above
+                    the left pad.
                   </li>
                 </ul>
               </div>
@@ -344,7 +346,7 @@ export const SettingsAndControlsModal: React.FC<SettingsAndControlsModalProps> =
                       Desktop Keyboard Controls (Click any key to rebind)
                     </div>
                     <div className="text-[11px] text-[#9c9487]">
-                      Drag mouse to rotate camera · Scroll wheel to zoom
+                      Drag mouse to rotate camera · Scroll to zoom · P = Phone · C = Switch Character · L = Dagbani
                     </div>
                   </div>
                   <button

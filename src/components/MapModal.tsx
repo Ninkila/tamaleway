@@ -15,6 +15,7 @@ interface MapModalProps {
   activeErrandLandmarkId: string | null;
   activeGigLandmarkId?: string | null;
   npcStates?: NpcRuntimeSnapshot[];
+  servicePos?: { x: number; z: number } | null;
   onFastTravel: (landmark: LandmarkData) => void;
   onFastTravelCoords?: (x: number, z: number, label: string) => void;
   onInspectLandmark?: (landmark: LandmarkData) => void;
@@ -27,6 +28,7 @@ export const MapModal: React.FC<MapModalProps> = ({
   activeErrandLandmarkId,
   activeGigLandmarkId = null,
   npcStates = [],
+  servicePos = null,
   onFastTravel,
   onFastTravelCoords,
   onInspectLandmark,
@@ -248,6 +250,22 @@ export const MapModal: React.FC<MapModalProps> = ({
                 );
               })}
 
+              {/* Live Service Vehicle Marker */}
+              {servicePos && (
+                <g transform={`translate(${toMapX(servicePos.x)}, ${toMapY(servicePos.z)})`}>
+                  <circle r="7" fill="#38bdf8" stroke="#0f172a" strokeWidth="1.8" />
+                  <text
+                    y="-9"
+                    textAnchor="middle"
+                    fill="#7dd3fc"
+                    fontSize="7.5"
+                    fontWeight="700"
+                  >
+                    Service
+                  </text>
+                </g>
+              )}
+
               {/* Player Marker */}
               <g transform={`translate(${toMapX(playerPos.x)}, ${toMapY(playerPos.z)})`}>
                 <circle r="5.5" fill="#ffffff" stroke="#b45309" strokeWidth="2" />
@@ -369,7 +387,7 @@ export const MapModal: React.FC<MapModalProps> = ({
                   <span>Amber · Landmarks</span>
                   <span>Dashed · Communities</span>
                   <span>Green · Errand</span>
-                  <span>Cyan · Active Gig</span>
+                  <span>Cyan · Active Gig / Service</span>
                   <span>Blue · Live Residents</span>
                 </div>
               </div>

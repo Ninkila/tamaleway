@@ -15,6 +15,9 @@ import { LanguageMode } from "../types/game";
 interface MainMenuProps {
   hasSavedGame: boolean;
   languageMode: LanguageMode;
+  activeCharacterName?: string;
+  activeCharacterOccupation?: string;
+  activeCharacterMoney?: number;
   onChangeLanguageMode: (mode: LanguageMode) => void;
   onPlay: () => void;
   onContinueGame: () => void;
@@ -33,6 +36,9 @@ interface MainMenuProps {
 export const MainMenu: React.FC<MainMenuProps> = ({
   hasSavedGame,
   languageMode,
+  activeCharacterName = "Yakubu Alhassan",
+  activeCharacterOccupation = "Pragya Tricycle Operator",
+  activeCharacterMoney = 220,
   onChangeLanguageMode,
   onPlay,
   onContinueGame,
@@ -56,11 +62,21 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         <h1 className="font-display text-3xl sm:text-5xl font-bold tracking-tight text-[#f8f5ef] mb-2">
           Tamale 3D
         </h1>
-        <p className="text-xs sm:text-sm text-[#cfc8bc] leading-relaxed mb-5 max-w-xl">
+        <p className="text-xs sm:text-sm text-[#cfc8bc] leading-relaxed mb-4 max-w-xl">
           Explore 17 Tamale communities—from Naa Gbewaa Interchange, Central &amp; Aboabo Markets,
           Dakpema Palace, and Central Mosque out to Lamashegu, Kukuo, Tamale Teaching Hospital,
           Aliu Mahama Stadium, SCCA &amp; Red Clay, and Tamale International Airport.
         </p>
+
+        {/* Active Resident Strip */}
+        <div className="mb-4 px-3.5 py-2.5 rounded-xl bg-[#120f0d] border border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="text-[#e8e2d7]">
+            <span className="text-[#9c9487]">Active Resident: </span>
+            <span className="font-semibold text-amber-300">{activeCharacterName}</span>
+            <span className="text-[#9c9487]"> · {activeCharacterOccupation}</span>
+          </div>
+          <div className="font-mono-num font-bold text-amber-400">GH₵ {activeCharacterMoney}</div>
+        </div>
 
         {/* Primary Play Actions */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-5">
