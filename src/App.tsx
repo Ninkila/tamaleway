@@ -13,6 +13,7 @@ import { DialogueModal } from "./components/DialogueModal";
 import { DiscoveryCardOverlay } from "./components/DiscoveryCardOverlay";
 import { GameHud } from "./components/GameHud";
 import { BuildingInteriorModal, PauseModal } from "./components/InteriorAndPauseModals";
+import { InteriorServiceOverlay } from "./components/InteriorServiceOverlay";
 import { InventoryJournalModal } from "./components/InventoryJournalModal";
 import { MainMenu } from "./components/MainMenu";
 import { MapModal } from "./components/MapModal";
@@ -21,19 +22,21 @@ import { ReferenceArchiveModal } from "./components/ReferenceArchiveModal";
 import { SettingsAndControlsModal } from "./components/SettingsAndControlsModal";
 import { ShopModal } from "./components/ShopAndErrandsModal";
 import { TamaleEventsModal } from "./components/TamaleEventsModal";
-import { TamalePhoneModal } from "./components/TamalePhoneModal";
+import { PhoneTab, TamalePhoneModal } from "./components/TamalePhoneModal";
 import { WorkAndActivityModal } from "./components/WorkAndActivityModal";
 import {
   computeCareerRankTitle,
   createInitialCharacterState,
   PLAYABLE_CHARACTERS,
 } from "./data/playableCharacters";
+import { TAMALE_ECONOMY_CONFIG } from "./data/tamaleEconomy";
 import { INITIAL_CITY_EVENT_DESCRIPTIONS } from "./data/tamaleExpansionData";
 import {
   calculateServiceFare,
   generateJobsForCharacter,
   SERVICE_CATALOG,
 } from "./data/tamaleJobsAndServices";
+import { buildDynamicRadioSegment } from "./data/tamaleMusicAndRadio";
 import {
   generateAvailableCityGigs,
   INITIAL_ERRANDS,
@@ -42,6 +45,7 @@ import {
   TAMALE_NPCS,
 } from "./data/tamaleWorldData";
 import { TamaleAudioEngine } from "./game/audio";
+import { MusicPlayerSnapshot, TamaleMusicRadioEngine } from "./game/musicPlayer";
 import { TamaleEngine } from "./game/TamaleEngine";
 import {
   ActiveCityEventMode,
@@ -54,12 +58,16 @@ import {
   DEFAULT_KEY_BINDINGS,
   ErrandQuest,
   GameSettings,
+  InteriorRoomSpec,
+  InteriorStationKind,
   InventoryItem,
   LandmarkData,
   NearbyChatter,
   NearbyInteractable,
   NpcRuntimeSnapshot,
+  PhoneMessageRecord,
   PlayerCustomization,
+  RadioStation,
   SavedGameState,
   ServiceRequestKind,
   ServiceRequestRuntime,
@@ -69,15 +77,16 @@ import {
   TimePeriod,
   WeatherType,
 } from "./types/game";
+import {
+  buildAllDefaultCharacterStates,
+  CURRENT_SAVE_VERSION,
+  migrateSavedGameState,
+} from "./utils/saveMigration";
 
 const SAVE_STORAGE_KEY = "tamale3d_save_v1";
 
 function buildDefaultCharacterStates(): Record<string, CharacterRuntimeState> {
-  const map: Record<string, CharacterRuntimeState> = {};
-  for (const profile of PLAYABLE_CHARACTERS) {
-    map[profile.id] = createInitialCharacterState(profile);
-  }
-  return map;
+  return buildAllDefaultCharacterStates();
 }
 
 function createInitialSettings(): GameSettings {
@@ -118,6 +127,7 @@ export default function App() {
   const canvasMountRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<TamaleEngine | null>(null);
   const audioRef = useRef<TamaleAudioEngine | null>(null);
+  const musicEngineRef = useRef<TamaleMusicRadioEngine | null>(null);
 
   const initialProfile = PLAYABLE_CHARACTERS[0];
   const initialCharState = createInitialCharacterState(initialProfile);
@@ -163,6 +173,21 @@ export default function App() {
 
   // Active character runtime progression & world state
   const [moneyCedis, setMoneyCedis] = useState(initialCharState.moneyCedis);
+  const [bankBalanceCedis, setBankBalanceCedis] = useState(
+    initialCharState.bankBalanceCedis ?? 200
+  );
+  const [momoBalanceCedis, setMomoBalanceCedis] = useState(
+    initialCharState.momoBalanceCedis ?? 65
+  );
+  const [savingsBalanceCedis, setSavingsBalanceCedis] = useState(
+    initialCharState.savingsBalanceCedis ?? 100
+  );
+  const [vehicleCondition, setVehicleCondition] = useState(
+    initialCharState.vehicleCondition ?? 92
+  );
+  const [phoneMessages, setPhoneMessages] = useState<PhoneMessageRecord[]>(
+    initialCharState.phoneMessages ?? []
+  );
   const [energy, setEnergy] = useState(initialCharState.energy);
   const [cultureXp, setCultureXp] = useState(initialCharState.cultureXp);
   const [skills, setSkills] = useState<CharacterSkills>(initialCharState.skills);
@@ -207,6 +232,19 @@ export default function App() {
   const [capturedPhotos, setCapturedPhotos] = useState<CapturedPhotoRecord[]>([]);
   const [activeService, setActiveService] = useState<ServiceRequestRuntime | null>(null);
   const [activeDiscoveryCard, setActiveDiscoveryCard] = useState<LandmarkData | null>(null);
+
+  // Walkable 3D Interior & Music/Radio state
+  const [activeInteriorSpec, setActiveInteriorSpec] = useState<InteriorRoomSpec | null>(null);
+  const [activeInteriorStation, setActiveInteriorStation] = useState<{
+    kind: Exclude<InteriorStationKind, "exit_door">;
+    label: string;
+    shopId?: string;
+  } | null>(null);
+  const [phoneInitialTab, setPhoneInitialTab] = useState<PhoneTab>("jobs");
+  const [showMiniRadioBar, setShowMiniRadioBar] = useState(false);
+  const [musicSnap, setMusicSnap] = useState<MusicPlayerSnapshot>(() =>
+    new TamaleMusicRadioEngine().getSnapshot()
+  );
 
   // Live HUD state synced from engine
   const [district, setDistrict] = useState("Naa Gbewaa Interchange · Central Tamale");
@@ -264,6 +302,16 @@ export default function App() {
   const lastClockMinsRef = useRef<number>(9 * 60 + 15);
   const ownedBusinessIdsRef = useRef<string[]>(ownedBusinessIds);
   ownedBusinessIdsRef.current = ownedBusinessIds;
+  const savingsBalanceRef = useRef<number>(savingsBalanceCedis);
+  savingsBalanceRef.current = savingsBalanceCedis;
+  const activeCharacterIdRef = useRef<string>(activeCharacterId);
+  activeCharacterIdRef.current = activeCharacterId;
+  const weatherRef = useRef<WeatherType>(weather);
+  weatherRef.current = weather;
+  const districtRef = useRef<string>(district);
+  districtRef.current = district;
+  const activeCityEventRef = useRef<ActiveCityEventMode>(activeCityEvent);
+  activeCityEventRef.current = activeCityEvent;
   const menuPickedCharacterRef = useRef(false);
 
   const isPortraitPhone = viewportInfo.width < 768 && viewportInfo.height > viewportInfo.width;
@@ -430,6 +478,20 @@ export default function App() {
     [awardSkillPoint, showToast]
   );
 
+  // Initialize Northern Ghana Music & 7-Station FM Radio Engine
+  useEffect(() => {
+    const mr = new TamaleMusicRadioEngine();
+    musicEngineRef.current = mr;
+    const unsub = mr.subscribe((snap) => {
+      setMusicSnap(snap);
+    });
+    return () => {
+      unsub();
+      mr.dispose();
+      musicEngineRef.current = null;
+    };
+  }, []);
+
   // Initialize Three.js TamaleEngine once inside isolated canvasMountRef
   useEffect(() => {
     const mountEl = canvasMountRef.current;
@@ -459,16 +521,32 @@ export default function App() {
           lastClockMinsRef.current = nextMins;
           setGameMinutes(nextMins);
 
-          if (prevMins >= 23 * 60 && nextMins < 2 * 60 && ownedBusinessIdsRef.current.length > 0) {
-            const dividend = ownedBusinessIdsRef.current.reduce(
-              (sum, id) => sum + (SHOP_METADATA[id]?.dailyRevenueCedis ?? 35),
-              0
-            );
-            if (dividend > 0) {
-              setMoneyCedis((m) => m + dividend);
-              setTotalEarnedCedis((t) => t + dividend);
+          if (prevMins >= 23 * 60 && nextMins < 2 * 60) {
+            let midnightNote = "";
+            if (ownedBusinessIdsRef.current.length > 0) {
+              const dividend = ownedBusinessIdsRef.current.reduce(
+                (sum, id) => sum + (SHOP_METADATA[id]?.dailyRevenueCedis ?? 35),
+                0
+              );
+              if (dividend > 0) {
+                setMoneyCedis((m) => m + dividend);
+                setTotalEarnedCedis((t) => t + dividend);
+                midnightNote += `Business Dividend +GH₵ ${dividend}`;
+              }
+            }
+            if (savingsBalanceRef.current >= 20) {
+              const yieldAmt = Math.max(
+                1,
+                Math.round(
+                  savingsBalanceRef.current * TAMALE_ECONOMY_CONFIG.banking.savingsInterestDailyRate
+                )
+              );
+              setSavingsBalanceCedis((s) => s + yieldAmt);
+              midnightNote += `${midnightNote ? " · " : ""}Savings Interest +GH₵ ${yieldAmt}`;
+            }
+            if (midnightNote) {
               audioRef.current?.playChime("coin");
-              showToast(`Midnight Business Dividend: +GH₵ ${dividend} from your Tamale shops!`);
+              showToast(`Midnight Settlement: ${midnightNote}!`);
             }
           }
         }
@@ -486,11 +564,39 @@ export default function App() {
           });
         }
       },
+      onInteriorChange: (spec) => {
+        setActiveInteriorSpec(spec);
+        if (!spec) {
+          setActiveInteriorStation(null);
+        } else {
+          showToast(`Entered ${spec.title} (${spec.dagbaniTitle}). Walk to any station or door.`);
+        }
+      },
       onInteract: (item) => {
         if (item.kind === "npc") {
           setActiveNpcId(item.id);
         } else if (item.kind === "building") {
-          setActiveInteriorLandmarkId(item.id);
+          const entered = engineRef.current?.enterInterior(item.id);
+          if (!entered) {
+            setActiveInteriorLandmarkId(item.id);
+          }
+        } else if (item.kind === "interior_exit") {
+          engineRef.current?.exitInterior();
+        } else if (item.kind === "interior_station") {
+          if (item.stationKind === "wardrobe") {
+            setCustomizeTargetCharId(activeCharacterIdRef.current);
+            setShowCustomize(true);
+          } else if (item.stationKind === "room_radio") {
+            setPhoneInitialTab("radio");
+            setShowMiniRadioBar(true);
+            setShowPhone(true);
+          } else if (item.stationKind && item.stationKind !== "exit_door") {
+            setActiveInteriorStation({
+              kind: item.stationKind,
+              label: item.label,
+              shopId: item.shopId,
+            });
+          }
         } else if (item.kind === "vendor") {
           if (item.shopId) setActiveShopId(item.shopId);
         } else if (item.kind === "service_provider") {
@@ -610,12 +716,16 @@ export default function App() {
     showToast,
   ]);
 
-  // Helper returning current runtime state merged with characterStates map
+  // Helper returning current runtime state merged with characterStates map (strict per-character isolation)
   const snapshotActiveCharacterState = useCallback((): CharacterRuntimeState => {
     const activeErr = errands.find((e) => e.active && !e.completed);
     return {
       characterId: activeCharacterId,
       moneyCedis,
+      bankBalanceCedis,
+      momoBalanceCedis,
+      savingsBalanceCedis,
+      vehicleCondition,
       energy,
       cultureXp,
       careerLevel: activeCareerRank.tier,
@@ -628,16 +738,23 @@ export default function App() {
       activeErrandId: activeErr ? activeErr.id : null,
       completedErrands: errands.filter((e) => e.completed).map((e) => e.id),
       activeTask,
+      activeGig,
       completedJobsCount,
+      completedGigsCount,
       totalEarnedCedis,
       ownedBusinessIds,
       achievements,
       capturedPhotos,
+      phoneMessages,
       playerPos,
     };
   }, [
     activeCharacterId,
     moneyCedis,
+    bankBalanceCedis,
+    momoBalanceCedis,
+    savingsBalanceCedis,
+    vehicleCondition,
     energy,
     cultureXp,
     activeCareerRank.tier,
@@ -649,11 +766,14 @@ export default function App() {
     learnedVocabIds,
     errands,
     activeTask,
+    activeGig,
     completedJobsCount,
+    completedGigsCount,
     totalEarnedCedis,
     ownedBusinessIds,
     achievements,
     capturedPhotos,
+    phoneMessages,
     playerPos,
   ]);
 
@@ -668,8 +788,16 @@ export default function App() {
     (charId: string, state: CharacterRuntimeState) => {
       const profile =
         PLAYABLE_CHARACTERS.find((p) => p.id === charId) || PLAYABLE_CHARACTERS[0];
+      if (engineRef.current?.isIndoors()) {
+        engineRef.current.exitInterior();
+      }
       setActiveCharacterId(charId);
       setMoneyCedis(state.moneyCedis);
+      setBankBalanceCedis(state.bankBalanceCedis ?? Math.round(profile.startingMoney * 1.5));
+      setMomoBalanceCedis(state.momoBalanceCedis ?? 65);
+      setSavingsBalanceCedis(state.savingsBalanceCedis ?? 100);
+      setVehicleCondition(state.vehicleCondition ?? 92);
+      setPhoneMessages(state.phoneMessages ?? createInitialCharacterState(profile).phoneMessages ?? []);
       setEnergy(state.energy);
       setCultureXp(state.cultureXp);
       setSkills(state.skills);
@@ -686,7 +814,9 @@ export default function App() {
         }))
       );
       setActiveTask(state.activeTask);
+      setActiveGig(state.activeGig ?? null);
       setCompletedJobsCount(state.completedJobsCount);
+      setCompletedGigsCount(state.completedGigsCount ?? 0);
       setTotalEarnedCedis(state.totalEarnedCedis);
       setOwnedBusinessIds(state.ownedBusinessIds);
       setAchievements(state.achievements);
@@ -699,12 +829,22 @@ export default function App() {
           state.playerPos.z
         )
       );
+      setAvailableGigs(
+        generateAvailableCityGigs(
+          state.playerPos.x,
+          state.playerPos.z,
+          state.activeGig ? [state.activeGig.targetLandmarkId] : []
+        )
+      );
 
       if (engineRef.current) {
         engineRef.current.setActivePlayableCharacter(charId);
         engineRef.current.updatePlayerCustomization(state.customization);
         engineRef.current.setPlayerEnergyRatio(state.energy / 100);
         engineRef.current.setActiveTaskState(state.activeTask);
+        engineRef.current.setActiveGigLandmark(
+          state.activeGig ? state.activeGig.targetLandmarkId : null
+        );
         engineRef.current.setActiveErrandLandmark(
           state.activeErrandId
             ? INITIAL_ERRANDS.find((e) => e.id === state.activeErrandId)?.targetLandmarkId ?? null
@@ -729,6 +869,9 @@ export default function App() {
         setShowCharacterSwitch(false);
         setShowPhone(false);
         return;
+      }
+      if (engineRef.current?.isIndoors()) {
+        engineRef.current.exitInterior();
       }
       engineRef.current?.cancelActiveService();
       setActiveService(null);
@@ -765,6 +908,7 @@ export default function App() {
     Boolean(activeNpcId) ||
     Boolean(activeShopId) ||
     Boolean(activeInteriorLandmarkId) ||
+    Boolean(activeInteriorStation) ||
     showMap ||
     showDagbaniGuide ||
     showCustomize ||
@@ -784,8 +928,14 @@ export default function App() {
   }, [anyModalOpen]);
 
   useEffect(() => {
-    audioRef.current?.setIndoorMode(Boolean(activeShopId || activeInteriorLandmarkId));
-  }, [activeShopId, activeInteriorLandmarkId]);
+    audioRef.current?.setIndoorMode(
+      Boolean(activeShopId || activeInteriorLandmarkId || activeInteriorSpec)
+    );
+  }, [activeShopId, activeInteriorLandmarkId, activeInteriorSpec]);
+
+  useEffect(() => {
+    musicEngineRef.current?.setDucking(activeNpcId ? 0.28 : 1.0);
+  }, [activeNpcId]);
 
   // Keyboard shortcuts for HUD modals (supports custom key bindings)
   useEffect(() => {
@@ -801,6 +951,7 @@ export default function App() {
           activeNpcId ||
           activeShopId ||
           activeInteriorLandmarkId ||
+          activeInteriorStation ||
           showMap ||
           showDagbaniGuide ||
           showCustomize ||
@@ -816,6 +967,7 @@ export default function App() {
           setActiveNpcId(null);
           setActiveShopId(null);
           setActiveInteriorLandmarkId(null);
+          setActiveInteriorStation(null);
           setShowMap(false);
           setShowDagbaniGuide(false);
           setShowCustomize(false);
@@ -838,6 +990,7 @@ export default function App() {
       } else if (e.code === kb.inventory && !anyModalOpen) {
         setShowInventory(true);
       } else if (e.code === "KeyP" && !anyModalOpen) {
+        setPhoneInitialTab("jobs");
         setShowPhone(true);
       } else if (e.code === "KeyC" && !anyModalOpen) {
         setShowCharacterSwitch(true);
@@ -854,6 +1007,7 @@ export default function App() {
     activeNpcId,
     activeShopId,
     activeInteriorLandmarkId,
+    activeInteriorStation,
     showMap,
     showDagbaniGuide,
     showCustomize,
@@ -871,10 +1025,13 @@ export default function App() {
     const activeErr = errands.find((e) => e.active && !e.completed);
     const fullStates = allCharacterStatesLive;
     const saveObj: SavedGameState = {
-      version: 4,
+      version: CURRENT_SAVE_VERSION,
       activeCharacterId,
       characterStates: fullStates,
       moneyCedis,
+      bankBalanceCedis,
+      momoBalanceCedis,
+      savingsBalanceCedis,
       energy,
       cultureXp,
       gameMinutes,
@@ -897,7 +1054,7 @@ export default function App() {
       localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(saveObj));
       setHasSavedGame(true);
       audioRef.current?.playChime("success");
-      showToast("All Tamale characters & progress saved.");
+      showToast("All Tamale characters, wallets & progress saved.");
     } catch {
       showToast("Unable to write save data in this browser session.");
     }
@@ -906,6 +1063,9 @@ export default function App() {
     activeCharacterId,
     errands,
     moneyCedis,
+    bankBalanceCedis,
+    momoBalanceCedis,
+    savingsBalanceCedis,
     energy,
     cultureXp,
     gameMinutes,
@@ -928,75 +1088,25 @@ export default function App() {
     try {
       const raw = localStorage.getItem(SAVE_STORAGE_KEY);
       if (!raw) return false;
-      const s = JSON.parse(raw) as Partial<SavedGameState>;
+      const parsed = JSON.parse(raw) as Partial<SavedGameState>;
+      const migrated = migrateSavedGameState(parsed, createInitialSettings());
 
-      setGameMinutes(s.gameMinutes ?? 555);
-      lastClockMinsRef.current = s.gameMinutes ?? 555;
-      const nextWeather = s.weather ?? "clear";
-      setWeather(nextWeather);
-      const ev = s.activeCityEvent ?? "ordinary_day";
-      setActiveCityEvent(ev);
-      engineRef.current?.setActiveCityEvent(ev);
-      engineRef.current?.setWeather(nextWeather);
-      engineRef.current?.setGameMinutes(s.gameMinutes ?? 555);
+      setGameMinutes(migrated.gameMinutes);
+      lastClockMinsRef.current = migrated.gameMinutes;
+      setWeather(migrated.weather);
+      setActiveCityEvent(migrated.activeCityEvent);
+      engineRef.current?.setActiveCityEvent(migrated.activeCityEvent);
+      engineRef.current?.setWeather(migrated.weather);
+      engineRef.current?.setGameMinutes(migrated.gameMinutes);
 
-      const defaults = createInitialSettings();
-      const loadedSettings: GameSettings = {
-        ...defaults,
-        ...(s.settings ?? {}),
-        keyBindings: {
-          ...DEFAULT_KEY_BINDINGS,
-          ...(s.settings?.keyBindings ?? {}),
-        },
-      };
-      setSettings(loadedSettings);
-      applySettingsToEngines(loadedSettings);
+      setSettings(migrated.settings);
+      applySettingsToEngines(migrated.settings);
 
-      const defaultsMap = buildDefaultCharacterStates();
-      if (s.characterStates && s.activeCharacterId) {
-        const mergedMap: Record<string, CharacterRuntimeState> = { ...defaultsMap };
-        for (const key of Object.keys(s.characterStates)) {
-          mergedMap[key] = {
-            ...defaultsMap[key],
-            ...s.characterStates[key],
-          };
-        }
-        const targetId = mergedMap[s.activeCharacterId]
-          ? s.activeCharacterId
-          : PLAYABLE_CHARACTERS[0].id;
-        setCharacterStates(mergedMap);
-        applyCharacterStateToRuntime(targetId, mergedMap[targetId]);
-      } else {
-        // Migrate v1–v3 single-character save cleanly into active character
-        const targetId = PLAYABLE_CHARACTERS[0].id;
-        const base = defaultsMap[targetId];
-        const migrated: CharacterRuntimeState = {
-          ...base,
-          moneyCedis: s.moneyCedis ?? base.moneyCedis,
-          energy: s.energy ?? base.energy,
-          cultureXp: s.cultureXp ?? base.cultureXp,
-          customization: s.customization ?? base.customization,
-          inventory: s.inventory ?? base.inventory,
-          friendships: s.friendships ?? base.friendships,
-          discoveredLandmarks: s.discoveredLandmarks ?? base.discoveredLandmarks,
-          learnedVocabIds: s.learnedVocabIds ?? base.learnedVocabIds,
-          activeErrandId: s.activeErrandId ?? null,
-          completedErrands: s.completedErrands ?? [],
-          completedJobsCount: s.completedGigsCount ?? 0,
-          totalEarnedCedis: s.totalEarnedCedis ?? 0,
-          playerPos: s.playerPos ?? base.playerPos,
-        };
-        defaultsMap[targetId] = migrated;
-        setCharacterStates(defaultsMap);
-        applyCharacterStateToRuntime(targetId, migrated);
-      }
-
-      const loadedGig = s.activeGig ?? null;
-      setActiveGig(loadedGig);
-      setCompletedGigsCount(s.completedGigsCount ?? 0);
-      if (!s.characterStates) {
-        engineRef.current?.setActiveGigLandmark(loadedGig ? loadedGig.targetLandmarkId : null);
-      }
+      setCharacterStates(migrated.characterStates);
+      applyCharacterStateToRuntime(
+        migrated.activeCharacterId,
+        migrated.characterStates[migrated.activeCharacterId]
+      );
       return true;
     } catch {
       return false;
@@ -1100,9 +1210,161 @@ export default function App() {
     }
   }, [viewportInfo.hasTouch]);
 
-  const handleBuyItem = (item: ShopItem, finalPrice: number, consumeImmediately = false) => {
-    if (moneyCedis < finalPrice) return;
-    setMoneyCedis((m) => m - finalPrice);
+  const handleAdjustWallets = useCallback(
+    (patch: {
+      cashDelta?: number;
+      bankDelta?: number;
+      momoDelta?: number;
+      savingsDelta?: number;
+      xpDelta?: number;
+      message?: string;
+    }) => {
+      if (patch.cashDelta) setMoneyCedis((m) => Math.max(0, m + patch.cashDelta!));
+      if (patch.bankDelta) setBankBalanceCedis((b) => Math.max(0, b + patch.bankDelta!));
+      if (patch.momoDelta) setMomoBalanceCedis((m) => Math.max(0, m + patch.momoDelta!));
+      if (patch.savingsDelta) setSavingsBalanceCedis((s) => Math.max(0, s + patch.savingsDelta!));
+      if (patch.xpDelta) setCultureXp((xp) => xp + patch.xpDelta!);
+      audioRef.current?.playChime("coin");
+      if (patch.message) showToast(patch.message);
+    },
+    [showToast]
+  );
+
+  const handleApplyEnergyAndTime = useCallback(
+    (opts: {
+      costCedis?: number;
+      payWith?: "cash" | "momo";
+      energyDelta?: number;
+      setFullEnergy?: boolean;
+      advanceMinutes?: number;
+      xpBonus?: number;
+      message?: string;
+    }): boolean => {
+      const cost = opts.costCedis ?? 0;
+      const wallet = opts.payWith === "momo" ? momoBalanceCedis : moneyCedis;
+      if (wallet < cost) {
+        showToast(`Need GH₵ ${cost}.`);
+        return false;
+      }
+      if (cost > 0) {
+        if (opts.payWith === "momo") setMomoBalanceCedis((m) => m - cost);
+        else setMoneyCedis((m) => m - cost);
+      }
+      if (opts.setFullEnergy) {
+        setEnergy(100);
+      } else if (opts.energyDelta) {
+        setEnergy((e) => Math.max(5, Math.min(100, e + opts.energyDelta!)));
+      }
+      if (opts.xpBonus) {
+        setCultureXp((xp) => xp + opts.xpBonus!);
+      }
+      if (opts.advanceMinutes) {
+        const nextMins = (((gameMinutes + opts.advanceMinutes) % 1440) + 1440) % 1440;
+        setGameMinutes(nextMins);
+        lastClockMinsRef.current = nextMins;
+        engineRef.current?.setGameMinutes(nextMins);
+      }
+      audioRef.current?.playChime("success");
+      if (opts.message) showToast(opts.message);
+      return true;
+    },
+    [gameMinutes, momoBalanceCedis, moneyCedis, showToast]
+  );
+
+  const handleRepairVehicle = useCallback(
+    (newCondition: number, costCedis: number, label: string): boolean => {
+      if (moneyCedis < costCedis) {
+        showToast(`Need GH₵ ${costCedis} for ${label}.`);
+        return false;
+      }
+      setMoneyCedis((m) => m - costCedis);
+      setVehicleCondition(Math.min(100, Math.max(0, newCondition)));
+      awardSkillPoint("craft", 1);
+      audioRef.current?.playChime("success");
+      showToast(`${label} complete! Vehicle condition is now ${Math.round(newCondition)}%.`);
+      return true;
+    },
+    [awardSkillPoint, moneyCedis, showToast]
+  );
+
+  const handleApplyStationCustomization = useCallback(
+    (next: PlayerCustomization, costCedis = 0, label?: string): boolean => {
+      if (costCedis > 0 && moneyCedis < costCedis) {
+        showToast(`Need GH₵ ${costCedis}.`);
+        return false;
+      }
+      if (costCedis > 0) setMoneyCedis((m) => m - costCedis);
+      setCustomization(next);
+      engineRef.current?.updatePlayerCustomization(next);
+      audioRef.current?.playChime("success");
+      if (label) showToast(label);
+      return true;
+    },
+    [moneyCedis, showToast]
+  );
+
+  const handleSendPhoneMessage = useCallback(
+    (npcId: string, text: string) => {
+      const npc = TAMALE_NPCS.find((n) => n.id === npcId);
+      const clock = formatClock(gameMinutes);
+      const replyText = npc
+        ? `Sent to ${npc.name}: “${text}” — Reply: Antire! ${npc.greetings.morning.english} Come find me in ${npc.district}.`
+        : text;
+      setPhoneMessages((prev) => [
+        {
+          id: `msg_${Date.now()}`,
+          senderName: npc ? npc.name : "Tamale City Dispatch",
+          senderRole: npc ? npc.role : "SMS",
+          text: replyText,
+          timestampClock: clock,
+          read: true,
+        },
+        ...prev,
+      ]);
+      audioRef.current?.playChime("interact");
+      showToast(`Sent SMS to ${npc?.name ?? "contact"}.`);
+    },
+    [gameMinutes, showToast]
+  );
+
+  const handleMarkMessagesRead = useCallback(() => {
+    setPhoneMessages((prev) => prev.map((m) => (m.read ? m : { ...m, read: true })));
+  }, []);
+
+  const handleTuneRadioStation = useCallback((station: RadioStation) => {
+    const seg = buildDynamicRadioSegment({
+      station,
+      gameMinutes: lastClockMinsRef.current,
+      weather: weatherRef.current,
+      district: districtRef.current,
+      activeCityEventLabel: INITIAL_CITY_EVENT_DESCRIPTIONS[activeCityEventRef.current].label,
+    });
+    musicEngineRef.current?.tuneStation(station.id, seg);
+    setShowMiniRadioBar(true);
+  }, []);
+
+  const handleRefreshDjSegment = useCallback((station: RadioStation) => {
+    const seg = buildDynamicRadioSegment({
+      station,
+      gameMinutes: lastClockMinsRef.current,
+      weather: weatherRef.current,
+      district: districtRef.current,
+      activeCityEventLabel: INITIAL_CITY_EVENT_DESCRIPTIONS[activeCityEventRef.current].label,
+      lastLine: musicEngineRef.current?.getSnapshot().djSegment ?? undefined,
+    });
+    musicEngineRef.current?.setDjSegment(seg);
+  }, []);
+
+  const handleBuyItem = (
+    item: ShopItem,
+    finalPrice: number,
+    consumeImmediately = false,
+    payWith: "cash" | "momo" = "cash"
+  ): boolean => {
+    const wallet = payWith === "momo" ? momoBalanceCedis : moneyCedis;
+    if (wallet < finalPrice) return false;
+    if (payWith === "momo") setMomoBalanceCedis((m) => m - finalPrice);
+    else setMoneyCedis((m) => m - finalPrice);
     audioRef.current?.playChime("coin");
 
     if (item.unlockOutfit) {
@@ -1135,6 +1397,7 @@ export default function App() {
         ];
       });
     }
+    return true;
   };
 
   const handleUseShopService = (service: ShopServiceAction) => {
@@ -1485,11 +1748,28 @@ export default function App() {
           showLabels={showLabels}
           isTouchControlsVisible={isTouchControlsVisible}
           isPortraitPhone={isPortraitPhone}
+          isIndoors={Boolean(activeInteriorSpec)}
+          musicSnapshot={musicSnap}
+          showMiniRadioBar={showMiniRadioBar}
           keyBindings={settings.keyBindings}
           onTriggerInteract={() => engineRef.current?.triggerNearbyInteraction()}
+          onExitInterior={() => engineRef.current?.exitInterior()}
           onToggleVehicle={() => engineRef.current?.handleVehicleToggle()}
           onTriggerHorn={() => engineRef.current?.triggerHorn()}
-          onOpenPhone={() => setShowPhone(true)}
+          onOpenPhone={() => {
+            setPhoneInitialTab("jobs");
+            setShowPhone(true);
+          }}
+          onOpenPhoneRadio={() => {
+            setPhoneInitialTab("radio");
+            setShowPhone(true);
+          }}
+          onToggleMiniRadioPlay={() => musicEngineRef.current?.togglePlayPause()}
+          onMiniRadioNext={() => musicEngineRef.current?.next()}
+          onCloseMiniRadio={() => {
+            musicEngineRef.current?.pause();
+            setShowMiniRadioBar(false);
+          }}
           onOpenCharacterSwitch={() => setShowCharacterSwitch(true)}
           onCancelService={() => {
             engineRef.current?.cancelActiveService();
@@ -1602,9 +1882,10 @@ export default function App() {
         />
       )}
 
-      {/* Tamale Smartphone: Jobs, 3D Services, Businesses, Skills & Album */}
+      {/* Tamale Smartphone: Jobs, 3D Services, Bank & MoMo, Music, 7 FM Radio Stations, Messages, Businesses & Skills */}
       {showPhone && (
         <TamalePhoneModal
+          initialTab={phoneInitialTab}
           activeProfile={activeProfile}
           characterState={allCharacterStatesLive[activeCharacterId]}
           allCharacterStates={allCharacterStatesLive}
@@ -1613,6 +1894,7 @@ export default function App() {
           availableJobs={availableJobs}
           activeTask={activeTask}
           activeService={activeService}
+          musicSnapshot={musicSnap}
           onAcceptTask={handleAcceptTask}
           onAbandonTask={handleAbandonTask}
           onRefreshJobs={() => {
@@ -1631,6 +1913,25 @@ export default function App() {
             setActiveService(null);
             showToast("Dispatched service cancelled.");
           }}
+          onAdjustWallets={handleAdjustWallets}
+          onSendPhoneMessage={handleSendPhoneMessage}
+          onMarkMessagesRead={handleMarkMessagesRead}
+          onPlayTrack={(trackId) => {
+            musicEngineRef.current?.playTrackById(trackId);
+            setShowMiniRadioBar(true);
+          }}
+          onTuneStation={handleTuneRadioStation}
+          onRefreshDjSegment={handleRefreshDjSegment}
+          onToggleMusicPlay={() => {
+            musicEngineRef.current?.togglePlayPause();
+            setShowMiniRadioBar(true);
+          }}
+          onMusicNext={() => musicEngineRef.current?.next()}
+          onMusicPrev={() => musicEngineRef.current?.previous()}
+          onMusicSeek={(sec) => musicEngineRef.current?.seek(sec)}
+          onMusicVolume={(vol) => musicEngineRef.current?.setVolume(vol)}
+          onToggleMusicShuffle={() => musicEngineRef.current?.toggleShuffle()}
+          onCycleMusicRepeat={() => musicEngineRef.current?.cycleRepeat()}
           onSwitchCharacter={handleSwitchCharacter}
           onOpenCustomize={() => {
             setCustomizeTargetCharId(activeCharacterId);
@@ -1640,6 +1941,30 @@ export default function App() {
           onInvestBusiness={handleInvestBusiness}
           onFastTravelLandmark={handleFastTravelToLandmark}
           onClose={() => setShowPhone(false)}
+        />
+      )}
+
+      {/* Interactive Station Overlay inside Walkable 3D Building Interiors */}
+      {activeInteriorSpec && activeInteriorStation && (
+        <InteriorServiceOverlay
+          room={activeInteriorSpec}
+          stationKind={activeInteriorStation.kind}
+          stationLabel={activeInteriorStation.label}
+          shopId={activeInteriorStation.shopId}
+          moneyCedis={moneyCedis}
+          bankBalanceCedis={bankBalanceCedis}
+          momoBalanceCedis={momoBalanceCedis}
+          savingsBalanceCedis={savingsBalanceCedis}
+          energy={energy}
+          vehicleCondition={vehicleCondition}
+          customization={customization}
+          onAdjustWallets={handleAdjustWallets}
+          onBuyItem={handleBuyItem}
+          onApplyEnergyAndTime={handleApplyEnergyAndTime}
+          onRepairVehicle={handleRepairVehicle}
+          onApplyCustomization={handleApplyStationCustomization}
+          onOpenDagbaniGuide={() => setShowDagbaniGuide(true)}
+          onClose={() => setActiveInteriorStation(null)}
         />
       )}
 

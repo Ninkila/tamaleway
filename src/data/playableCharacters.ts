@@ -3,6 +3,7 @@ import {
   CharacterSkills,
   PlayableCharacterProfile,
 } from "../types/game";
+import { TAMALE_ECONOMY_CONFIG } from "./tamaleEconomy";
 
 export const PLAYABLE_CHARACTERS: PlayableCharacterProfile[] = [
   {
@@ -432,14 +433,21 @@ export function createInitialCharacterState(
   profile: PlayableCharacterProfile
 ): CharacterRuntimeState {
   const skills: CharacterSkills = { ...profile.initialSkills };
+  const initialBank = Math.round(
+    profile.startingMoney * TAMALE_ECONOMY_CONFIG.banking.initialBankBonusFactor
+  );
   return {
     characterId: profile.id,
     moneyCedis: profile.startingMoney,
+    bankBalanceCedis: initialBank,
+    momoBalanceCedis: TAMALE_ECONOMY_CONFIG.banking.initialMomoCedis,
+    savingsBalanceCedis: Math.round(initialBank * 0.4),
+    vehicleCondition: 92,
     energy: profile.startingEnergy,
     cultureXp: 15,
     careerLevel: 1,
     skills,
-    customization: { ...profile.customization },
+    customization: { ...profile.customization, hairstyle: profile.customization.hairstyle ?? "natural" },
     inventory: profile.startingInventory.map((item) => ({ ...item })),
     friendships: { ...profile.startingFriendships },
     discoveredLandmarks: [...profile.startingDiscoveredLandmarks],
@@ -447,11 +455,23 @@ export function createInitialCharacterState(
     activeErrandId: null,
     completedErrands: [],
     activeTask: null,
+    activeGig: null,
     completedJobsCount: 0,
+    completedGigsCount: 0,
     totalEarnedCedis: 0,
     ownedBusinessIds: [],
     achievements: [],
     capturedPhotos: [],
+    phoneMessages: [
+      {
+        id: `msg_welcome_${profile.id}`,
+        senderName: "Tamale City Dispatch",
+        senderRole: profile.occupation,
+        text: `Dasuba ${profile.nickname}! Your ${profile.homeDistrict} shift & Mobile Money wallet are ready. Visit Tamale Enterprise Bank or any MoMo kiosk anytime.`,
+        timestampClock: "08:30",
+        read: false,
+      },
+    ],
     playerPos: { ...profile.spawnPos },
   };
 }

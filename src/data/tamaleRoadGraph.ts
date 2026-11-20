@@ -1,5 +1,9 @@
 import { TAMALE_ROADS } from "./tamaleWorldData";
 
+export type RoadSurfaceType = "asphalt" | "concrete" | "laterite" | "gravel";
+export type RoadClassType = "primary_arterial" | "secondary_avenue" | "neighbourhood_lane";
+export type RoutingVehicleMode = "foot" | "bicycle" | "motorcycle" | "pragya" | "taxi" | "cargo";
+
 export interface RoadSegmentInfo {
   id: string;
   name: string;
@@ -8,9 +12,34 @@ export interface RoadSegmentInfo {
   min: number; // minX for ew, minZ for ns
   max: number; // maxX for ew, maxZ for ns
   halfWidth: number;
+  surfaceType: RoadSurfaceType;
+  roadClass: RoadClassType;
+  conditionScore: number; // 0.6..1.0 (1.0 = freshly paved asphalt/concrete)
+}
+
+function classifyRoadMeta(id: string): {
+  surfaceType: RoadSurfaceType;
+  roadClass: RoadClassType;
+  conditionScore: number;
+} {
+  if (id === "gbewaa_high_st" || id === "gukpegu_bolga_rd") {
+    return { surfaceType: "asphalt", roadClass: "primary_arterial", conditionScore: 0.98 };
+  }
+  if (id.includes("ln") || id.includes("cross") || id.includes("connector")) {
+    return {
+      surfaceType: id.includes("kalpohin") || id.includes("dabokpaa") ? "laterite" : "gravel",
+      roadClass: "neighbourhood_lane",
+      conditionScore: 0.72,
+    };
+  }
+  if (id.includes("vittin") || id.includes("sagnarigu_dungu")) {
+    return { surfaceType: "asphalt", roadClass: "secondary_avenue", conditionScore: 0.84 };
+  }
+  return { surfaceType: "asphalt", roadClass: "secondary_avenue", conditionScore: 0.9 };
 }
 
 export const ROAD_SEGMENTS: RoadSegmentInfo[] = TAMALE_ROADS.map((r) => {
+  const meta = classifyRoadMeta(r.id);
   if (r.orientation === "ew") {
     return {
       id: r.id,
@@ -20,6 +49,7 @@ export const ROAD_SEGMENTS: RoadSegmentInfo[] = TAMALE_ROADS.map((r) => {
       min: r.x - r.width / 2,
       max: r.x + r.width / 2,
       halfWidth: r.depth / 2,
+      ...meta,
     };
   }
   return {
@@ -30,6 +60,7 @@ export const ROAD_SEGMENTS: RoadSegmentInfo[] = TAMALE_ROADS.map((r) => {
     min: r.z - r.depth / 2,
     max: r.z + r.depth / 2,
     halfWidth: r.width / 2,
+    ...meta,
   };
 });
 
@@ -82,11 +113,22 @@ export function getRoadExtentBounds(
   };
 }
 
+interface GraphEdge {
+  id: string;
+  dist: number;
+  segmentId: string;
+  surfaceType: RoadSurfaceType;
+  roadClass: RoadClassType;
+  conditionScore: number;
+  midX: number;
+  midZ: number;
+}
+
 interface GraphNode {
   id: string;
   x: number;
   z: number;
-  neighbors: Array<{ id: string; cost: number }>;
+  neighbors: GraphEdge[];
 }
 
 const INTERSECTION_NODES: GraphNode[] = [];
@@ -141,31 +183,81 @@ function buildRoadGraph() {
   }
 
   // Link adjacent nodes along each EW corridor
-  for (const nodes of ewSegNodes.values()) {
+  for (const ew of EW_ROAD_SEGMENTS) {
+    const nodes = ewSegNodes.get(ew.id)!;
     nodes.sort((a, b) => a.x - b.x);
     for (let i = 0; i < nodes.length - 1; i++) {
       const a = nodes[i];
       const b = nodes[i + 1];
       const dist = Math.hypot(b.x - a.x, b.z - a.z);
-      a.neighbors.push({ id: b.id, cost: dist });
-      b.neighbors.push({ id: a.id, cost: dist });
+      const shared = {
+        dist,
+        segmentId: ew.id,
+        surfaceType: ew.surfaceType,
+        roadClass: ew.roadClass,
+        conditionScore: ew.conditionScore,
+        midX: (a.x + b.x) / 2,
+        midZ: (a.z + b.z) / 2,
+      };
+      a.neighbors.push({ id: b.id, ...shared });
+      b.neighbors.push({ id: a.id, ...shared });
     }
   }
 
   // Link adjacent nodes along each NS corridor
-  for (const nodes of nsSegNodes.values()) {
+  for (const ns of NS_ROAD_SEGMENTS) {
+    const nodes = nsSegNodes.get(ns.id)!;
     nodes.sort((a, b) => a.z - b.z);
     for (let i = 0; i < nodes.length - 1; i++) {
       const a = nodes[i];
       const b = nodes[i + 1];
       const dist = Math.hypot(b.x - a.x, b.z - a.z);
-      a.neighbors.push({ id: b.id, cost: dist });
-      b.neighbors.push({ id: a.id, cost: dist });
+      const shared = {
+        dist,
+        segmentId: ns.id,
+        surfaceType: ns.surfaceType,
+        roadClass: ns.roadClass,
+        conditionScore: ns.conditionScore,
+        midX: (a.x + b.x) / 2,
+        midZ: (a.z + b.z) / 2,
+      };
+      a.neighbors.push({ id: b.id, ...shared });
+      b.neighbors.push({ id: a.id, ...shared });
     }
   }
 }
 
 buildRoadGraph();
+
+function computeEdgeRoutingCost(
+  edge: GraphEdge,
+  vehicleMode: RoutingVehicleMode,
+  avoidMarketPeak: boolean
+): number {
+  let factor = 1.0;
+
+  // Surface condition impact by vehicle type
+  if (edge.surfaceType === "laterite" || edge.surfaceType === "gravel") {
+    if (vehicleMode === "taxi" || vehicleMode === "cargo") factor *= 1.48;
+    else if (vehicleMode === "pragya") factor *= 1.24;
+    else if (vehicleMode === "motorcycle" || vehicleMode === "bicycle") factor *= 1.06;
+    else if (vehicleMode === "foot") factor *= 0.94; // Pedestrians happily take neighbourhood shortcuts
+  }
+
+  if (edge.roadClass === "primary_arterial" && vehicleMode === "foot") {
+    factor *= 1.12; // Pedestrians slightly prefer quieter side streets when available
+  }
+
+  // Congestion weighting around Central Market (-44, -30) and Aboabo (-132, 28)
+  const nearCentralMarket = Math.hypot(edge.midX + 44, edge.midZ + 30) < 34;
+  const nearAboabo = Math.hypot(edge.midX + 132, edge.midZ - 28) < 28;
+  if (nearCentralMarket || nearAboabo) {
+    const congMult = avoidMarketPeak ? 1.55 : 1.22;
+    factor *= vehicleMode === "motorcycle" || vehicleMode === "foot" ? 1.06 : congMult;
+  }
+
+  return edge.dist * (factor / Math.max(0.55, edge.conditionScore));
+}
 
 function projectPointToNearestRoad(
   px: number,
@@ -244,11 +336,15 @@ export interface FindRoadRouteOptions {
   sidewalkOffset?: number;
   /** Threshold below which direct point-to-point movement is returned without road snapping */
   directThreshold?: number;
+  /** Vehicle class used to weight road surface & congestion preferences */
+  vehicleMode?: RoutingVehicleMode;
+  /** True during market peak hours / market_peak city event */
+  avoidMarketPeak?: boolean;
 }
 
 /**
  * Computes an interconnected, obstacle-safe road/sidewalk path across Tamale's
- * full 17-road network (primary arterials + secondary neighbourhood connectors).
+ * full 17-road network factoring road class, surface condition, congestion, and vehicle type.
  */
 export function findRoadRoute(
   sx: number,
@@ -338,9 +434,11 @@ export function findRoadRoute(
 
     const node = NODE_BY_ID.get(cur.id);
     if (!node) continue;
+    const vehicleMode = options.vehicleMode ?? "pragya";
+    const avoidMarketPeak = Boolean(options.avoidMarketPeak);
     for (const edge of node.neighbors) {
       if (visited.has(edge.id)) continue;
-      const alt = cur.cost + edge.cost;
+      const alt = cur.cost + computeEdgeRoutingCost(edge, vehicleMode, avoidMarketPeak);
       if (alt < (distMap.get(edge.id) ?? Infinity)) {
         distMap.set(edge.id, alt);
         prevMap.set(edge.id, cur.id);

@@ -1,22 +1,31 @@
 import React, { useMemo, useState } from "react";
 import {
   Award,
+  Banknote,
   Bike,
   Briefcase,
   Building2,
   Camera,
   CheckCircle2,
+  Landmark,
   MapPin,
+  MessageSquare,
+  Music,
   Navigation,
   PackageCheck,
   Palette,
   PhoneCall,
+  Radio,
   RefreshCw,
+  Send,
   ShoppingBag,
   Smartphone,
   Users,
   X,
 } from "lucide-react";
+import { calculateMomoCashOutFee, TAMALE_ECONOMY_CONFIG } from "../data/tamaleEconomy";
+import { MusicPlayerSnapshot } from "../game/musicPlayer";
+import { MusicRadioApp } from "./MusicRadioApp";
 import {
   computeCareerRankTitle,
   PLAYABLE_CHARACTERS,
@@ -40,12 +49,25 @@ import {
   CityTaskJob,
   LandmarkData,
   PlayableCharacterProfile,
+  RadioStation,
   ServiceRequestKind,
   ServiceRequestRuntime,
   SkillKey,
 } from "../types/game";
 
+export type PhoneTab =
+  | "jobs"
+  | "services"
+  | "businesses"
+  | "bank_momo"
+  | "messages"
+  | "music"
+  | "radio"
+  | "characters"
+  | "skills";
+
 interface TamalePhoneModalProps {
+  initialTab?: PhoneTab;
   activeProfile: PlayableCharacterProfile;
   characterState: CharacterRuntimeState;
   allCharacterStates: Record<string, CharacterRuntimeState>;
@@ -54,6 +76,7 @@ interface TamalePhoneModalProps {
   availableJobs: CityTaskJob[];
   activeTask: ActiveTaskRuntime | null;
   activeService: ServiceRequestRuntime | null;
+  musicSnapshot: MusicPlayerSnapshot;
   onAcceptTask: (job: CityTaskJob) => void;
   onAbandonTask: () => void;
   onRefreshJobs: () => void;
@@ -63,14 +86,32 @@ interface TamalePhoneModalProps {
     packageOptionId?: string
   ) => void;
   onCancelService: () => void;
+  onAdjustWallets: (patch: {
+    cashDelta?: number;
+    bankDelta?: number;
+    momoDelta?: number;
+    savingsDelta?: number;
+    xpDelta?: number;
+    message?: string;
+  }) => void;
+  onSendPhoneMessage: (npcId: string, text: string) => void;
+  onMarkMessagesRead: () => void;
+  onPlayTrack: (trackId: string) => void;
+  onTuneStation: (station: RadioStation) => void;
+  onRefreshDjSegment: (station: RadioStation) => void;
+  onToggleMusicPlay: () => void;
+  onMusicNext: () => void;
+  onMusicPrev: () => void;
+  onMusicSeek: (sec: number) => void;
+  onMusicVolume: (vol: number) => void;
+  onToggleMusicShuffle: () => void;
+  onCycleMusicRepeat: () => void;
   onSwitchCharacter: (characterId: string) => void;
   onOpenCustomize: () => void;
   onInvestBusiness: (shopId: string) => void;
   onFastTravelLandmark: (landmark: LandmarkData) => void;
   onClose: () => void;
 }
-
-type PhoneTab = "jobs" | "services" | "businesses" | "characters" | "skills";
 
 const SKILL_DISPLAY: Array<{ key: SkillKey; label: string; hint: string }> = [
   { key: "riding", label: "Riding & Dispatch", hint: "Pragya, moto & transport mastery" },
@@ -81,6 +122,7 @@ const SKILL_DISPLAY: Array<{ key: SkillKey; label: string; hint: string }> = [
 ];
 
 export const TamalePhoneModal: React.FC<TamalePhoneModalProps> = ({
+  initialTab = "jobs",
   activeProfile,
   characterState,
   allCharacterStates,
@@ -89,21 +131,38 @@ export const TamalePhoneModal: React.FC<TamalePhoneModalProps> = ({
   availableJobs,
   activeTask,
   activeService,
+  musicSnapshot,
   onAcceptTask,
   onAbandonTask,
   onRefreshJobs,
   onDispatchService,
   onCancelService,
+  onAdjustWallets,
+  onSendPhoneMessage,
+  onMarkMessagesRead,
+  onPlayTrack,
+  onTuneStation,
+  onRefreshDjSegment,
+  onToggleMusicPlay,
+  onMusicNext,
+  onMusicPrev,
+  onMusicSeek,
+  onMusicVolume,
+  onToggleMusicShuffle,
+  onCycleMusicRepeat,
   onSwitchCharacter,
   onOpenCustomize,
   onInvestBusiness,
   onFastTravelLandmark,
   onClose,
 }) => {
-  const [tab, setTab] = useState<PhoneTab>("jobs");
+  const [tab, setTab] = useState<PhoneTab>(initialTab);
   const [jobCategory, setJobCategory] = useState<CityTaskCategory | "all">("all");
   const [selectedDestByKind, setSelectedDestByKind] = useState<Record<string, string>>({});
   const [selectedPkgByKind, setSelectedPkgByKind] = useState<Record<string, string>>({});
+  const [walletTxAmt, setWalletTxAmt] = useState<number>(50);
+  const [selectedContactId, setSelectedContactId] = useState<string>(TAMALE_NPCS[0]?.id ?? "");
+  const [replyDraft, setReplyDraft] = useState("");
 
   const rank = computeCareerRankTitle(
     activeProfile,
@@ -147,13 +206,17 @@ export const TamalePhoneModal: React.FC<TamalePhoneModalProps> = ({
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-[#cfc8bc] font-mono-num mt-0.5">
-              <span className="text-amber-400 font-bold">GH₵ {characterState.moneyCedis}</span>
+              <span className="text-amber-400 font-bold">Cash GH₵ {characterState.moneyCedis}</span>
+              <span aria-hidden="true">·</span>
+              <span className="text-yellow-300">
+                MoMo GH₵ {characterState.momoBalanceCedis ?? 0}
+              </span>
+              <span aria-hidden="true">·</span>
+              <span className="text-sky-300">Bank GH₵ {characterState.bankBalanceCedis ?? 0}</span>
               <span aria-hidden="true">·</span>
               <span>Energy {Math.round(characterState.energy)}%</span>
               <span aria-hidden="true">·</span>
               <span>{characterState.completedJobsCount} Jobs Done</span>
-              <span aria-hidden="true">·</span>
-              <span>{characterState.cultureXp} XP</span>
             </div>
           </div>
 
@@ -173,25 +236,43 @@ export const TamalePhoneModal: React.FC<TamalePhoneModalProps> = ({
             [
               { id: "jobs", label: "Jobs & Tasks", Icon: Briefcase },
               { id: "services", label: "Rides & Services", Icon: PhoneCall },
-              { id: "businesses", label: "Businesses & GPS", Icon: Building2 },
+              { id: "bank_momo", label: "Bank & MoMo", Icon: Landmark },
+              { id: "music", label: "Music", Icon: Music },
+              { id: "radio", label: "Radio FM", Icon: Radio },
+              { id: "messages", label: "Messages", Icon: MessageSquare },
+              { id: "businesses", label: "Businesses", Icon: Building2 },
               { id: "characters", label: "Characters", Icon: Users },
               { id: "skills", label: "Skills & Album", Icon: Award },
             ] as const
-          ).map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setTab(id)}
-              className={`min-h-[42px] px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                tab === id
-                  ? "bg-amber-500 text-[#12100e]"
-                  : "bg-[#211c17] text-[#d4cdc2] hover:bg-white/10"
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5 shrink-0" />
-              <span>{label}</span>
-            </button>
-          ))}
+          ).map(({ id, label, Icon }) => {
+            const unreadCount =
+              id === "messages"
+                ? (characterState.phoneMessages ?? []).filter((m) => !m.read).length
+                : 0;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  setTab(id);
+                  if (id === "messages") onMarkMessagesRead();
+                }}
+                className={`min-h-[42px] px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  tab === id
+                    ? "bg-amber-500 text-[#12100e]"
+                    : "bg-[#211c17] text-[#d4cdc2] hover:bg-white/10"
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5 shrink-0" />
+                <span>{label}</span>
+                {unreadCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-red-500 text-white text-[10px] font-bold">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Body */}
@@ -729,6 +810,205 @@ export const TamalePhoneModal: React.FC<TamalePhoneModalProps> = ({
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+          {/* TAB: BANK & MOMO WALLETS */}
+          {tab === "bank_momo" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="p-3.5 rounded-xl bg-[#1f1a16] border border-amber-500/35">
+                  <div className="text-[11px] text-[#b5ada0]">Cash on Hand</div>
+                  <div className="text-base font-mono-num font-bold text-amber-400 mt-0.5">
+                    GH₵ {characterState.moneyCedis}
+                  </div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-[#1f1a16] border border-yellow-400/35">
+                  <div className="text-[11px] text-[#b5ada0]">Mobile Money (MoMo)</div>
+                  <div className="text-base font-mono-num font-bold text-yellow-300 mt-0.5">
+                    GH₵ {characterState.momoBalanceCedis ?? 0}
+                  </div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-[#1f1a16] border border-sky-400/35">
+                  <div className="text-[11px] text-[#b5ada0]">Tamale Bank</div>
+                  <div className="text-base font-mono-num font-bold text-sky-300 mt-0.5">
+                    GH₵ {characterState.bankBalanceCedis ?? 0}
+                  </div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-[#1f1a16] border border-emerald-400/35">
+                  <div className="text-[11px] text-[#b5ada0]">
+                    Savings ({(TAMALE_ECONOMY_CONFIG.banking.savingsInterestDailyRate * 100).toFixed(1)}%/day)
+                  </div>
+                  <div className="text-base font-mono-num font-bold text-emerald-300 mt-0.5">
+                    GH₵ {characterState.savingsBalanceCedis ?? 0}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-[#1f1a16] border border-white/10 space-y-3">
+                <div className="text-xs font-semibold text-[#ede8de] flex items-center gap-1.5">
+                  <Banknote className="w-4 h-4 text-amber-400" />
+                  <span>Quick Mobile Wallet &amp; Savings Transfers</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[25, 50, 100, 250].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setWalletTxAmt(amt)}
+                      className={`min-h-[38px] px-3 rounded-lg text-xs font-mono-num font-bold border cursor-pointer ${
+                        walletTxAmt === amt
+                          ? "bg-amber-500 text-[#12100e] border-amber-400"
+                          : "bg-[#120f0d] text-[#cfc8bc] border-white/10"
+                      }`}
+                    >
+                      GH₵ {amt}
+                    </button>
+                  ))}
+                  <input
+                    type="number"
+                    min={5}
+                    max={5000}
+                    value={walletTxAmt}
+                    onChange={(e) => setWalletTxAmt(Math.max(1, Number(e.target.value) || 0))}
+                    className="w-24 min-h-[38px] bg-[#120f0d] border border-white/15 rounded-lg px-2.5 text-xs font-mono-num text-[#f8f5ef]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    disabled={(characterState.bankBalanceCedis ?? 0) < walletTxAmt}
+                    onClick={() =>
+                      onAdjustWallets({
+                        bankDelta: -walletTxAmt,
+                        momoDelta: walletTxAmt,
+                        message: `Transferred GH₵ ${walletTxAmt} from Bank to MoMo.`,
+                      })
+                    }
+                    className="min-h-[44px] p-3 rounded-xl bg-sky-600/20 hover:bg-sky-600/35 disabled:opacity-40 border border-sky-400/35 text-xs font-bold text-sky-200 text-left cursor-pointer"
+                  >
+                    Bank → MoMo Instant Top-Up (0 fee)
+                  </button>
+                  <button
+                    type="button"
+                    disabled={(characterState.momoBalanceCedis ?? 0) < walletTxAmt}
+                    onClick={() =>
+                      onAdjustWallets({
+                        momoDelta: -walletTxAmt,
+                        savingsDelta: walletTxAmt,
+                        message: `Saved GH₵ ${walletTxAmt} into daily-yield Savings.`,
+                      })
+                    }
+                    className="min-h-[44px] p-3 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/35 disabled:opacity-40 border border-emerald-400/35 text-xs font-bold text-emerald-200 text-left cursor-pointer"
+                  >
+                    MoMo → Savings (+1.5% Midnight Interest)
+                  </button>
+                  <button
+                    type="button"
+                    disabled={(characterState.savingsBalanceCedis ?? 0) < walletTxAmt}
+                    onClick={() =>
+                      onAdjustWallets({
+                        savingsDelta: -walletTxAmt,
+                        bankDelta: walletTxAmt,
+                        message: `Moved GH₵ ${walletTxAmt} from Savings to Bank.`,
+                      })
+                    }
+                    className="min-h-[44px] p-3 rounded-xl bg-[#241f1a] hover:bg-white/10 disabled:opacity-40 border border-white/15 text-xs font-bold text-[#f8f5ef] text-left cursor-pointer"
+                  >
+                    Savings → Bank Account
+                  </button>
+                  <div className="p-3 rounded-xl bg-[#120f0d] border border-white/10 text-[11px] text-[#b5ada0]">
+                    For Cash deposits &amp; MoMo Cash-Out (1% standard fee: GH₵{" "}
+                    {calculateMomoCashOutFee(walletTxAmt)}), step inside{" "}
+                    <strong className="text-amber-300">Tamale Enterprise Bank</strong> or{" "}
+                    <strong className="text-amber-300">Gbewaa MoMo Arcade</strong>.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: NORTHERN GHANA MUSIC & 7-STATION RADIO */}
+          {(tab === "music" || tab === "radio") && (
+            <MusicRadioApp
+              section={tab}
+              snapshot={musicSnapshot}
+              onPlayTrack={onPlayTrack}
+              onTuneStation={onTuneStation}
+              onRefreshDjSegment={onRefreshDjSegment}
+              onTogglePlay={onToggleMusicPlay}
+              onNext={onMusicNext}
+              onPrev={onMusicPrev}
+              onSeek={onMusicSeek}
+              onSetVolume={onMusicVolume}
+              onToggleShuffle={onToggleMusicShuffle}
+              onCycleRepeat={onCycleMusicRepeat}
+            />
+          )}
+
+          {/* TAB: MESSAGES & TAMALE CONTACTS */}
+          {tab === "messages" && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="text-xs font-semibold uppercase tracking-wider text-amber-400">
+                  Tamale Inbox ({(characterState.phoneMessages ?? []).length})
+                </div>
+                {(characterState.phoneMessages ?? []).map((msg) => (
+                  <div
+                    key={msg.id}
+                    className="p-3.5 rounded-xl bg-[#1f1a16] border border-white/10 space-y-1"
+                  >
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-[#f8f5ef]">
+                        {msg.senderName}{" "}
+                        <span className="font-normal text-amber-300">· {msg.senderRole}</span>
+                      </span>
+                      <span className="font-mono-num text-[11px] text-[#9c9487]">
+                        {msg.timestampClock}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#d4cdc2] leading-relaxed">{msg.text}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="p-4 rounded-xl bg-[#120f0d] border border-white/10 space-y-3">
+                <div className="text-xs font-semibold text-amber-400">
+                  Message a Tamale Neighbour or Dispatch
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <select
+                    value={selectedContactId}
+                    onChange={(e) => setSelectedContactId(e.target.value)}
+                    className="min-h-[42px] bg-[#1f1a16] border border-white/15 rounded-xl px-3 text-xs text-[#f8f5ef]"
+                  >
+                    {TAMALE_NPCS.map((npc) => (
+                      <option key={npc.id} value={npc.id}>
+                        {npc.name} ({npc.district})
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={replyDraft}
+                    onChange={(e) => setReplyDraft(e.target.value)}
+                    placeholder="Write greeting or check market availability..."
+                    className="flex-1 min-h-[42px] bg-[#1f1a16] border border-white/15 rounded-xl px-3 text-xs text-[#f8f5ef]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const clean = replyDraft.trim() || "Dasuba! Checking in from Tamale street!";
+                      onSendPhoneMessage(selectedContactId, clean);
+                      setReplyDraft("");
+                    }}
+                    className="min-h-[42px] px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-[#12100e] font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Send SMS</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}

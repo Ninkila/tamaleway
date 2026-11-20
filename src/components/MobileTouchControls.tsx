@@ -197,6 +197,10 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
       ? "TALK"
       : nearby?.interactionVerb === "enter"
       ? "ENTER"
+      : nearby?.interactionVerb === "exit"
+      ? "EXIT"
+      : nearby?.interactionVerb === "use_station"
+      ? "USE"
       : nearby?.interactionVerb === "buy"
       ? "BUY"
       : nearby?.interactionVerb === "deliver"
@@ -206,7 +210,7 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
   const ContextIcon =
     nearby?.interactionVerb === "talk"
       ? MessageCircle
-      : nearby?.interactionVerb === "enter"
+      : nearby?.interactionVerb === "enter" || nearby?.interactionVerb === "exit"
       ? DoorOpen
       : nearby?.interactionVerb === "repair"
       ? Wrench
@@ -269,7 +273,7 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
             onPointerUp={handleStickUp}
             onPointerCancel={handleStickUp}
             aria-label="Movement virtual joystick"
-            className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-[#14110f]/70 border-2 border-white/25 backdrop-blur-sm flex items-center justify-center shadow-xl"
+            className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-[#14110f]/80 border-2 border-white/25 flex items-center justify-center shadow-xl"
           >
             <div className="w-12 h-12 rounded-full border border-white/15 pointer-events-none" />
             <div
@@ -291,7 +295,7 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
             onPointerUp={handleSteerUp}
             onPointerCancel={handleSteerUp}
             aria-label="Vehicle steering control"
-            className="relative w-36 h-16 sm:w-44 sm:h-20 rounded-2xl bg-[#14110f]/75 border-2 border-white/25 backdrop-blur-sm flex items-center justify-between px-3 shadow-xl"
+            className="relative w-36 h-16 sm:w-44 sm:h-20 rounded-2xl bg-[#14110f]/80 border-2 border-white/25 flex items-center justify-between px-3 shadow-xl"
           >
             <span className="text-xs font-bold text-[#bfb7aa] pointer-events-none">L</span>
             <div

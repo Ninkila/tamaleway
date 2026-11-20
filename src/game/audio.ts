@@ -1,9 +1,11 @@
+import { WeatherType } from "../types/game";
+
 interface SpatialEmitter {
   panner: PannerNode;
   gain: GainNode;
   x: number;
   z: number;
-  kind: "market" | "sizzle" | "radio" | "mechanic" | "loom" | "lounge";
+  kind: "market" | "sizzle" | "radio" | "mechanic" | "loom" | "lounge" | "mosque" | "house_radio";
   phaseOffset: number;
   lastBurstAt: number;
 }
@@ -33,6 +35,8 @@ export class TamaleAudioEngine {
   private lastHornTime = 0;
   private lastPassByTime = 0;
   private lastRadioNoteTime = 0;
+  private lastMosqueChimeTime = 0;
+  private lastThunderTime = 0;
   private radioStep = 0;
 
   public init() {
@@ -351,6 +355,41 @@ export class TamaleAudioEngine {
         lastBurstAt: 0,
       });
     }
+
+    // 6. Central Mosque respectful acoustic reflection bell / serene chime during prayer windows
+    const mosquePanner = this.createSpatialPanner(34, 6.0, 46, 8, 52);
+    const mosqueGain = this.ctx.createGain();
+    mosqueGain.gain.value = 0.85;
+    mosqueGain.connect(mosquePanner);
+    this.spatialEmitters.push({
+      panner: mosquePanner,
+      gain: mosqueGain,
+      x: 34,
+      z: 46,
+      kind: "mosque",
+      phaseOffset: 0.2,
+      lastBurstAt: 0,
+    });
+
+    // 7. Residential household courtyard radios in Kalpohin & Traditional Compounds
+    for (const [hx, hz, ph] of [
+      [92, -120, 0.7],
+      [-84, 48, 1.5],
+    ] as const) {
+      const hrPanner = this.createSpatialPanner(hx, 1.5, hz, 4.5, 28);
+      const hrGain = this.ctx.createGain();
+      hrGain.gain.value = 0.55;
+      hrGain.connect(hrPanner);
+      this.spatialEmitters.push({
+        panner: hrPanner,
+        gain: hrGain,
+        x: hx,
+        z: hz,
+        kind: "house_radio",
+        phaseOffset: ph,
+        lastBurstAt: 0,
+      });
+    }
   }
 
   public setIndoorMode(indoor: boolean) {
@@ -438,7 +477,7 @@ export class TamaleAudioEngine {
 
   public updateAmbience(
     time: number,
-    weather: "clear" | "harmattan" | "rain",
+    weather: WeatherType,
     isDriving: boolean,
     speed: number,
     isDaytime: boolean,
@@ -454,22 +493,49 @@ export class TamaleAudioEngine {
     const isPeakMarket = hour >= 7.5 && hour <= 17.5;
     const isMealTime = (hour >= 6 && hour <= 10.5) || (hour >= 11.5 && hour <= 15) || (hour >= 17 && hour <= 21.5);
     const isNightHours = hour < 5.6 || hour >= 18.6;
+    const isWetWeather = weather === "light_rain" || weather === "rain" || weather === "thunderstorm";
 
     if (this.windGain && this.windFilter) {
-      const targetWind = weather === "harmattan" ? 0.095 : isResidential ? 0.042 : 0.03;
+      const targetWind =
+        weather === "harmattan"
+          ? 0.095
+          : weather === "thunderstorm"
+          ? 0.088
+          : weather === "rain"
+          ? 0.062
+          : weather === "cloudy"
+          ? 0.048
+          : weather === "heat"
+          ? 0.025
+          : isResidential
+          ? 0.042
+          : 0.03;
       this.windGain.gain.setTargetAtTime(targetWind, now, 0.3);
-      this.windFilter.frequency.setTargetAtTime(weather === "harmattan" ? 520 : 340, now, 0.3);
+      this.windFilter.frequency.setTargetAtTime(
+        weather === "harmattan" ? 520 : weather === "thunderstorm" ? 640 : 340,
+        now,
+        0.3
+      );
     }
 
     if (this.crowdGain && this.crowdFilter) {
       const clamped = Math.max(0, Math.min(1, crowdIntensity));
-      const targetCrowd = clamped * (isDaytime ? 0.14 : 0.055);
+      const weatherCrowdFactor = isWetWeather ? 0.55 : weather === "heat" ? 0.88 : 1.0;
+      const targetCrowd = clamped * (isDaytime ? 0.14 : 0.055) * weatherCrowdFactor;
       this.crowdGain.gain.setTargetAtTime(targetCrowd, now, 0.35);
       this.crowdFilter.frequency.setTargetAtTime(520 + Math.sin(time * 0.9) * 110, now, 0.25);
     }
 
     if (this.rainGain) {
-      this.rainGain.gain.setTargetAtTime(weather === "rain" ? 0.14 : 0, now, 0.4);
+      const targetRain =
+        weather === "thunderstorm"
+          ? 0.2
+          : weather === "rain"
+          ? 0.14
+          : weather === "light_rain"
+          ? 0.065
+          : 0;
+      this.rainGain.gain.setTargetAtTime(targetRain, now, 0.4);
     }
 
     if (this.engineGain && this.engineOsc) {
@@ -487,22 +553,32 @@ export class TamaleAudioEngine {
       const dist = Math.hypot(em.x - playerX, em.z - playerZ);
       if (em.kind === "market") {
         const activity = isPeakMarket ? 0.22 : isDaytime ? 0.13 : 0.03;
-        const rainDamp = weather === "rain" ? 0.55 : 1.0;
+        const rainDamp = isWetWeather ? 0.55 : 1.0;
         const pulse = 0.85 + 0.15 * Math.sin(time * 1.4 + em.phaseOffset);
         em.gain.gain.setTargetAtTime(dist < 62 ? activity * rainDamp * pulse : 0, now, 0.3);
       } else if (em.kind === "sizzle") {
-        const active = isMealTime && weather !== "rain" ? 0.065 : 0;
+        const active = isMealTime && weather !== "rain" && weather !== "thunderstorm" ? 0.065 : 0;
         const flicker = 0.8 + 0.2 * Math.sin(time * 3.1 + em.phaseOffset);
         em.gain.gain.setTargetAtTime(dist < 30 ? active * flicker : 0, now, 0.25);
         if (active > 0 && dist < 18 && time - em.lastBurstAt > 3.8 + em.phaseOffset) {
           em.lastBurstAt = time;
           this.playPotClink(em.panner);
         }
-      } else if (em.kind === "radio") {
-        // Play subtle West African pentatonic shop radio groove when close to open shops
-        if (!isNightHours && dist < 34 && time - this.lastRadioNoteTime > 0.34) {
+      } else if (em.kind === "radio" || em.kind === "house_radio") {
+        const maxRange = em.kind === "house_radio" ? 24 : 34;
+        if (!isNightHours && dist < maxRange && time - this.lastRadioNoteTime > 0.34) {
           this.lastRadioNoteTime = time;
           this.playShopRadioNote(em.gain);
+        }
+      } else if (em.kind === "mosque") {
+        const isPrayerWindow =
+          (hour >= 5.0 && hour <= 6.2) ||
+          (hour >= 12.5 && hour <= 14.0) ||
+          (hour >= 15.5 && hour <= 16.5) ||
+          (hour >= 18.0 && hour <= 19.6);
+        if (isPrayerWindow && dist < 48 && time - this.lastMosqueChimeTime > 6.5) {
+          this.lastMosqueChimeTime = time;
+          this.playMosqueReflectionChime(em.gain);
         }
       } else if (em.kind === "mechanic") {
         if (isDaytime && hour >= 7.5 && hour <= 17.8 && dist < 36 && time - em.lastBurstAt > 2.6) {
@@ -533,8 +609,8 @@ export class TamaleAudioEngine {
       }
     }
 
-    // Gentle savannah birdsong in daytime clear/harmattan weather (stronger in residential/trees)
-    if (isDaytime && weather !== "rain" && time - this.lastBirdTime > (isResidential ? 4.8 : 6.8)) {
+    // Gentle savannah birdsong in daytime non-rain weather (stronger in residential/trees)
+    if (isDaytime && !isWetWeather && time - this.lastBirdTime > (isResidential ? 4.8 : 6.8)) {
       this.lastBirdTime = time;
       if (Math.random() < 0.58) {
         this.playBirdChirp();
@@ -542,13 +618,55 @@ export class TamaleAudioEngine {
     }
 
     // Evening & nighttime crickets in Tamale residential areas & compounds
-    if ((isNightHours || isResidential) && weather !== "rain" && time - this.lastCricketTime > 2.4) {
+    if ((isNightHours || isResidential) && !isWetWeather && time - this.lastCricketTime > 2.4) {
       this.lastCricketTime = time;
       const strength = isNightHours ? (isResidential ? 1.0 : 0.55) : 0.28;
       if (Math.random() < 0.7) {
         this.playCricketChirp(strength);
       }
     }
+  }
+
+  public playThunderClap() {
+    if (!this.ctx || !this.outdoorBus || !this.enabled || this.ctx.state !== "running") return;
+    const nowMs = performance.now();
+    if (nowMs - this.lastThunderTime < 3500) return;
+    this.lastThunderTime = nowMs;
+
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(92, now);
+    osc.frequency.exponentialRampToValueAtTime(34, now + 1.45);
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.24, now + 0.08);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
+    osc.connect(gain);
+    gain.connect(this.outdoorBus);
+    osc.start(now);
+    osc.stop(now + 1.65);
+  }
+
+  private playMosqueReflectionChime(dest: AudioNode) {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const notes = [392.0, 440.0, 523.25];
+    notes.forEach((freq, idx) => {
+      if (!this.ctx) return;
+      const start = now + idx * 0.28;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, start);
+      gain.gain.setValueAtTime(0.001, start);
+      gain.gain.linearRampToValueAtTime(0.032, start + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.72);
+      osc.connect(gain);
+      gain.connect(dest);
+      osc.start(start);
+      osc.stop(start + 0.75);
+    });
   }
 
   private playPotClink(dest: AudioNode) {

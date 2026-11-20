@@ -17,6 +17,7 @@ import {
   CameraMode,
   DEFAULT_KEY_BINDINGS,
   GraphicsQuality,
+  InteriorRoomSpec,
   KeyBindings,
   NearbyChatter,
   NearbyInteractable,
@@ -25,6 +26,7 @@ import {
   ServiceRequestRuntime,
   WeatherType,
 } from "../types/game";
+import { getInteriorSpecForLandmark } from "../data/tamaleInteriors";
 import {
   ALL_EW_ROAD_COORDS,
   ALL_NS_ROAD_COORDS,
@@ -33,11 +35,13 @@ import {
   getRoadExtentBounds,
 } from "../data/tamaleRoadGraph";
 import { TamaleAudioEngine } from "./audio";
+import { buildPhysicalInteriorScene, BuiltInteriorScene } from "./interiorBuilder";
 import { NpcScheduleController } from "./NpcScheduleController";
 import {
   CharacterRig,
   createAirportGroup,
   createBicycleMesh,
+  createBusStopShelterMesh,
   createCargoTrikeMesh,
   createCentralMarketGroup,
   createCentralMosqueGroup,
@@ -51,6 +55,7 @@ import {
   createLivestockTimberGroup,
   createMotorcycleMesh,
   createMotorcycleWithRiderMesh,
+  createPolytankAndSolarAddon,
   createPragyaMesh,
   createPrivateCarMesh,
   createRoadsideBenchMesh,
@@ -63,6 +68,7 @@ import {
   createSpeedHumpMesh,
   createStadiumGroup,
   createStreetDirectionSignMesh,
+  createSurfacePatchAndCulvertMesh,
   createTamaleHouseVariant,
   createTamaleInterchangeGroup,
   createTaxiMesh,
@@ -237,6 +243,7 @@ export interface EngineCallbacks {
   }) => void;
   onInteract: (item: NearbyInteractable) => void;
   onServiceUpdate?: (req: ServiceRequestRuntime | null) => void;
+  onInteriorChange?: (spec: InteriorRoomSpec | null) => void;
   onEnergyDrain?: (delta: number) => void;
   onWebGLContextChange?: (lost: boolean) => void;
 }
@@ -248,6 +255,8 @@ export class TamaleEngine {
 
   private renderer!: THREE.WebGLRenderer;
   private scene!: THREE.Scene;
+  private worldRoot = new THREE.Group();
+  private interiorRoot = new THREE.Group();
   private camera!: THREE.PerspectiveCamera;
   private textures!: ProceduralTextureSet;
   private isSoftwareGl = false;
@@ -266,6 +275,15 @@ export class TamaleEngine {
   private spatialSectors: SpatialSector[] = [];
   private sectorStreamRadius = 215;
   private lastSectorSync = -10;
+
+  private activeInteriorSpec: InteriorRoomSpec | null = null;
+  private activeInteriorScene: BuiltInteriorScene | null = null;
+  private exteriorReturnPos = new THREE.Vector3(14, 0, 14);
+  private exteriorReturnRotY = -Math.PI * 0.78;
+  private exteriorCamDist = 9.5;
+  private exteriorCamPitch = 0.28;
+  private lightningFlashIntensity = 0;
+  private nextLightningAt = 6.5;
 
   private playerRig!: CharacterRig;
   private playerPos = new THREE.Vector3(14, 0, 14);
@@ -452,13 +470,18 @@ export class TamaleEngine {
       this.nightLightPool.push(pl);
     }
 
+    this.worldRoot.name = "worldRoot";
+    this.interiorRoot.name = "interiorRoot";
+    this.interiorRoot.visible = false;
+    this.scene.add(this.worldRoot, this.interiorRoot);
+
     // Initialize 4x4 Spatial Sector Streaming grid (-240..240)
     const sectorSize = 120;
     for (let gx = 0; gx < 4; gx++) {
       for (let gz = 0; gz < 4; gz++) {
         const group = new THREE.Group();
         group.name = `sector_${gx}_${gz}`;
-        this.scene.add(group);
+        this.worldRoot.add(group);
         this.spatialSectors.push({
           gx,
           gz,
@@ -474,7 +497,7 @@ export class TamaleEngine {
     const gx = THREE.MathUtils.clamp(Math.floor((x + 240) / 120), 0, 3);
     const gz = THREE.MathUtils.clamp(Math.floor((z + 240) / 120), 0, 3);
     const found = this.spatialSectors.find((s) => s.gx === gx && s.gz === gz);
-    return found ? found.group : this.scene;
+    return found ? found.group : this.worldRoot;
   }
 
   private addWireSpan(x1: number, z1: number, x2: number, z2: number, y = 5.75) {
@@ -507,7 +530,7 @@ export class TamaleEngine {
     );
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
-    this.scene.add(ground);
+    this.worldRoot.add(ground);
 
     // 2. Paved asphalt roads + concrete drainage channels & curbs
     const roadMat = new THREE.MeshStandardMaterial({
@@ -534,7 +557,7 @@ export class TamaleEngine {
       }
       roadMesh.position.set(r.x, 0.03, r.z);
       roadMesh.receiveShadow = true;
-      this.scene.add(roadMesh);
+      this.worldRoot.add(roadMesh);
 
       // Concrete roadside open storm drains along East-West avenues
       if (r.orientation === "ew") {
@@ -543,11 +566,11 @@ export class TamaleEngine {
           const curb = new THREE.Mesh(new THREE.BoxGeometry(r.width, 0.14, 0.7), drainConcreteMat);
           curb.position.set(r.x, 0.07, zEdge);
           curb.receiveShadow = true;
-          this.scene.add(curb);
+          this.worldRoot.add(curb);
 
           const channel = new THREE.Mesh(new THREE.BoxGeometry(r.width, 0.05, 0.28), drainTrenchMat);
           channel.position.set(r.x, 0.13, zEdge);
-          this.scene.add(channel);
+          this.worldRoot.add(channel);
         }
       } else {
         for (const side of [-1, 1]) {
@@ -555,7 +578,7 @@ export class TamaleEngine {
           const curb = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.12, r.depth), drainConcreteMat);
           curb.position.set(xEdge, 0.06, r.z);
           curb.receiveShadow = true;
-          this.scene.add(curb);
+          this.worldRoot.add(curb);
         }
       }
     }
@@ -563,7 +586,7 @@ export class TamaleEngine {
     // 3. Tamale (Naa Gbewaa) Interchange at (0, 0, 0)
     const { group: interchangeGroup, bridgeLampBulbs } = createTamaleInterchangeGroup(this.textures);
     interchangeGroup.position.set(0, 0, 0);
-    this.scene.add(interchangeGroup);
+    this.worldRoot.add(interchangeGroup);
     this.lampBulbMats.push(...bridgeLampBulbs);
 
     // Bridge piers & central roundabout island colliders (keeping Gukpegu Rd N-S & High St frontage lanes passable!)
@@ -576,100 +599,100 @@ export class TamaleEngine {
     // 4. Tamale Central Market (-44, 0, -30)
     const market = createCentralMarketGroup(this.textures);
     market.position.set(-44, 0, -30);
-    this.scene.add(market);
+    this.worldRoot.add(market);
     this.addCollider(-59, -29, -42, -18);
 
     // 5. Tamale Central Mosque (34, 0, 46) along Gukpegu Rd SSE
     const mosque = createCentralMosqueGroup(this.textures);
     mosque.position.set(34, 0, 46);
-    this.scene.add(mosque);
+    this.worldRoot.add(mosque);
     this.addCollider(21.5, 46.5, 34.5, 57.5);
 
     // 6. Jubilee Park & Tamale High Street 4-Story Office Precinct (86, 0, 22)
     const jubileeOffice = createJubileeAndOfficeGroup(this.textures);
     jubileeOffice.position.set(86, 0, 22);
-    this.scene.add(jubileeOffice);
+    this.worldRoot.add(jubileeOffice);
     this.addCollider(77.5, 94.5, 13.5, 24); // Main office footprint
     this.addCollider(83.5, 88.5, 41.5, 46.5); // Jubilee Park monument
 
     // 7. Dagbon Smock & Drumming Guild (-84, 0, 20)
     const cultural = createCulturalCentreGroup(this.textures);
     cultural.position.set(-84, 0, 20);
-    this.scene.add(cultural);
+    this.worldRoot.add(cultural);
     this.addCollider(-93, -75, 12, 28);
 
     // 8. Dakpema Chief's Palace & Regional Chiefs Hall (-34, 0, -70)
     const palace = createDakpemaPalaceGroup(this.textures);
     palace.position.set(-34, 0, -70);
-    this.scene.add(palace);
+    this.worldRoot.add(palace);
     this.addCollider(-45.5, -22.5, -79, -66.5);
 
     // 9. Tamale Teaching Hospital (96, 0, 102)
     const hospital = createTeachingHospitalGroup(this.textures);
     hospital.position.set(96, 0, 102);
-    this.scene.add(hospital);
+    this.worldRoot.add(hospital);
     this.addCollider(82.5, 109.5, 91.5, 107);
 
     // 10. Aliu Mahama Sports Stadium (-134, 0, -124)
     const stadium = createStadiumGroup(this.textures);
     stadium.group.position.set(-134, 0, -124);
-    this.scene.add(stadium.group);
+    this.worldRoot.add(stadium.group);
     this.stadiumFloodlightMats.push(...stadium.floodlightMats);
     this.addCollider(-155.5, -112.5, -145.5, -102.5);
 
     // 11. Tamale International Airport (0, 0, -196)
     const airport = createAirportGroup(this.textures);
     airport.position.set(0, 0, -196);
-    this.scene.add(airport);
+    this.worldRoot.add(airport);
     this.addCollider(-14, 14, -202.5, -191);
 
     // 12. SCCA Tamale & Red Clay Studio Precinct (208, 0, 42)
     const scca = createSccaRedClayGroup(this.textures);
     scca.position.set(208, 0, 42);
     scca.rotation.y = -Math.PI / 2;
-    this.scene.add(scca);
+    this.worldRoot.add(scca);
     this.addCollider(201, 215, 31.5, 52.5);
 
     // 13. Kukuo Market & Earthen Pottery Centre (158, 0, 34)
     const kukuo = createKukuoPotteryGroup(this.textures);
     kukuo.position.set(158, 0, 34);
-    this.scene.add(kukuo);
+    this.worldRoot.add(kukuo);
     this.addCollider(148.5, 167.5, 26.5, 33);
 
     // 14. Gunayili Cattle & Timber Market Yard (158, 0, -68)
     const livestock = createLivestockTimberGroup(this.textures);
     livestock.position.set(158, 0, -68);
-    this.scene.add(livestock);
+    this.worldRoot.add(livestock);
     this.addCollider(148.5, 170, -73.5, -62.5);
 
     // 15. Aboabo Market (-132, 0, 28) & Lamashegu Market Hub (-84, 0, 100) & Kakpagyili Market (32, 0, 158)
     const aboaboMarket = createCentralMarketGroup(this.textures);
     aboaboMarket.position.set(-132, 0, 28);
     aboaboMarket.scale.set(0.9, 1, 0.9);
-    this.scene.add(aboaboMarket);
+    this.worldRoot.add(aboaboMarket);
     this.addCollider(-144.5, -119.5, 17.5, 38.5);
 
     const lamasheguMarket = createCentralMarketGroup(this.textures);
     lamasheguMarket.position.set(-84, 0, 100);
     lamasheguMarket.scale.set(0.84, 1, 0.88);
-    this.scene.add(lamasheguMarket);
+    this.worldRoot.add(lamasheguMarket);
     this.addCollider(-95.5, -72.5, 89.5, 110.5);
 
     const kakpagyiliMarket = createCentralMarketGroup(this.textures);
     kakpagyiliMarket.position.set(32, 0, 158);
     kakpagyiliMarket.scale.set(0.82, 1, 0.82);
-    this.scene.add(kakpagyiliMarket);
+    this.worldRoot.add(kakpagyiliMarket);
     this.addCollider(20.5, 43.5, 148, 168);
 
     // 16. Tishigu Community School (34, 0, -70) & Dungu Academic Quarter (-134, 0, 158)
     const school = createSchoolGroup(this.textures);
     school.position.set(34, 0, -70);
-    this.scene.add(school);
+    this.worldRoot.add(school);
     this.addCollider(24.5, 43.5, -77, -68);
 
     const dunguCampus = createSchoolGroup(this.textures);
     dunguCampus.position.set(-134, 0, 158);
-    this.scene.add(dunguCampus);
+    this.worldRoot.add(dunguCampus);
     this.addCollider(-143.5, -124.5, 151, 160);
 
     // 17. Traditional Dagomba Clay-and-Thatch Compounds across Communities
@@ -1143,7 +1166,7 @@ export class TamaleEngine {
     tuftMesh.instanceMatrix.needsUpdate = true;
     if (tuftMesh.instanceColor) tuftMesh.instanceColor.needsUpdate = true;
     tuftMesh.computeBoundingSphere();
-    this.scene.add(tuftMesh);
+    this.worldRoot.add(tuftMesh);
 
     const perimGeo = new THREE.DodecahedronGeometry(3.8, 1);
     const perimMat = new THREE.MeshStandardMaterial({ color: "#4b6b2d", roughness: 0.9 });
@@ -1160,7 +1183,54 @@ export class TamaleEngine {
     }
     perimMesh.instanceMatrix.needsUpdate = true;
     perimMesh.computeBoundingSphere();
-    this.scene.add(perimMesh);
+    this.worldRoot.add(perimMesh);
+
+    // 22b. Tamale Transport Ranks / Bus Shelters, Road Surface Patches, Drainage Culverts & Solar/Water Polytanks
+    const busStops: Array<[number, number, number, string, string]> = [
+      [14, -9.8, 0, "INTERCHANGE EAST", "#0284c7"],
+      [-28, -9.8, 0, "CENTRAL MARKET", "#eab308"],
+      [-114, 9.8, Math.PI, "ABOABO RANK", "#15803d"],
+      [-76, 118, Math.PI / 2, "LAMASHEGU HUB", "#0284c7"],
+      [78, 118, -Math.PI / 2, "HOSPITAL GATE", "#dc2626"],
+      [-128, 146, 0, "UDS DUNGU STOP", "#1d4ed8"],
+    ];
+    for (const [bx, bz, brot, lbl, col] of busStops) {
+      const shelter = createBusStopShelterMesh(lbl, col);
+      shelter.position.set(bx, 0, bz);
+      shelter.rotation.y = brot;
+      this.getSectorFor(bx, bz).add(shelter);
+    }
+
+    const patchCulvertSpecs: Array<[number, number, number, "asphalt_patch" | "concrete_culvert"]> = [
+      [-55, 0, 0.2, "asphalt_patch"],
+      [42, 0, -0.1, "asphalt_patch"],
+      [0, 62, Math.PI / 2, "asphalt_patch"],
+      [-66, -34, Math.PI / 2, "asphalt_patch"],
+      [-102, 48, 0, "concrete_culvert"],
+      [66, -78, 0, "concrete_culvert"],
+      [128, 18, Math.PI / 2, "concrete_culvert"],
+      [-134, 128, 0, "concrete_culvert"],
+    ];
+    for (const [px, pz, prot, kind] of patchCulvertSpecs) {
+      const mesh = createSurfacePatchAndCulvertMesh(kind);
+      mesh.position.set(px, 0, pz);
+      mesh.rotation.y = prot;
+      this.getSectorFor(px, pz).add(mesh);
+    }
+
+    const solarPolytankSpots: Array<[number, number, number, boolean]> = [
+      [84, 4.1, -14, true],
+      [102, 3.9, -13, true],
+      [-54, 4.3, -13, true],
+      [56, 4.3, 32, false],
+      [84, 3.8, -120, true],
+      [24, 5.4, -120, false],
+    ];
+    for (const [rx, ry, rz, withSolar] of solarPolytankSpots) {
+      const addon = createPolytankAndSolarAddon(withSolar);
+      addon.position.set(rx, ry, rz);
+      this.getSectorFor(rx, rz).add(addon);
+    }
 
     // 23. Delivery Errand & City Gig Beacons
     this.deliveryBeacon = new THREE.Mesh(
@@ -1174,7 +1244,7 @@ export class TamaleEngine {
       })
     );
     this.deliveryBeacon.visible = false;
-    this.scene.add(this.deliveryBeacon);
+    this.worldRoot.add(this.deliveryBeacon);
 
     this.gigBeacon = new THREE.Mesh(
       new THREE.CylinderGeometry(1.25, 1.25, 15, 16, 1, true),
@@ -1187,7 +1257,7 @@ export class TamaleEngine {
       })
     );
     this.gigBeacon.visible = false;
-    this.scene.add(this.gigBeacon);
+    this.worldRoot.add(this.gigBeacon);
 
     // Waiting 3D gig passenger actor (visible when active transport_passenger task awaits pickup)
     this.gigPassengerRig = createCharacterRig(
@@ -1201,7 +1271,7 @@ export class TamaleEngine {
       this.textures
     );
     this.gigPassengerRig.root.visible = false;
-    this.scene.add(this.gigPassengerRig.root);
+    this.worldRoot.add(this.gigPassengerRig.root);
   }
 
   private buildCityEventProps() {
@@ -1244,7 +1314,7 @@ export class TamaleEngine {
       dancer.root.position.set(cx + 0.9, 0, cz + 0.8);
       dambaGroup.add(dancer.root);
     }
-    this.scene.add(dambaGroup);
+    this.worldRoot.add(dambaGroup);
     this.eventGroups.set("damba_festival", dambaGroup);
 
     // 2. Bugum Chugu: respectful evening torchlight clusters at Dakpema Palace & Cultural Quarter
@@ -1259,7 +1329,7 @@ export class TamaleEngine {
       flame.position.set(bx, 1.25, bz);
       bugumGroup.add(stand, flame);
     }
-    this.scene.add(bugumGroup);
+    this.worldRoot.add(bugumGroup);
     this.eventGroups.set("bugum_chugu", bugumGroup);
 
     // 3. Eid Celebration: respectful congregation mats & festive families around Central Mosque (20, 46) & Jubilee Park (86, 44)
@@ -1277,7 +1347,7 @@ export class TamaleEngine {
       visitor.root.position.set(mx + 1.2, 0, mz + 1.8);
       eidGroup.add(visitor.root);
     }
-    this.scene.add(eidGroup);
+    this.worldRoot.add(eidGroup);
     this.eventGroups.set("eid_celebration", eidGroup);
 
     // 4. Ramadan Evening: warm Iftar hospitality tables & glowing lamps along Gukpegu Rd & Aboabo
@@ -1290,7 +1360,7 @@ export class TamaleEngine {
       lantern.position.set(rx, 0.95, rz);
       ramadanGroup.add(table, lantern);
     }
-    this.scene.add(ramadanGroup);
+    this.worldRoot.add(ramadanGroup);
     this.eventGroups.set("ramadan_evening", ramadanGroup);
 
     // 5. Market Peak: extra colorful umbrellas & cargo stalls by Central & Aboabo markets
@@ -1308,7 +1378,7 @@ export class TamaleEngine {
       pole.position.set(mx, 1.35, mz);
       marketGroup.add(umb, pole);
     }
-    this.scene.add(marketGroup);
+    this.worldRoot.add(marketGroup);
     this.eventGroups.set("market_peak", marketGroup);
 
     // 6. Stadium Matchday: cheering fan group outside Aliu Mahama Stadium gate (-134, -97)
@@ -1322,7 +1392,7 @@ export class TamaleEngine {
       fan.root.position.set(-138 + i * 2.5, 0, -96.5);
       matchGroup.add(fan.root);
     }
-    this.scene.add(matchGroup);
+    this.worldRoot.add(matchGroup);
     this.eventGroups.set("stadium_match", matchGroup);
   }
 
@@ -1353,6 +1423,7 @@ export class TamaleEngine {
       {
         outfit: cust.outfit,
         headwear: cust.headwear,
+        hairstyle: cust.hairstyle,
         primaryColor: cust.primaryColor,
         accentColor: cust.accentColor,
         skinTone: cust.skinTone,
@@ -1383,7 +1454,7 @@ export class TamaleEngine {
         },
         this.textures
       );
-      this.scene.add(rig.root);
+      this.worldRoot.add(rig.root);
       this.npcController.registerNpc(profile, rig);
     }
     this.npcController.initializeAtTime(this.gameMinutes);
@@ -1394,6 +1465,7 @@ export class TamaleEngine {
         {
           outfit: pc.customization.outfit,
           headwear: pc.customization.headwear,
+          hairstyle: pc.customization.hairstyle,
           primaryColor: pc.customization.primaryColor,
           accentColor: pc.customization.accentColor,
           skinTone: pc.customization.skinTone,
@@ -1403,13 +1475,13 @@ export class TamaleEngine {
       rig.root.position.set(pc.spawnPos.x, 0, pc.spawnPos.z);
       rig.root.rotation.y = pc.spawnPos.rotY;
       rig.root.visible = pc.id !== this.activePlayableId;
-      this.scene.add(rig.root);
+      this.worldRoot.add(rig.root);
       this.ambientPlayableCharacters.push({ id: pc.id, rig });
     }
   }
 
   private buildLandmarkLabels() {
-    this.scene.add(this.labelGroup);
+    this.worldRoot.add(this.labelGroup);
 
     const accentForType = (type: string): string => {
       switch (type) {
@@ -2716,7 +2788,7 @@ export class TamaleEngine {
       } else if (spec.focusTarget) {
         rig.root.rotation.y = Math.atan2(spec.focusTarget.x - start.x, spec.focusTarget.z - start.z);
       }
-      this.scene.add(rig.root);
+      this.worldRoot.add(rig.root);
 
       const isMovingVendor =
         role === "vendor" &&
@@ -2832,7 +2904,7 @@ export class TamaleEngine {
           : createMotorcycleMesh(cfg.color, this.textures);
       built.group.position.set(cfg.x, 0, cfg.z);
       built.group.rotation.y = cfg.rotY;
-      this.scene.add(built.group);
+      this.worldRoot.add(built.group);
 
       this.drivables.push({
         id: cfg.id,
@@ -2999,7 +3071,7 @@ export class TamaleEngine {
 
       group.position.set(x, 0, z);
       group.rotation.y = rotY;
-      this.scene.add(group);
+      this.worldRoot.add(group);
 
       this.traffic.push({
         kind: ts.kind,
@@ -3212,7 +3284,11 @@ export class TamaleEngine {
   }
 
   public adjustZoom(delta: number) {
-    this.camDist = THREE.MathUtils.clamp(this.camDist + delta, 5, 24);
+    if (this.activeInteriorSpec) {
+      this.camDist = THREE.MathUtils.clamp(this.camDist + delta, 2.8, 7.2);
+    } else {
+      this.camDist = THREE.MathUtils.clamp(this.camDist + delta, 5, 24);
+    }
   }
 
   public setVirtualMove(x: number, y: number) {
@@ -3372,8 +3448,100 @@ export class TamaleEngine {
 
   public setWeather(w: WeatherType) {
     this.weather = w;
-    this.dustPoints.visible = w === "harmattan";
-    this.rainLines.visible = w === "rain";
+    const outdoors = !this.activeInteriorSpec;
+    this.dustPoints.visible = outdoors && w === "harmattan";
+    this.rainLines.visible = outdoors && (w === "light_rain" || w === "rain" || w === "thunderstorm");
+  }
+
+  public isIndoors(): boolean {
+    return this.activeInteriorSpec !== null;
+  }
+
+  public getActiveInterior(): InteriorRoomSpec | null {
+    return this.activeInteriorSpec;
+  }
+
+  public enterInterior(landmarkId: string): boolean {
+    const spec = getInteriorSpecForLandmark(landmarkId);
+    if (!spec) return false;
+    if (this.activeInteriorSpec) {
+      if (this.activeInteriorSpec.landmarkId === spec.landmarkId) return true;
+      this.exitInterior();
+    }
+    if (this.servicePassengerRiding) {
+      this.dismountServiceRide();
+    }
+    if (this.drivingVehicle) {
+      this.exitVehicle();
+    }
+
+    this.exteriorReturnPos.copy(this.playerPos);
+    this.exteriorReturnRotY = this.playerRotY;
+    this.exteriorCamDist = this.camDist;
+    this.exteriorCamPitch = this.camPitch;
+
+    const built = buildPhysicalInteriorScene(spec, this.textures);
+    this.activeInteriorSpec = spec;
+    this.activeInteriorScene = built;
+
+    this.worldRoot.visible = false;
+    this.interiorRoot.add(built.group);
+    this.interiorRoot.visible = true;
+    this.dustPoints.visible = false;
+    this.rainLines.visible = false;
+
+    this.playerPos.set(spec.spawnX, 0, spec.spawnZ);
+    this.playerVelY = 0;
+    this.isGrounded = true;
+    this.playerRotY = Math.PI;
+    setCharacterPose(this.playerRig, "foot");
+    this.playerRig.root.visible = true;
+    this.playerRig.root.position.copy(this.playerPos);
+    this.playerRig.root.rotation.set(0, this.playerRotY, 0);
+
+    this.camDist = Math.min(5.2, Math.max(3.2, spec.depth * 0.4));
+    this.camPitch = 0.24;
+    this.camYaw = 0;
+    this.camera.position.set(
+      this.playerPos.x,
+      Math.min(spec.height - 0.5, 2.6),
+      Math.min(spec.depth / 2 - 0.5, this.playerPos.z + this.camDist)
+    );
+
+    this.audio.playChime("interact");
+    this.callbacks.onInteriorChange?.(spec);
+    this.lastHudSync = 0;
+    return true;
+  }
+
+  public exitInterior() {
+    if (!this.activeInteriorSpec) return;
+    if (this.activeInteriorScene) {
+      this.interiorRoot.remove(this.activeInteriorScene.group);
+      this.activeInteriorScene.dispose();
+      this.activeInteriorScene = null;
+    }
+    this.activeInteriorSpec = null;
+    this.interiorRoot.visible = false;
+    this.worldRoot.visible = true;
+
+    this.playerPos.copy(this.exteriorReturnPos);
+    this.playerVelY = 0;
+    this.isGrounded = true;
+    this.playerRotY = this.exteriorReturnRotY;
+    setCharacterPose(this.playerRig, "foot");
+    this.playerRig.root.visible = true;
+    this.playerRig.root.position.copy(this.playerPos);
+    this.playerRig.root.rotation.set(0, this.playerRotY, 0);
+
+    this.camDist = this.exteriorCamDist;
+    this.camPitch = this.exteriorCamPitch;
+    this.setWeather(this.weather);
+    this.lastSectorSync = -10;
+
+    this.audio.playChime("interact");
+    this.callbacks.onInteriorChange?.(null);
+    this.lastHudSync = 0;
   }
 
   public setGameMinutes(mins: number) {
@@ -3497,7 +3665,7 @@ export class TamaleEngine {
 
   private removeActiveServiceMesh() {
     if (!this.activeService) return;
-    this.scene.remove(this.activeService.group);
+    this.worldRoot.remove(this.activeService.group);
     this.activeService = null;
   }
 
@@ -3571,7 +3739,7 @@ export class TamaleEngine {
     built.group.add(markerRing);
 
     built.group.position.set(spawnX, 0, spawnZ);
-    this.scene.add(built.group);
+    this.worldRoot.add(built.group);
 
     const waypoints = this.plotRoadRoute(spawnX, spawnZ, pickupPos.x, pickupPos.z);
     const speed =
@@ -3706,6 +3874,9 @@ export class TamaleEngine {
   }
 
   public teleportTo(x: number, z: number, rotY = 0) {
+    if (this.activeInteriorSpec) {
+      this.exitInterior();
+    }
     if (this.servicePassengerRiding) {
       this.dismountServiceRide();
     }
@@ -3738,6 +3909,36 @@ export class TamaleEngine {
       }
     }
     return { x: rx, z: rz };
+  }
+
+  private resolvePlayerMovementCollisions(
+    nx: number,
+    nz: number,
+    radius: number
+  ): { x: number; z: number } {
+    if (this.activeInteriorSpec && this.activeInteriorScene) {
+      const halfW = this.activeInteriorSpec.width / 2 - radius - 0.24;
+      const halfD = this.activeInteriorSpec.depth / 2 - radius - 0.24;
+      let rx = THREE.MathUtils.clamp(nx, -halfW, halfW);
+      let rz = THREE.MathUtils.clamp(nz, -halfD, halfD);
+      for (const c of this.activeInteriorScene.colliders) {
+        const closestX = THREE.MathUtils.clamp(rx, c.minX, c.maxX);
+        const closestZ = THREE.MathUtils.clamp(rz, c.minZ, c.maxZ);
+        const dx = rx - closestX;
+        const dz = rz - closestZ;
+        const distSq = dx * dx + dz * dz;
+        if (distSq < radius * radius) {
+          const dist = Math.sqrt(distSq) || 0.001;
+          const overlap = radius - dist;
+          rx += (dx / dist) * overlap;
+          rz += (dz / dist) * overlap;
+        }
+      }
+      rx = THREE.MathUtils.clamp(rx, -halfW, halfW);
+      rz = THREE.MathUtils.clamp(rz, -halfD, halfD);
+      return { x: rx, z: rz };
+    }
+    return this.resolveCollisions(nx, nz, radius);
   }
 
   private updatePlayerAndVehicle(dt: number) {
@@ -3781,11 +3982,17 @@ export class TamaleEngine {
       const steer = keySteer !== 0 ? keySteer : this.vehicleInput.steer;
       const handbrake = this.isActionPressed("jump") || this.vehicleInput.handbrake;
 
-      const maxSpeed = isMoto ? 24.5 : 16.5;
+      const wetTraction =
+        this.weather === "rain" || this.weather === "thunderstorm"
+          ? 0.88
+          : this.weather === "light_rain"
+          ? 0.94
+          : 1.0;
+      const maxSpeed = (isMoto ? 24.5 : 16.5) * wetTraction;
       const reverseMax = isMoto ? -4.5 : -6.8;
-      const accelRate = isMoto ? 25 : 16.5;
-      const brakeRate = isMoto ? 24 : 18;
-      const turnRate = isMoto ? 2.75 : 1.95;
+      const accelRate = (isMoto ? 25 : 16.5) * wetTraction;
+      const brakeRate = (isMoto ? 24 : 18) * wetTraction;
+      const turnRate = (isMoto ? 2.75 : 1.95) * wetTraction;
 
       if (handbrake) {
         veh.speed = THREE.MathUtils.damp(veh.speed, 0, isMoto ? 7.5 : 5.5, dt);
@@ -3918,7 +4125,7 @@ export class TamaleEngine {
 
       const nextX = this.playerPos.x + dirX * moveSpeed * dt;
       const nextZ = this.playerPos.z + dirZ * moveSpeed * dt;
-      const resolved = this.resolveCollisions(nextX, nextZ, 0.55);
+      const resolved = this.resolvePlayerMovementCollisions(nextX, nextZ, 0.5);
       this.playerPos.x = resolved.x;
       this.playerPos.z = resolved.z;
 
@@ -4019,7 +4226,8 @@ export class TamaleEngine {
         activeNow = false;
       }
 
-      const distToPlayer = Math.hypot(agent.x - this.playerPos.x, agent.z - this.playerPos.z);
+      const refPos = this.activeInteriorSpec ? this.exteriorReturnPos : this.playerPos;
+      const distToPlayer = Math.hypot(agent.x - refPos.x, agent.z - refPos.z);
       if (distToPlayer > this.crowdUpdateRadius) {
         agent.rig.root.visible = false;
         if (agent.speechSprite) this.disposeSpeechSprite(agent);
@@ -4199,6 +4407,7 @@ export class TamaleEngine {
       }
     }
 
+    const refPos = this.activeInteriorSpec ? this.exteriorReturnPos : this.playerPos;
     // Compute market + crowd audio intensity (0..1)
     let marketProximity = 0;
     for (const [mx, mz] of [
@@ -4208,7 +4417,7 @@ export class TamaleEngine {
       [158, 34], // Kukuo Market
       [32, 158], // Kakpagyili Market
     ]) {
-      const md = Math.hypot(this.playerPos.x - mx, this.playerPos.z - mz);
+      const md = Math.hypot(refPos.x - mx, refPos.z - mz);
       if (md < 42) {
         marketProximity = Math.max(marketProximity, 1 - md / 42);
       }
@@ -4219,6 +4428,7 @@ export class TamaleEngine {
 
     // Periodically trigger real spoken Dagbani market voice clip via /api/npc/tts
     if (
+      !this.activeInteriorSpec &&
       !this.paused &&
       this.audio.isEnabled() &&
       this.crowdIntensity > 0.35 &&
@@ -4275,8 +4485,18 @@ export class TamaleEngine {
   }
 
   private updateNpcsAndTraffic(dt: number, elapsed: number) {
-    this.npcController.update(dt, this.gameMinutes, this.playerPos);
+    const refPos = this.activeInteriorSpec ? this.exteriorReturnPos : this.playerPos;
+    this.npcController.update(dt, this.gameMinutes, refPos);
     this.updateCrowdPedestrians(dt, elapsed);
+
+    for (let i = 0; i < this.ambientPlayableCharacters.length; i++) {
+      const entry = this.ambientPlayableCharacters[i];
+      if (!entry.rig.root.visible) continue;
+      const ph = elapsed * 1.4 + i * 1.7;
+      entry.rig.bodyGroup.position.y = Math.sin(ph) * 0.015;
+      entry.rig.headGroup.rotation.y = Math.sin(ph * 0.65) * 0.16;
+      entry.rig.rightArmPivot.rotation.x = -0.1 + Math.sin(ph * 0.9) * 0.06;
+    }
 
     const hour = this.gameMinutes / 60;
     const isLateNight = hour >= 22 || hour < 5;
@@ -4285,7 +4505,7 @@ export class TamaleEngine {
 
     for (let i = 0; i < this.traffic.length; i++) {
       const tv = this.traffic[i];
-      const distFromPlayer = Math.hypot(tv.x - this.playerPos.x, tv.z - this.playerPos.z);
+      const distFromPlayer = Math.hypot(tv.x - refPos.x, tv.z - refPos.z);
       const active =
         (!isLateNight || tv.nightActive) &&
         !(this.graphicsQuality === "low" && i % 2 === 1);
@@ -4487,21 +4707,102 @@ export class TamaleEngine {
     const isNight = hour < 5.8 || hour >= 18.7;
     const isDuskOrDawn = (hour >= 5.5 && hour < 7.5) || (hour >= 17.0 && hour < 19.2);
 
+    if (this.activeInteriorSpec && this.activeInteriorScene) {
+      for (const fan of this.activeInteriorScene.animatedFans) {
+        fan.rotation.y += dt * 7.2;
+      }
+      for (let i = 0; i < this.activeInteriorScene.stationMarkers.length; i++) {
+        const marker = this.activeInteriorScene.stationMarkers[i];
+        const pulse = 0.92 + Math.sin(elapsed * 3.4 + i) * 0.08;
+        marker.ring.scale.set(pulse, pulse, 1);
+      }
+      this.sunLight.intensity = 0;
+      this.hemiLight.intensity = 0.72;
+      for (const light of this.nightLightPool) {
+        light.intensity = 0;
+      }
+      const roomBg = new THREE.Color("#181410");
+      (this.scene.background as THREE.Color).lerp(roomBg, Math.min(1, dt * 6));
+      const fog = this.scene.fog as THREE.FogExp2;
+      fog.density = 0.002;
+      fog.color.copy(this.scene.background as THREE.Color);
+
+      const extDistrict = getDistrictAt(this.exteriorReturnPos.x, this.exteriorReturnPos.z);
+      const isRes = /Kalpohin|Gumani|Choggu|Compound|Vittin|Dungu|Sagnarigu|Nyohini|Kanvilli/i.test(
+        extDistrict
+      );
+      this.audio.updateListener(
+        this.exteriorReturnPos.x,
+        1.5,
+        this.exteriorReturnPos.z,
+        this.camYaw
+      );
+      this.audio.updateAmbience(
+        elapsed,
+        this.weather,
+        false,
+        0,
+        !isNight,
+        this.crowdIntensity * 0.25,
+        this.exteriorReturnPos.x,
+        this.exteriorReturnPos.z,
+        hour,
+        isRes
+      );
+      return;
+    }
+
     const sunAngle = ((hour - 6) / 12) * Math.PI;
     const sunY = Math.sin(sunAngle) * 76;
     const sunX = Math.cos(sunAngle) * 76;
     this.sunLight.position.set(this.playerPos.x + sunX, Math.max(8, sunY), this.playerPos.z + 32);
     this.sunLight.target.position.set(this.playerPos.x, 0, this.playerPos.z);
 
+    if (this.weather === "thunderstorm") {
+      if (elapsed >= this.nextLightningAt) {
+        this.lightningFlashIntensity = 1.0;
+        this.nextLightningAt = elapsed + 7.0 + Math.random() * 7.5;
+        if (!this.paused) {
+          this.audio.playThunderClap();
+        }
+      }
+    }
+    this.lightningFlashIntensity = Math.max(0, this.lightningFlashIntensity - dt * 4.5);
+
     const skyColor = new THREE.Color();
     if (this.weather === "harmattan") {
       skyColor.set(isNight ? "#1a1822" : "#dcc09a");
       this.sunLight.intensity = isNight ? 0.28 : 1.15;
+      this.sunLight.color.set("#ffdbb5");
       (this.scene.fog as THREE.FogExp2).density = 0.0125;
+    } else if (this.weather === "cloudy") {
+      skyColor.set(isNight ? "#111827" : isDuskOrDawn ? "#b89685" : "#9db1c4");
+      this.sunLight.intensity = isNight ? 0.26 : 1.08;
+      this.sunLight.color.set("#e2e8f0");
+      (this.scene.fog as THREE.FogExp2).density = 0.0068;
+    } else if (this.weather === "heat") {
+      skyColor.set(isNight ? "#161925" : isDuskOrDawn ? "#f59e0b" : "#f5deb3");
+      this.sunLight.intensity = isNight ? 0.28 : 2.15;
+      this.sunLight.color.set("#ffe4a3");
+      (this.scene.fog as THREE.FogExp2).density = 0.0058;
+    } else if (this.weather === "light_rain") {
+      skyColor.set(isNight ? "#101724" : "#8fa1b3");
+      this.sunLight.intensity = isNight ? 0.26 : 0.96;
+      this.sunLight.color.set("#dbeafe");
+      (this.scene.fog as THREE.FogExp2).density = 0.0085;
     } else if (this.weather === "rain") {
       skyColor.set(isNight ? "#101622" : "#7b8c9e");
       this.sunLight.intensity = isNight ? 0.25 : 0.78;
+      this.sunLight.color.set("#cbd5e1");
       (this.scene.fog as THREE.FogExp2).density = 0.011;
+    } else if (this.weather === "thunderstorm") {
+      skyColor.set(isNight ? "#080d17" : "#4b5968");
+      if (this.lightningFlashIntensity > 0.05) {
+        skyColor.lerp(new THREE.Color("#dbeafe"), this.lightningFlashIntensity * 0.65);
+      }
+      this.sunLight.intensity = (isNight ? 0.22 : 0.56) + this.lightningFlashIntensity * 2.1;
+      this.sunLight.color.set("#cbd5e1");
+      (this.scene.fog as THREE.FogExp2).density = 0.0145;
     } else if (isNight) {
       skyColor.set("#0f172a");
       this.sunLight.intensity = 0.28;
@@ -4521,9 +4822,15 @@ export class TamaleEngine {
 
     (this.scene.background as THREE.Color).lerp(skyColor, Math.min(1, dt * 2.5));
     (this.scene.fog as THREE.FogExp2).color.copy(this.scene.background as THREE.Color);
-    this.hemiLight.intensity = isNight ? 0.35 : this.weather === "rain" ? 0.6 : 0.78;
+    this.hemiLight.intensity = isNight
+      ? 0.35
+      : this.weather === "rain" || this.weather === "thunderstorm"
+      ? 0.58
+      : this.weather === "light_rain" || this.weather === "cloudy"
+      ? 0.68
+      : 0.78;
 
-    const lampEmissive = isNight || isDuskOrDawn ? 2.2 : 0.12;
+    const lampEmissive = isNight || isDuskOrDawn || this.weather === "thunderstorm" ? 2.2 : 0.12;
     for (const mat of this.lampBulbMats) {
       mat.emissiveIntensity = lampEmissive;
     }
@@ -4568,10 +4875,12 @@ export class TamaleEngine {
     }
 
     for (const d of this.drivables) {
-      d.headlightMat.emissiveIntensity = isNight || isDuskOrDawn ? 1.8 : 0.25;
+      d.headlightMat.emissiveIntensity =
+        isNight || isDuskOrDawn || this.weather === "rain" || this.weather === "thunderstorm" ? 1.8 : 0.25;
     }
     for (const t of this.traffic) {
-      t.headlightMat.emissiveIntensity = isNight || isDuskOrDawn ? 1.85 : 0.22;
+      t.headlightMat.emissiveIntensity =
+        isNight || isDuskOrDawn || this.weather === "rain" || this.weather === "thunderstorm" ? 1.85 : 0.22;
     }
     const emberIntensity = isNight || isDuskOrDawn ? 1.7 + Math.sin(elapsed * 5) * 0.25 : 0.55;
     for (const em of this.emberMats) {
@@ -4579,7 +4888,12 @@ export class TamaleEngine {
     }
 
     // Subtle savannah breeze sway on Tamale neem/shea/baobab canopies
-    const windStrength = this.weather === "harmattan" ? 0.032 : 0.014;
+    const windStrength =
+      this.weather === "thunderstorm"
+        ? 0.044
+        : this.weather === "harmattan" || this.weather === "rain"
+        ? 0.032
+        : 0.014;
     for (const tw of this.windSwayTrees) {
       tw.group.rotation.z = Math.sin(elapsed * 1.15 + tw.phase) * windStrength;
     }
@@ -4593,11 +4907,17 @@ export class TamaleEngine {
         posAttr.setX(i, px);
       }
       posAttr.needsUpdate = true;
-    } else if (this.weather === "rain") {
+    } else if (
+      this.weather === "light_rain" ||
+      this.weather === "rain" ||
+      this.weather === "thunderstorm"
+    ) {
+      const rainSpeed =
+        this.weather === "thunderstorm" ? 31 : this.weather === "rain" ? 24 : 15;
       this.rainLines.position.set(this.playerPos.x, 0, this.playerPos.z);
       const posAttr = this.rainLines.geometry.attributes.position as THREE.BufferAttribute;
       for (let i = 0; i < posAttr.count; i += 2) {
-        let y1 = posAttr.getY(i) - dt * 24;
+        let y1 = posAttr.getY(i) - dt * rainSpeed;
         if (y1 < 0) y1 = 19;
         posAttr.setY(i, y1);
         posAttr.setY(i + 1, y1 - 0.9);
@@ -4636,6 +4956,27 @@ export class TamaleEngine {
   private updateCamera(dt: number) {
     const targetY = this.playerPos.y + 1.45;
     _camTarget.set(this.playerPos.x, targetY, this.playerPos.z);
+
+    if (this.activeInteriorSpec) {
+      const spec = this.activeInteriorSpec;
+      const indoorDist = Math.min(this.camDist, 6.4);
+      const horizDist = Math.cos(this.camPitch) * indoorDist;
+      const vertDist = Math.sin(this.camPitch) * indoorDist;
+      const halfW = spec.width / 2 - 0.45;
+      const halfD = spec.depth / 2 - 0.45;
+
+      _desiredCamPos.set(
+        THREE.MathUtils.clamp(this.playerPos.x + Math.sin(this.camYaw) * horizDist, -halfW, halfW),
+        THREE.MathUtils.clamp(targetY + vertDist, 0.95, spec.height - 0.4),
+        THREE.MathUtils.clamp(this.playerPos.z + Math.cos(this.camYaw) * horizDist, -halfD, halfD)
+      );
+
+      this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, _desiredCamPos.x, 11, dt);
+      this.camera.position.y = THREE.MathUtils.damp(this.camera.position.y, _desiredCamPos.y, 11, dt);
+      this.camera.position.z = THREE.MathUtils.damp(this.camera.position.z, _desiredCamPos.z, 11, dt);
+      this.camera.lookAt(_camTarget);
+      return;
+    }
 
     const horizDist = Math.cos(this.camPitch) * this.camDist;
     const vertDist = Math.sin(this.camPitch) * this.camDist;
@@ -4816,6 +5157,65 @@ export class TamaleEngine {
     this.lastHudSync = elapsed;
 
     const npcSnapshots = this.npcController.getSnapshots();
+    if (this.activeInteriorSpec) {
+      const spec = this.activeInteriorSpec;
+      let indoorClosest: NearbyInteractable | null = null;
+      let bestStationDist = Infinity;
+      for (const st of spec.stations) {
+        const d = Math.hypot(this.playerPos.x - st.x, this.playerPos.z - st.z);
+        if (d <= st.radius && d < bestStationDist) {
+          bestStationDist = d;
+          if (st.kind === "exit_door") {
+            indoorClosest = {
+              kind: "interior_exit",
+              id: st.id,
+              label: st.label,
+              sublabel: st.dagbaniLabel,
+              interactionVerb: "exit",
+            };
+          } else {
+            indoorClosest = {
+              kind: "interior_station",
+              id: st.id,
+              label: st.label,
+              sublabel: st.dagbaniLabel,
+              interactionVerb: "use_station",
+              stationKind: st.kind,
+              shopId: spec.shopId,
+            };
+          }
+        }
+      }
+      this.nearbyInteractable = indoorClosest;
+      this.nearbyVehicleInteractable = null;
+      const guidanceTargetId = this.activeErrandLandmarkId || this.activeGigLandmarkId;
+      this.callbacks.onHudUpdate({
+        district: `Inside · ${spec.title}`,
+        speedKmh: 0,
+        isDriving: false,
+        drivingLabel: null,
+        drivingKind: null,
+        isRidingService: false,
+        nearby: indoorClosest,
+        nearbyVehicle: null,
+        nearbyChatter: null,
+        nearestGuidance: getNearestLandmarkGuidance(
+          this.exteriorReturnPos.x,
+          this.exteriorReturnPos.z,
+          guidanceTargetId
+        ),
+        playerPos: {
+          x: this.exteriorReturnPos.x,
+          z: this.exteriorReturnPos.z,
+          rotY: this.playerRotY,
+        },
+        servicePos: this.activeService ? { x: this.activeService.x, z: this.activeService.z } : null,
+        discoveredLandmarkId: spec.landmarkId,
+        npcStates: npcSnapshots,
+      });
+      return;
+    }
+
     let closest: NearbyInteractable | null = null;
     let bestDist = 4.6;
     let closestVeh: NearbyInteractable | null = null;
@@ -5137,6 +5537,10 @@ export class TamaleEngine {
     cancelAnimationFrame(this.frameId);
     clearTimeout(this.frameId);
     this.cleanupListeners();
+
+    this.activeInteriorScene?.dispose();
+    this.activeInteriorScene = null;
+    this.activeInteriorSpec = null;
 
     this.removeActiveServiceMesh();
     for (const agent of this.crowdAgents) {

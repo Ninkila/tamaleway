@@ -1,0 +1,1448 @@
+# TAMALE 3D: COMPREHENSIVE CITY REALISM, INFRASTRUCTURE, INTERIOR & IMMERSION UPGRADE
+
+You are the lead game developer, senior Three.js engineer, open-world game designer, AI simulation engineer, environmental artist, infrastructure reconstruction specialist, audio engineer, and technical director working on TAMALE 3D.
+
+You are working on an EXISTING game project. Do not start a new project. Do not replace the current architecture unnecessarily. Do not remove existing features simply because implementing new ones is easier from scratch.
+
+Your task is to transform the existing TAMALE 3D project into a significantly more realistic, immersive, functional, geographically accurate, and polished open-world life simulation of Tamale, Northern Ghana.
+
+The project already contains a Three.js game engine, interconnected roads, NPCs, businesses, hawkers, jobs, service requests, playable characters, traffic, shops, landmarks, time systems, and gameplay interfaces.
+
+Your task is to improve, fine-tune, expand, and integrate these systems.
+
+==================================================
+1. CORE VISION
+==================================================
+
+TAMALE 3D is an immersive open-world life simulation centered on the real city of Tamale, Ghana.
+
+The player should be able to explore the city, experience ordinary daily life, interact with people, travel, work, earn money, shop, eat, listen to music, attend events, enter buildings, operate services, build a career, establish businesses, and experience Northern Ghanaian culture.
+
+The game should capture the feeling of living in Tamale.
+
+It must not feel like a generic city with Ghanaian labels attached.
+
+It must reflect the city's:
+- Geography
+- Road layouts
+- Neighbourhoods
+- Architecture
+- Infrastructure
+- Markets
+- Businesses
+- Transport
+- Culture
+- Languages
+- Music
+- Social life
+- Daily routines
+- Development
+- Nightlife
+- Weather
+- Community activities
+
+Prioritize realism, interaction, immersion, continuity, quality, and technical stability.
+
+==================================================
+2. FIRST: AUDIT THE EXISTING PROJECT
+==================================================
+
+Before implementing anything:
+
+1. Inspect the complete existing architecture.
+2. Inspect the current branch, latest commits, and working changes.
+3. Identify all existing systems and their dependencies.
+4. Inspect the game engine, world data, NPCs, roads, businesses, services, jobs, characters, vehicles, graphics, audio, UI, saves, and controls.
+5. Identify unfinished features, duplicated systems, bugs, temporary implementations, placeholders, and performance bottlenecks.
+6. Determine which features already exist and which require improvement.
+7. Do not recreate working systems.
+8. Do not delete or overwrite existing gameplay functionality without justification.
+9. Avoid unnecessarily large rewrites.
+10. Preserve backward compatibility with existing saves wherever possible.
+
+Produce an internal implementation plan, then begin execution. Do not stop at giving me a plan.
+
+==================================================
+3. REAL-WORLD GEOGRAPHICAL ACCURACY
+==================================================
+
+Use real-world geographical information to improve Tamale.
+
+Research and utilize:
+
+- GPS coordinates
+- Google Maps
+- Google Earth where available and permitted
+- OpenStreetMap
+- Satellite imagery
+- Aerial photographs
+- Street-level photographs
+- Real-world road maps
+- Publicly available city infrastructure information
+- Online photographs and videos of Tamale
+- Verified landmarks
+- Real street layouts
+- Geographic reference data
+
+Use these sources to reconstruct and improve the city.
+
+IMPORTANT DATA AND COPYRIGHT REQUIREMENTS:
+
+- Use Google Maps, Google Earth, and other mapping services only in accordance with their licensing, API, attribution, and usage restrictions.
+- Do not scrape restricted Google Maps imagery.
+- Do not use Google Maps screenshots or tiles as textures in the game unless expressly permitted.
+- GPS coordinates and map geometry may be used only under applicable data terms.
+- Prefer OpenStreetMap data where permitted, with required attribution.
+- Use publicly accessible photographs as reference material, not automatically as game assets.
+- Respect copyright, usage rights, privacy, and intellectual property.
+- Record source information and licenses for externally sourced assets.
+- Never label AI-generated imagery as real photography.
+
+Create a geographical research and asset-reference workflow.
+
+For significant locations, record:
+- Name
+- Coordinates
+- Location type
+- Reference source
+- Road connections
+- Nearby buildings
+- Architecture
+- Photographic references
+- Confidence level of geographical accuracy
+
+==================================================
+4. IMPROVE TAMale INFRASTRUCTURE
+==================================================
+
+The existing city infrastructure must be substantially refined.
+
+Improve the accuracy and visual quality of:
+
+A. ROADS
+- Main roads
+- Secondary roads
+- Neighbourhood roads
+- Streets
+- Junctions
+- Roundabouts
+- Side roads
+- Market access roads
+- Residential access roads
+- Footpaths
+- Alleyways
+- Parking areas
+
+B. ROAD SURFACES
+Represent different road conditions realistically:
+- Asphalt
+- Concrete
+- Paved streets
+- Unpaved roads
+- Dirt roads
+- Gravel
+- Road repairs
+- Potholes where supported by references
+- Dusty surfaces
+- Worn surfaces
+
+C. STREET INFRASTRUCTURE
+- Drainage channels
+- Culverts
+- Gutters
+- Curbs
+- Sidewalks where they actually exist
+- Road markings
+- Speed humps
+- Traffic signs
+- Streetlights
+- Utility poles
+- Electricity cables
+- Telecommunications infrastructure
+- Roadside barriers where applicable
+
+D. URBAN INFRASTRUCTURE
+- Water tanks
+- Water supply infrastructure
+- Electricity distribution
+- Solar panels
+- Street kiosks
+- Public facilities
+- Waste bins
+- Bus stops
+- Transport ranks
+- Commercial loading areas
+- Market loading zones
+- Public spaces
+- Parks
+- Community spaces
+
+E. BUILDING INFRASTRUCTURE
+Improve building diversity:
+- Traditional compound houses
+- Modern compound houses
+- Self-contained homes
+- Rental properties
+- Apartments
+- Storey buildings
+- Gated compounds
+- Commercial buildings
+- Container shops
+- Warehouses
+- Offices
+- Schools
+- Clinics
+- Hospitals
+- Hotels
+- Restaurants
+- Mosques
+- Churches
+- Workshops
+- Uncompleted buildings
+- Construction sites
+
+Buildings should not all look identical.
+
+Use geographically and architecturally appropriate reference images to produce a range of structures, shapes, colours, materials, layouts, heights, and details.
+
+Add appropriate:
+- Doors
+- Windows
+- Roofs
+- Gutters
+- Balconies
+- Compound walls
+- Gates
+- Exterior stairs
+- Shutters
+- Signboards
+- Air conditioners
+- Satellite dishes
+- Water tanks
+- Furniture
+- Outdoor seating
+- Verandas
+
+Do not randomly exaggerate infrastructure. Preserve real-world character and variation.
+
+==================================================
+5. GEOGRAPHICALLY CONNECTED CITY
+==================================================
+
+The city must be a continuous, interconnected world.
+
+Improve and validate the relationship between:
+- Roads
+- Neighbourhoods
+- Landmarks
+- Markets
+- Residential compounds
+- Commercial areas
+- Schools
+- Hospitals
+- Restaurants
+- Transport stations
+- Businesses
+- Events
+
+Players should physically travel between locations.
+
+Do not teleport players or NPCs to destinations simply to complete activities unless teleportation is a clearly defined game mechanic.
+
+Improve the road graph and routing system to support:
+- Pedestrians
+- Motorcycles
+- Taxis
+- Pragyas
+- Private vehicles
+- Cargo vehicles
+- Bicycles
+- Delivery providers
+- NPC commuters
+
+Implement intelligent route selection considering, when appropriate:
+- Distance
+- Road type
+- Road quality
+- Congestion
+- Vehicle type
+- Traffic conditions
+- Accessibility
+- Road closures or obstacles
+
+Use the same interconnected infrastructure for the player's travel, NPC travel, traffic, deliveries, and services.
+
+==================================================
+6. BUILDINGS MUST BE ENTERABLE
+==================================================
+
+THIS IS A MAJOR REQUIREMENT.
+
+The player must no longer be restricted to seeing the outside of buildings.
+
+Implement a system that allows players to physically enter suitable buildings and explore their interiors.
+
+The player should be able to approach a building, identify that it is enterable, interact with its entrance, open the door, walk inside, explore the interior, interact with objects, use services, and exit back into the same exterior location.
+
+Do not implement building entry as a simple menu that pretends the player entered.
+
+The player must physically experience entering and leaving.
+
+BUILDING TYPES WITH INTERIORS:
+
+Residential:
+- Compound houses
+- Single-room accommodation
+- Rental rooms
+- Self-contained apartments
+- Modern homes
+- Family homes
+- Multi-storey residential buildings
+
+Commercial:
+- Provision shops
+- Supermarkets
+- Mini-marts
+- Phone shops
+- Electronics shops
+- Clothing shops
+- Shoe shops
+- Fabric shops
+- Cosmetics shops
+- Bookshops
+- Printing shops
+- Hardware stores
+- Furniture stores
+- Building material stores
+- Mechanics
+- Workshops
+- Barbershops
+- Salons
+- Tailoring shops
+- Computer shops
+- Internet cafes
+
+Food:
+- Chop bars
+- Waakye shops
+- Tuo Zaafi restaurants
+- Jollof restaurants
+- Fufu restaurants
+- Local food restaurants
+- Fast-food restaurants
+- Fried chicken shops
+- Pizza shops
+- Burger restaurants
+- Cafes
+- Bakeries
+- Ice cream shops
+- Juice bars
+- Indoor restaurants
+- Street food stalls with suitable structures
+
+Public and institutional:
+- Schools
+- University facilities
+- Clinics
+- Hospitals
+- Offices
+- Banks
+- Mosques
+- Churches
+- Community centres
+- Hotels
+- Guesthouses
+- Event centres
+- Cultural facilities
+
+Not every building needs a fully furnished interior immediately.
+
+Use a tiered interior system.
+
+TIER 1: Fully interactive interiors
+For important locations, build detailed interiors with functional activities, NPCs, furniture, services, and multiple interactions.
+
+TIER 2: Functional interiors
+For frequently used buildings, provide realistic interiors, several interactions, and functioning services.
+
+TIER 3: Basic interiors
+For secondary buildings, provide simple but believable interior spaces.
+
+TIER 4: Background buildings
+Buildings that do not need immediate access may remain non-enterable, but they must look realistic from the exterior.
+
+Prioritize important locations and implement the interior system so additional interiors can be added easily.
+
+==================================================
+7. INTERIOR QUALITY AND REALISM
+==================================================
+
+Interiors must be designed according to their function.
+
+Do not use one generic interior for every building.
+
+A shop should not look like a house.
+A restaurant should not look like an electronics store.
+A clinic should not look like an office.
+A compound house should not look like a supermarket.
+
+Include appropriate:
+- Floor materials
+- Wall materials
+- Lighting
+- Furniture
+- Doors
+- Windows
+- Shelves
+- Counters
+- Products
+- Equipment
+- Decorations
+- Signage
+- NPC workers
+- Customers
+- Audio
+- Interaction points
+
+Residential interiors should include realistic room arrangements, where appropriate:
+- Bedrooms
+- Living areas
+- Kitchens
+- Bathrooms
+- Courtyards
+- Verandas
+- Seating
+- Storage
+- Cooking areas
+
+Commercial interiors should include appropriate:
+- Shelves
+- Counters
+- Goods
+- Cash registers
+- Staff areas
+- Storage
+- Customer pathways
+
+Food establishments should include, where appropriate:
+- Kitchen
+- Cooking equipment
+- Food displays
+- Serving counters
+- Dining tables
+- Chairs
+- Customers
+- Workers
+- Food preparation animations
+- Ordering and payment interactions
+
+Interiors should feel lived-in, not sterile.
+
+==================================================
+8. FUNCTIONAL SERVICES INSIDE BUILDINGS
+==================================================
+
+Players must be able to use services physically located inside buildings.
+
+Do not limit services to exterior menus.
+
+Examples:
+
+BANKS:
+- Enter the bank.
+- Speak to an attendant.
+- Deposit money.
+- Withdraw money.
+- Check balance.
+- Manage savings.
+- Conduct available financial transactions.
+
+MOBILE MONEY SHOPS:
+- Enter the shop.
+- Send money.
+- Receive money.
+- Cash in.
+- Cash out.
+- Pay for services.
+- Interact with an agent.
+
+RESTAURANTS:
+- Enter.
+- View menu.
+- Order food.
+- Pay.
+- Wait for preparation where appropriate.
+- Collect food or receive table service.
+- Eat.
+- Restore energy.
+- Leave.
+
+SUPERMARKETS:
+- Enter.
+- Walk around.
+- Browse shelves.
+- Pick up products.
+- Add products to basket.
+- Pay at checkout.
+- Carry purchases.
+
+BARBERSHOPS:
+- Enter.
+- Wait.
+- Select a haircut.
+- Pay.
+- Receive the service.
+- Change hairstyle.
+
+SALONS:
+- Enter.
+- Select services.
+- Pay.
+- Receive a service.
+
+MECHANICS:
+- Enter or approach workshop.
+- Request vehicle inspection.
+- Repair.
+- Purchase parts.
+- Upgrade vehicle where supported.
+- Pay for service.
+
+CLINICS:
+- Enter.
+- Register.
+- Receive appropriate services.
+- Pay where applicable.
+- Restore health or handle relevant gameplay conditions.
+
+HOTELS/GUESTHOUSES:
+- Enter.
+- Check availability.
+- Book a room.
+- Pay.
+- Access the room where supported.
+
+WORKSHOPS:
+- Enter.
+- Interact with workers.
+- Request repairs.
+- Purchase items.
+- Participate in jobs.
+
+Every service must have an actual functioning gameplay workflow.
+
+==================================================
+9. INTERIOR AND EXTERIOR CONTINUITY
+==================================================
+
+Entering and exiting buildings must preserve spatial continuity.
+
+When the player enters:
+- Preserve the exterior location.
+- Preserve the player's position relative to the building entrance.
+- Load or activate the correct interior.
+- Place the player inside at the appropriate entrance.
+- Prevent camera clipping.
+- Prevent falling through floors.
+- Preserve the correct active character.
+
+When the player exits:
+- Return them to the correct exterior building entrance.
+- Restore the correct orientation.
+- Preserve the world state.
+- Preserve time progression.
+- Preserve NPC and traffic state as appropriate.
+
+Avoid abrupt black-screen teleportation where a seamless door transition is technically achievable.
+
+If interior loading requires a transition, make it short, polished, and immersive.
+
+Do not create separate disconnected interiors that have no logical relationship to the building outside.
+
+==================================================
+10. NORTHERN GHANA MUSIC SYSTEM
+==================================================
+
+THIS IS A MAJOR FEATURE.
+
+Implement an in-game music player that celebrates Northern Ghanaian music, especially artists from the Northern Region, Tamale, Dagbon, and the wider Northern music scene.
+
+Music should become an integral part of the identity of TAMALE 3D.
+
+The player must be able to select songs and play them during gameplay.
+
+MUSIC PLAYER FEATURES:
+
+- Music player accessible from the player's smartphone.
+- Select songs.
+- Play.
+- Pause.
+- Resume.
+- Stop.
+- Skip to next song.
+- Previous song.
+- Volume control.
+- Playlist selection.
+- Search music.
+- Artist selection.
+- Genre selection.
+- Album or cover artwork.
+- Song information.
+- Current playback indicator.
+- Playlists.
+- Shuffle.
+- Repeat where appropriate.
+- Music playback while exploring.
+- Music playback while driving where supported.
+
+Create a music library UI that looks like a real music application.
+
+MUSIC CATEGORIES MAY INCLUDE:
+- Dagbon music
+- Dagbani music
+- Northern Ghana hip-hop
+- Northern Ghana rap
+- Afrobeats artists from Northern Ghana
+- Traditional music
+- Folk music
+- Cultural music
+- Contemporary Ghanaian music
+- Reggae/dancehall from Northern artists
+- Gospel from Northern artists
+- Instrumental music
+- Local emerging artists
+
+Research artists from Tamale and Northern Ghana.
+
+The game should include artists and music relevant to the region, not merely nationally popular songs.
+
+Possible artists to research and verify include:
+- Maccasio
+- Fancy Gadam
+- Wiz Child
+- Don Sigli
+- Northern Ghanaian emerging artists
+- Other established and upcoming musicians from Tamale and Northern Ghana
+
+Do not assume this list is complete.
+
+Create a research-based music catalogue and organize artists, genres, and songs.
+
+IMPORTANT MUSIC LICENSING:
+
+Do not download, embed, reproduce, distribute, or use copyrighted songs without permission or appropriate licenses.
+
+Do not bypass music streaming services or DRM.
+
+Implement the music system with an audio abstraction and authorized audio sources.
+
+Use:
+- Properly licensed music.
+- Artist-authorized tracks.
+- Creative Commons music where licensing allows the intended use.
+- Original music commissioned for the game.
+- Traditional music recordings with appropriate rights cleared.
+- Placeholder tracks during development.
+
+Where rights are not yet secured:
+- Build the music player functionality.
+- Populate it with placeholder metadata.
+- Clearly mark tracks as placeholders.
+- Prepare the system for licensed songs to be added later.
+- Do not falsely claim a song is playable if the audio file is unavailable.
+
+Provide a data structure for:
+- Artist
+- Track
+- Genre
+- Album
+- Artwork
+- Audio source
+- License status
+- Duration
+- Playlist
+- Availability
+
+Design the music library so new Northern artists can be added easily.
+
+==================================================
+11. RADIO SYSTEM
+==================================================
+
+In addition to the personal music player, consider introducing an in-game radio system.
+
+Radio stations could include:
+
+- Northern Hits
+- Dagbon Classics
+- Tamale Urban
+- Traditional Sounds
+- Ghana Mix
+- Community Radio
+- News and Talk
+
+Radio should be available in vehicles and, where appropriate, in homes, shops, and businesses.
+
+Radio programming can eventually include:
+- Music
+- DJ transitions
+- Local news
+- Weather
+- Community announcements
+- Advertisements
+- Event announcements
+- Cultural programming
+- Traffic updates
+
+Do not fake radio broadcasts by endlessly repeating identical lines.
+
+Use a modular radio system that can support licensed music and original recorded content.
+
+==================================================
+12. DAGBANI LANGUAGE AND LOCAL VOICES
+==================================================
+
+Improve Dagbani integration throughout the game.
+
+Include:
+- Greetings
+- Conversations
+- Vendors calling
+- Bargaining
+- Directions
+- Transportation
+- Shopping
+- Social interactions
+- Family conversations
+- Events
+- Jobs
+- Business interactions
+
+Prioritize authentic recordings by native speakers.
+
+Use qualified Dagbani speakers to review:
+- Pronunciation
+- Spelling
+- Grammar
+- Dialect
+- Tone
+- Context
+- Natural expressions
+
+Do not rely on unverified AI translations as authentic language.
+
+The language system should support:
+- Dagbani
+- English
+- Ghanaian English
+- Context-appropriate code switching
+
+NPC dialogue should vary based on context, relationship, activity, location, and time.
+
+==================================================
+13. NPCS AND CITY POPULATION
+==================================================
+
+Improve the existing NPC system rather than replacing it.
+
+NPCs should have:
+- Daily routines
+- Homes
+- Workplaces
+- Destinations
+- Social networks
+- Personalities
+- Jobs
+- Needs
+- Money
+- Activities
+- Clothing
+- Conversations
+- Language
+- Memories where feasible
+
+Create realistic activities:
+- Going to work
+- Going home
+- Buying food
+- Selling goods
+- Eating
+- Sitting outside
+- Socializing
+- Visiting relatives
+- Walking to markets
+- Attending events
+- Going to school
+- Playing football
+- Working
+- Shopping
+- Riding motorcycles
+- Waiting for transport
+- Praying
+- Resting
+- Cooking
+- Cleaning
+- Loading and unloading goods
+
+NPCs must react to:
+- Player presence
+- Vehicles
+- Noise
+- Crowds
+- Events
+- Weather
+- Nearby activities
+- Time of day
+
+Avoid synchronized movement and repetitive animations.
+
+==================================================
+14. HAWKERS AND STREET COMMERCE
+==================================================
+
+Expand and refine street commerce.
+
+Include:
+- Pure water
+- Fruits
+- Groundnuts
+- Bread
+- Koose
+- Roasted corn
+- Roasted plantain
+- Ice cream
+- Drinks
+- Food
+- Clothes
+- Shoes
+- Phone accessories
+- Household goods
+
+Vendors should:
+- Carry products
+- Walk
+- Stop
+- Call customers
+- Sell
+- Restock
+- Socialize
+- Change locations
+- Close for the day
+
+Create physical purchasing interactions.
+
+The player should be able to approach a hawker, view available products, purchase something, receive the item, and see the transaction reflected in their money and inventory.
+
+==================================================
+15. RESTAURANTS AND FOOD
+==================================================
+
+Improve food businesses and food interactions.
+
+The game should represent Northern Ghanaian food culture as well as broader Ghanaian cuisine.
+
+Include:
+- Tuo Zaafi
+- Waakye
+- Jollof
+- Banku
+- Fufu
+- Rice dishes
+- Yam
+- Fried rice
+- Local soups
+- Grilled meat
+- Grilled fish
+- Snacks
+- Bread
+- Koose
+- Groundnuts
+- Fruit
+- Ice cream
+- Juice
+- Fast food
+
+Players should be able to:
+- Enter restaurants.
+- Browse menus.
+- Order.
+- Pay.
+- Wait.
+- Eat.
+- Take away.
+- Receive delivery.
+- Interact with restaurant workers.
+
+Restaurants should have realistic schedules, staff, customers, tables, food preparation, and ambience.
+
+==================================================
+16. MULTI-CHARACTER LIFE SIMULATION
+==================================================
+
+Preserve and improve the six playable characters.
+
+Each character should have their own:
+- Money
+- Inventory
+- Skills
+- Jobs
+- Career
+- Home
+- Vehicles
+- Relationships
+- Schedule
+- Progression
+- Activities
+
+Audit every global state variable and ensure it is classified as:
+- Character-specific
+- World-global
+- Session-only
+
+Fix any character progression leakage.
+
+When switching characters, other characters should continue their world routines where technically feasible.
+
+The player should experience six different lives, not merely six different avatars.
+
+==================================================
+17. JOBS AND SERVICES
+==================================================
+
+Preserve and refine the existing jobs and services.
+
+Jobs:
+- Delivery
+- Passenger transport
+- Retail
+- Food
+- Market
+- Events
+- Community
+- Education
+- Sports
+- Culture
+- Repairs
+- Business
+- Freelance work
+- Photography
+- Social activities
+
+Services:
+- Motorcycle rides
+- Pragya
+- Taxi
+- Food delivery
+- Grocery delivery
+- Parcel
+- Repairs
+- Cargo
+- Business supplies
+- Personal errands
+
+Ensure jobs and services physically integrate into the world.
+
+Service workflow:
+
+REQUESTED
+→ PROVIDER ASSIGNED
+→ PROVIDER TRAVELLING
+→ PROVIDER ARRIVED
+→ SERVICE STARTED
+→ SERVICE COMPLETED
+→ PAYMENT
+
+Every transition must work.
+
+Do not present fake interactions that only change a label.
+
+==================================================
+18. ECONOMY
+==================================================
+
+Improve the economy to create believable progression.
+
+Include:
+- Cash
+- Mobile money
+- Bank accounts
+- Savings
+- Expenses
+- Rent
+- Food
+- Transport
+- Shopping
+- Salaries
+- Job payments
+- Business income
+- Business expenses
+- Inventory
+- Investments
+- Properties
+- Vehicles
+
+Keep prices reasonably grounded in local economic context, while ensuring gameplay balance.
+
+Do not invent real current prices without research.
+
+Create configurable economic values rather than hardcoding them throughout the game.
+
+==================================================
+19. SMARTPHONE
+==================================================
+
+Improve the smartphone as the player's central interface.
+
+Apps:
+- Map
+- Music
+- Radio
+- Jobs
+- Services
+- Contacts
+- Messages
+- Mobile Money
+- Banking
+- Businesses
+- Events
+- Social
+- Camera
+- Inventory
+- Settings
+
+The interface must be polished, responsive, intuitive, and functional.
+
+Avoid overlapping windows, inaccessible buttons, and fake functionality.
+
+==================================================
+20. DYNAMIC EVENTS
+==================================================
+
+Add or improve:
+- Football matches
+- Weddings
+- Naming ceremonies
+- Funerals
+- Cultural events
+- Durbars
+- Festivals
+- School events
+- University activities
+- Religious activities
+- Concerts
+- Market events
+- Community gatherings
+- Nightlife
+- Street performances
+
+Events should affect:
+- NPC population
+- Traffic
+- Music
+- Vendors
+- Businesses
+- Clothing
+- Road conditions
+- Activities
+- Player opportunities
+
+Use verified real events and traditions appropriately.
+
+Do not present fictional events as historically real.
+
+==================================================
+21. WEATHER AND ENVIRONMENT
+==================================================
+
+Introduce or improve dynamic weather:
+
+- Clear weather
+- Clouds
+- Heat
+- Harmattan
+- Dust
+- Light rain
+- Heavy rain
+- Thunderstorms
+
+Environmental effects should influence:
+- Visibility
+- Lighting
+- NPC behaviour
+- Traffic
+- Road conditions
+- Player activities
+- Ambient audio
+
+Make Northern Ghana's climate and seasonal atmosphere recognizable.
+
+==================================================
+22. AUDIO IMMERSION
+==================================================
+
+Create location-based sound environments.
+
+Residential areas:
+- Conversations
+- Children
+- Radios
+- Birds
+- Wind
+- Domestic activities
+
+Markets:
+- Bargaining
+- Vendors
+- Crowds
+- Movement
+- Goods
+- Engines
+
+Commercial streets:
+- Shop radios
+- Customers
+- Traffic
+- Music
+- Conversations
+
+Transport ranks:
+- Drivers
+- Passengers
+- Engines
+- Horns
+- Calls
+
+Restaurants:
+- Cooking
+- Conversations
+- Utensils
+- Orders
+- Music
+
+Mosques:
+- Appropriate ambient sound
+- Respectful audio behaviour
+
+Events:
+- Music
+- Crowd reactions
+- Performances
+- Announcements
+
+Use spatial audio, distance attenuation, variation, and realistic sound mixing.
+
+==================================================
+23. GRAPHICS AND VISUAL QUALITY
+==================================================
+
+Improve visual quality without destroying performance.
+
+Prioritize:
+- Realistic character proportions
+- Better character models
+- Diverse clothing
+- Dagomba and Northern Ghanaian attire
+- More realistic vehicles
+- Better buildings
+- Improved road materials
+- Lighting
+- Shadows
+- Reflections
+- Ambient occlusion where feasible
+- Sky
+- Dust
+- Vegetation
+- Environmental details
+- Interior lighting
+- Glass
+- Materials
+- Texture variation
+
+Use realistic asset references.
+
+Avoid the same models repeated everywhere.
+
+Do not claim AAA graphics without achieving them.
+
+Create a coherent graphical identity.
+
+==================================================
+24. PERFORMANCE AND HARDWARE
+==================================================
+
+The game must remain performance-conscious.
+
+Target compatibility includes:
+- Lower-end PCs
+- 16 GB RAM systems
+- Older CPUs
+- Integrated graphics where possible
+- Mobile devices in future releases
+
+Implement:
+- Instancing
+- LOD
+- Culling
+- Texture optimization
+- Asset reuse
+- Spatial partitioning
+- NPC update throttling
+- Distance-based simulation
+- Shadow optimization
+- Object pooling
+- Interior loading/unloading
+- Efficient audio management
+
+Introduce graphics settings only when they actually change rendering behaviour.
+
+Low
+Medium
+High
+
+Ensure quality settings meaningfully control:
+- NPC density
+- Traffic density
+- Shadows
+- Draw distance
+- Resolution
+- Effects
+- Texture quality
+
+==================================================
+25. GAMEPLAY POLISH
+==================================================
+
+Audit and improve:
+
+- Character movement
+- Walking
+- Running
+- Jumping
+- Camera
+- Vehicle entry
+- Vehicle exit
+- Driving
+- Riding
+- Interactions
+- Doors
+- Building entry
+- Interior navigation
+- Purchasing
+- Eating
+- Jobs
+- Services
+- Music
+- Radio
+- Inventory
+- Smartphone
+- Save/load
+- Character switching
+
+Fix:
+- Broken buttons
+- Duplicate interactions
+- Inaccessible menus
+- Camera clipping
+- Object collisions
+- NPC overlap
+- Vehicle clipping
+- Incorrect road navigation
+- Broken routes
+- Save errors
+- State inconsistencies
+- Unfinished interactions
+
+==================================================
+26. DEVELOPMENT ORDER
+==================================================
+
+Implement the upgrade in carefully controlled stages.
+
+STAGE 1: AUDIT AND STABILIZATION
+- Audit existing architecture.
+- Fix bugs.
+- Fix character state isolation.
+- Validate save/load.
+- Verify existing jobs and services.
+- Test road routing.
+- Test population.
+- Produce an audit report.
+
+STAGE 2: GEOGRAPHY AND INFRASTRUCTURE
+- Research real Tamale geography.
+- Improve roads.
+- Improve neighbourhood connections.
+- Improve building placement.
+- Improve infrastructure.
+- Correct landmarks.
+- Use reference-based development.
+
+STAGE 3: ENTERABLE BUILDINGS
+- Build an interior framework.
+- Implement door interactions.
+- Implement entry and exit.
+- Preserve world continuity.
+- Add interior navigation.
+- Add furniture and functional objects.
+- Begin with a few high-quality interiors.
+
+STAGE 4: FUNCTIONAL INTERIOR SERVICES
+Prioritize:
+1. Restaurant
+2. Supermarket
+3. Mobile Money shop
+4. Barber shop
+5. Electronics shop
+6. Mechanic
+7. Bank
+8. Residential home
+
+Test each service from beginning to end.
+
+STAGE 5: NORTHERN MUSIC SYSTEM
+- Implement music player.
+- Create catalogue.
+- Add artist and song metadata.
+- Add playlist management.
+- Implement playback.
+- Implement controls.
+- Prepare licensing workflow.
+- Add placeholder audio where appropriate.
+- Research Northern artists.
+
+STAGE 6: CITY LIFE AND NPC INTELLIGENCE
+- Improve NPC behaviour.
+- Improve hawkers.
+- Improve customers.
+- Improve workers.
+- Improve traffic.
+- Improve social interactions.
+- Improve daily schedules.
+
+STAGE 7: VISUAL AND AUDIO REFINEMENT
+- Improve models.
+- Improve materials.
+- Improve buildings.
+- Improve interiors.
+- Improve lighting.
+- Improve ambience.
+- Improve sound.
+
+STAGE 8: OPTIMIZATION
+- Profile performance.
+- Optimize population.
+- Optimize rendering.
+- Optimize interiors.
+- Optimize audio.
+- Test graphics settings.
+- Test controls.
+
+==================================================
+27. TESTING REQUIREMENTS
+==================================================
+
+Do not declare an implementation complete simply because code was written.
+
+Test:
+
+- Building entry and exit.
+- Interior collision.
+- Interior camera.
+- Services.
+- Purchases.
+- Inventory.
+- Money.
+- Music playback.
+- Music controls.
+- Radio.
+- Character switching.
+- Jobs.
+- Service requests.
+- NPC movement.
+- Traffic.
+- Road navigation.
+- Save/load.
+- Performance.
+
+Run available:
+- TypeScript checks.
+- Production builds.
+- Unit tests.
+- Integration tests.
+- Runtime checks.
+
+If browser visual testing is available:
+- Launch the game.
+- Navigate the world.
+- Enter buildings.
+- Test interiors.
+- Test music.
+- Test services.
+- Capture screenshots.
+- Capture errors.
+- Record performance.
+
+If visual testing is unavailable, state exactly what was not tested.
+
+Do not fabricate screenshots, FPS, tests, or successful outcomes.
+
+==================================================
+28. IMPORTANT IMPLEMENTATION RULES
+==================================================
+
+- Work directly on the existing project.
+- Preserve current architecture unless changes are necessary.
+- Do not remove existing features.
+- Do not replace the game with a new template.
+- Do not create fake functionality.
+- Do not use generic interiors for all buildings.
+- Do not use random infrastructure placement that contradicts geography.
+- Do not duplicate existing systems.
+- Do not create unnecessary huge files.
+- Keep code modular.
+- Keep TypeScript types consistent.
+- Keep the game playable after each stage.
+- Test each significant change.
+- Fix regressions before continuing.
+- Prioritize quality over quantity.
+- Prioritize authentic Tamale over generic assets.
+- Use reference images responsibly.
+- Maintain source and license records for external assets.
+- Keep the existing save system compatible where possible.
+- Do not silently remove player progress.
+
+If a task is too large, implement it in stages and continue working through those stages. Do not merely return a list of suggestions.
+
+==================================================
+29. FINAL GOAL
+==================================================
+
+The final result should allow a player to:
+
+- Explore a recognizable, geographically grounded Tamale.
+- Travel between interconnected neighbourhoods.
+- Walk, ride motorcycles, drive, and use public transport.
+- Encounter a lively population.
+- Interact with vendors.
+- Buy goods.
+- Visit restaurants.
+- Enter buildings.
+- Explore interiors.
+- Use services inside buildings.
+- Work different jobs.
+- Request transportation and deliveries.
+- Own and operate businesses.
+- Switch between different characters and lifestyles.
+- Listen to selected Northern Ghanaian artists.
+- Use music in vehicles and while exploring.
+- Attend events.
+- Experience day/night.
+- Experience changing weather.
+- Interact with authentic Dagbani language and culture.
+- Build a life within the city.
+
+The player should feel as though they are experiencing Tamale, not simply controlling a character inside a 3D map.
+
+TAMALE 3D should become an immersive virtual representation of Tamale, celebrating its people, music, culture, infrastructure, commerce, everyday life, and identity.
+
+Begin by auditing the current repository. Then implement the improvements in order, preserve existing functionality, test thoroughly, and report what was actually accomplished.

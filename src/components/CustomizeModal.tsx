@@ -1,6 +1,11 @@
 import React, { useState } from "react";
 import { X } from "lucide-react";
-import { HeadwearStyle, OutfitStyle, PlayerCustomization } from "../types/game";
+import {
+  HairstyleOption,
+  HeadwearStyle,
+  OutfitStyle,
+  PlayerCustomization,
+} from "../types/game";
 
 interface CustomizeModalProps {
   customization: PlayerCustomization;
@@ -16,10 +21,18 @@ const OUTFITS: Array<{ id: OutfitStyle; label: string; desc: string }> = [
 ];
 
 const HEADWEAR: Array<{ id: HeadwearStyle; label: string }> = [
-  { id: "none", label: "Short Fade" },
+  { id: "none", label: "No Cap (Show Hair)" },
   { id: "kufi", label: "Zanna / Kufi Cap" },
   { id: "headwrap", label: "Traditional Headwrap" },
   { id: "braids", label: "Braided Hair" },
+];
+
+const HAIRSTYLES: Array<{ id: HairstyleOption; label: string }> = [
+  { id: "natural", label: "Natural Crop" },
+  { id: "low_fade", label: "Low Fade" },
+  { id: "waves", label: "360 Waves" },
+  { id: "afro_trim", label: "Afro Trim" },
+  { id: "braided_crown", label: "Braided Crown" },
 ];
 
 const FABRIC_COLORS = [
@@ -101,7 +114,7 @@ export const CustomizeModal: React.FC<CustomizeModalProps> = ({
           </div>
 
           <div>
-            <div className="text-xs font-medium text-[#b5ada0] mb-2">Hairstyle &amp; Headwear</div>
+            <div className="text-xs font-medium text-[#b5ada0] mb-2">Headwear</div>
             <div className="grid grid-cols-2 gap-2">
               {HEADWEAR.map((h) => (
                 <button
@@ -115,6 +128,28 @@ export const CustomizeModal: React.FC<CustomizeModalProps> = ({
                   }`}
                 >
                   {h.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-medium text-[#b5ada0] mb-2">
+              Hairstyle (visible when No Cap is chosen)
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {HAIRSTYLES.map((hs) => (
+                <button
+                  key={hs.id}
+                  type="button"
+                  onClick={() => setDraft({ ...draft, hairstyle: hs.id, headwear: "none" })}
+                  className={`min-h-[38px] px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer ${
+                    (draft.hairstyle ?? "natural") === hs.id && draft.headwear === "none"
+                      ? "bg-amber-500/20 border-amber-500 text-[#f8f5ef]"
+                      : "bg-[#201b17] border-white/10 text-[#cfc8bc] hover:border-white/25"
+                  }`}
+                >
+                  {hs.label}
                 </button>
               ))}
             </div>

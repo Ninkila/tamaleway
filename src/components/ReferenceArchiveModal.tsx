@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Camera, ExternalLink, MapPin, X } from "lucide-react";
+import { getGeoRegistrySummary } from "../data/tamaleGeoRegistry";
 
 type PhotoCategory =
   | "all"
@@ -282,6 +283,7 @@ interface ReferenceArchiveModalProps {
 export const ReferenceArchiveModal: React.FC<ReferenceArchiveModalProps> = ({ onClose }) => {
   const [category, setCategory] = useState<PhotoCategory>("all");
   const [selected, setSelected] = useState<ReferenceEntry>(TAMALE_PHOTO_REFERENCES[0]);
+  const geoSummary = useMemo(() => getGeoRegistrySummary(), []);
 
   const filtered = useMemo(() => {
     if (category === "all") return TAMALE_PHOTO_REFERENCES;
@@ -298,7 +300,9 @@ export const ReferenceArchiveModal: React.FC<ReferenceArchiveModalProps> = ({ on
               <span>Tamale Photographic &amp; GIS Reference Archive</span>
             </h2>
             <p className="text-xs text-[#b5ada0] mt-0.5">
-              20 verified CC BY-SA 4.0 / 3.0 Wikimedia Commons photographs of Tamale and OpenStreetMap coordinates used to model the 3D city
+              20 verified CC BY-SA 4.0 / 3.0 Wikimedia Commons photographs of Tamale · Geo Registry:{" "}
+              {geoSummary.total} grounded locations ({geoSummary.verifiedOsm + geoSummary.verifiedOsmPhoto} OSM
+              verified, {geoSummary.verifiedOsmPhoto} field-photo referenced)
             </p>
           </div>
           <button

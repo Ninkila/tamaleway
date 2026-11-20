@@ -1,6 +1,13 @@
 export type LanguageMode = "dagbani" | "english" | "mixed";
 
-export type WeatherType = "clear" | "harmattan" | "rain";
+export type WeatherType =
+  | "clear"
+  | "cloudy"
+  | "heat"
+  | "harmattan"
+  | "light_rain"
+  | "rain"
+  | "thunderstorm";
 
 export type TimePeriod = "morning" | "afternoon" | "evening" | "night";
 
@@ -8,11 +15,13 @@ export type CameraMode = "third-person" | "wide" | "overhead";
 
 export type OutfitStyle = "batakari" | "casual" | "kaba" | "polo";
 export type HeadwearStyle = "none" | "kufi" | "headwrap" | "braids";
+export type HairstyleOption = "natural" | "low_fade" | "waves" | "braided_crown" | "afro_trim";
 
 export interface PlayerCustomization {
   name: string;
   outfit: OutfitStyle;
   headwear: HeadwearStyle;
+  hairstyle?: HairstyleOption;
   primaryColor: string;
   accentColor: string;
   skinTone: string;
@@ -335,6 +344,8 @@ export type InteractionVerb =
   | "talk"
   | "shop"
   | "enter"
+  | "exit"
+  | "use_station"
   | "vehicle"
   | "deliver"
   | "buy"
@@ -348,6 +359,8 @@ export interface NearbyInteractable {
     | "npc"
     | "vehicle"
     | "building"
+    | "interior_exit"
+    | "interior_station"
     | "delivery"
     | "vendor"
     | "service_provider"
@@ -358,6 +371,7 @@ export interface NearbyInteractable {
   interactionVerb?: InteractionVerb;
   vehicleKind?: "pragya" | "motorcycle";
   shopId?: string;
+  stationKind?: InteriorStationKind;
   isGigDelivery?: boolean;
   servicePhase?: "pickup_food_or_repair" | "board_ride";
   jobActionMode?: "pickup_passenger" | "work_shift" | "mechanic_repair" | "photo_capture" | "sports_drill";
@@ -566,9 +580,22 @@ export interface CapturedPhotoRecord {
   capturedAtClock: string;
 }
 
+export interface PhoneMessageRecord {
+  id: string;
+  senderName: string;
+  senderRole: string;
+  text: string;
+  timestampClock: string;
+  read: boolean;
+}
+
 export interface CharacterRuntimeState {
   characterId: string;
   moneyCedis: number;
+  bankBalanceCedis?: number;
+  momoBalanceCedis?: number;
+  savingsBalanceCedis?: number;
+  vehicleCondition?: number;
   energy: number;
   cultureXp: number;
   careerLevel: number;
@@ -581,11 +608,14 @@ export interface CharacterRuntimeState {
   activeErrandId: string | null;
   completedErrands: string[];
   activeTask: ActiveTaskRuntime | null;
+  activeGig?: CityGigTask | null;
   completedJobsCount: number;
+  completedGigsCount?: number;
   totalEarnedCedis: number;
   ownedBusinessIds: string[];
   achievements: string[];
   capturedPhotos: CapturedPhotoRecord[];
+  phoneMessages?: PhoneMessageRecord[];
   playerPos: { x: number; z: number; rotY: number };
 }
 
@@ -594,6 +624,9 @@ export interface SavedGameState {
   activeCharacterId?: string;
   characterStates?: Record<string, CharacterRuntimeState>;
   moneyCedis: number;
+  bankBalanceCedis?: number;
+  momoBalanceCedis?: number;
+  savingsBalanceCedis?: number;
   energy: number;
   cultureXp: number;
   gameMinutes: number; // 0 - 1440
@@ -612,4 +645,138 @@ export interface SavedGameState {
   totalEarnedCedis?: number;
   playerPos: { x: number; z: number; rotY: number };
 }
+
+export type InteriorBuildingArchetype =
+  | "bank"
+  | "momo_telecom"
+  | "restaurant"
+  | "fast_food"
+  | "supermarket"
+  | "barber_salon"
+  | "electronics"
+  | "mechanic"
+  | "hospital_clinic"
+  | "pharmacy_bakery"
+  | "guesthouse"
+  | "compound_home"
+  | "palace_courtyard"
+  | "mosque_courtyard"
+  | "cultural_gallery"
+  | "market_hall"
+  | "fitness_print";
+
+export type InteriorStationKind =
+  | "exit_door"
+  | "bank_teller"
+  | "atm_kiosk"
+  | "momo_agent"
+  | "food_counter"
+  | "dining_table"
+  | "shelf_browse"
+  | "checkout_counter"
+  | "barber_chair"
+  | "electronics_desk"
+  | "mechanic_bay"
+  | "clinic_triage"
+  | "guesthouse_desk"
+  | "home_bed"
+  | "wardrobe"
+  | "room_radio"
+  | "cultural_bench"
+  | "gym_rack";
+
+export interface InteriorStationSpec {
+  id: string;
+  kind: InteriorStationKind;
+  label: string;
+  dagbaniLabel: string;
+  x: number; // local room coordinate relative to room center
+  z: number;
+  radius: number;
+}
+
+export interface InteriorRoomSpec {
+  landmarkId: string;
+  archetype: InteriorBuildingArchetype;
+  title: string;
+  dagbaniTitle: string;
+  width: number;
+  depth: number;
+  height: number;
+  wallColor: string;
+  floorColor: string;
+  accentColor: string;
+  ceilingColor: string;
+  ambientHex: string;
+  spawnX: number;
+  spawnZ: number;
+  shopId?: string;
+  hasIndoorRadio?: boolean;
+  stations: InteriorStationSpec[];
+}
+
+export type MusicLicenseStatus =
+  | "procedural-preview"
+  | "licensed-audio-file"
+  | "metadata-only-placeholder";
+
+export type MusicGrooveStyle =
+  | "dondo_hiphop"
+  | "afrobeat"
+  | "highlife"
+  | "traditional_drum"
+  | "gospel"
+  | "reggae";
+
+export interface MusicTrack {
+  id: string;
+  title: string;
+  artist: string;
+  featuredArtist?: string;
+  region: "Tamale" | "Dagbon" | "Northern Ghana" | "Ghana";
+  genre:
+    | "Northern Hip-Hop"
+    | "Afrobeats"
+    | "Dagbon Traditional"
+    | "Highlife"
+    | "Reggae/Dancehall"
+    | "Northern Gospel"
+    | "Folk";
+  mood: string;
+  bpm: number;
+  durationSec: number;
+  scaleNotes: number[];
+  grooveStyle: MusicGrooveStyle;
+  licenseStatus: MusicLicenseStatus;
+  audioUrl?: string;
+  notes: string;
+}
+
+export interface RadioStation {
+  id: string;
+  name: string;
+  frequency: string;
+  tagline: string;
+  genreFocus: string;
+  hostName: string;
+  hostStyle: string;
+  trackIds: string[];
+  color: string;
+  isTalkFocused?: boolean;
+}
+
+export interface GeoLocationAuditEntry {
+  landmarkId: string;
+  name: string;
+  category: string;
+  district: string;
+  coordsLabel: string;
+  referenceSource: string;
+  licenseNote: string;
+  roadConnections: string[];
+  nearbyBuildings: string[];
+  architecturalNotes: string;
+  confidence: "verified-osm-photo" | "verified-osm" | "representative-local";
+}
+
 

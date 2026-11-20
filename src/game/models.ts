@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { HeadwearStyle, OutfitStyle } from "../types/game";
+import { HairstyleOption, HeadwearStyle, OutfitStyle } from "../types/game";
 import { createShopSignTexture, ProceduralTextureSet } from "./textures";
 
 export interface CharacterRig {
@@ -26,6 +26,7 @@ export type NpcCarryProp =
 export interface CharacterAppearance {
   outfit: OutfitStyle;
   headwear: HeadwearStyle;
+  hairstyle?: HairstyleOption;
   primaryColor: string;
   accentColor: string;
   skinTone: string;
@@ -301,6 +302,19 @@ export function createCharacterRig(
   } else {
     const shortHair = new THREE.Mesh(CHAR_GEOS.shortHair, hairMat);
     shortHair.position.y = 0.115;
+    if (appearance.hairstyle === "afro_trim") {
+      shortHair.scale.set(1.16, 1.24, 1.16);
+    } else if (appearance.hairstyle === "braided_crown") {
+      shortHair.scale.set(1.06, 1.14, 1.06);
+      const crownRing = new THREE.Mesh(CHAR_GEOS.headwrapTorus, hairMat);
+      crownRing.rotation.x = Math.PI / 2 - 0.12;
+      crownRing.position.y = 0.19;
+      headGroup.add(crownRing);
+    } else if (appearance.hairstyle === "waves") {
+      shortHair.scale.set(1.02, 0.94, 1.04);
+    } else if (appearance.hairstyle === "low_fade") {
+      shortHair.scale.set(0.96, 0.88, 0.96);
+    }
     headGroup.add(shortHair);
   }
 
@@ -3470,5 +3484,129 @@ export function createRoadsidePlanterBinMesh(hasPlant: boolean): THREE.Group {
   }
   return group;
 }
+
+/**
+ * Tamale Pragya / Taxi Transport Rank Shelter with shaded corrugated roof & waiting bench
+ */
+export function createBusStopShelterMesh(label: string, accentColor = "#0284c7"): THREE.Group {
+  const group = new THREE.Group();
+  const postMat = getCachedCharMat(
+    "infra:steel",
+    () => new THREE.MeshStandardMaterial({ color: "#475569", metalness: 0.6, roughness: 0.4 })
+  );
+  const roofMat = getCachedCharMat(
+    `infra:roof:${accentColor}`,
+    () => new THREE.MeshStandardMaterial({ color: accentColor, roughness: 0.55, metalness: 0.15 })
+  );
+  const benchMat = getCachedCharMat(
+    "infra:wood",
+    () => new THREE.MeshStandardMaterial({ color: "#78350f", roughness: 0.85 })
+  );
+
+  for (const x of [-1.8, 1.8]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 2.45, 8), postMat);
+    post.position.set(x, 1.225, -0.55);
+    post.castShadow = true;
+    group.add(post);
+  }
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.12, 1.75), roofMat);
+  roof.position.set(0, 2.48, 0.05);
+  roof.rotation.x = 0.08;
+  roof.castShadow = true;
+  group.add(roof);
+
+  const bench = new THREE.Mesh(new THREE.BoxGeometry(3.1, 0.44, 0.55), benchMat);
+  bench.position.set(0, 0.22, -0.3);
+  bench.castShadow = true;
+  group.add(bench);
+
+  const tex = createShopSignTexture(label, "PRAGYA & TAXI RANK", "#0f172a", "#fbbf24");
+  const sign = new THREE.Mesh(
+    new THREE.BoxGeometry(2.6, 0.52, 0.08),
+    new THREE.MeshStandardMaterial({ map: tex, roughness: 0.45 })
+  );
+  sign.position.set(0, 2.75, 0.35);
+  group.add(sign);
+
+  return group;
+}
+
+/**
+ * Weathered Tamale asphalt patch or concrete drainage culvert grate
+ */
+export function createSurfacePatchAndCulvertMesh(
+  kind: "asphalt_patch" | "concrete_culvert"
+): THREE.Group {
+  const group = new THREE.Group();
+  if (kind === "asphalt_patch") {
+    const mat = getCachedCharMat(
+      "infra:patch",
+      () =>
+        new THREE.MeshStandardMaterial({
+          color: "#27272a",
+          roughness: 0.95,
+          polygonOffset: true,
+          polygonOffsetFactor: -3,
+        })
+    );
+    const patch = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.04, 1.8), mat);
+    patch.position.y = 0.032;
+    patch.receiveShadow = true;
+    group.add(patch);
+  } else {
+    const concreteMat = getCachedCharMat(
+      "infra:culvert",
+      () => new THREE.MeshStandardMaterial({ color: "#94a3b8", roughness: 0.88 })
+    );
+    const grateMat = getCachedCharMat(
+      "infra:grate",
+      () => new THREE.MeshStandardMaterial({ color: "#334155", metalness: 0.65, roughness: 0.5 })
+    );
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.14, 1.15), concreteMat);
+    slab.position.y = 0.07;
+    slab.receiveShadow = true;
+    const grate = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.16, 0.62), grateMat);
+    grate.position.y = 0.08;
+    group.add(slab, grate);
+  }
+  return group;
+}
+
+/**
+ * Rooftop solar panel array & elevated black water Polytank common across Tamale
+ */
+export function createPolytankAndSolarAddon(includeSolar = true): THREE.Group {
+  const group = new THREE.Group();
+  const standMat = getCachedCharMat(
+    "infra:steel",
+    () => new THREE.MeshStandardMaterial({ color: "#475569", metalness: 0.6, roughness: 0.4 })
+  );
+  const tankMat = getCachedCharMat(
+    "infra:polytank",
+    () => new THREE.MeshStandardMaterial({ color: "#111827", roughness: 0.55 })
+  );
+  const stand = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.65, 1.4), standMat);
+  stand.position.y = 0.32;
+  const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 1.35, 12), tankMat);
+  tank.position.y = 1.32;
+  tank.castShadow = true;
+  group.add(stand, tank);
+
+  if (includeSolar) {
+    const frameMat = standMat;
+    const panelMat = getCachedCharMat(
+      "infra:solar",
+      () => new THREE.MeshStandardMaterial({ color: "#1e3a8a", metalness: 0.45, roughness: 0.25 })
+    );
+    const solar = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.08, 1.35), panelMat);
+    solar.position.set(2.1, 0.38, 0);
+    solar.rotation.x = 0.28;
+    const mount = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.32, 0.9), frameMat);
+    mount.position.set(2.1, 0.16, 0);
+    group.add(mount, solar);
+  }
+  return group;
+}
+
 
 

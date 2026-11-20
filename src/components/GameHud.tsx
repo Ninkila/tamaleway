@@ -7,12 +7,14 @@ import {
   ChevronDown,
   ChevronUp,
   Compass,
+  DoorOpen,
   Map as MapIcon,
   Maximize2,
   MessageSquarePlus,
   MoreHorizontal,
   Package,
   Pause,
+  Radio,
   Smartphone,
   Tag,
   User,
@@ -20,6 +22,7 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
+import { MusicPlayerSnapshot } from "../game/musicPlayer";
 import {
   ActiveTaskRuntime,
   CameraMode,
@@ -30,6 +33,7 @@ import {
   ServiceRequestRuntime,
   WeatherType,
 } from "../types/game";
+import { MiniMusicRadioBar } from "./MusicRadioApp";
 
 interface GameHudProps {
   district: string;
@@ -67,11 +71,19 @@ interface GameHudProps {
   showLabels: boolean;
   isTouchControlsVisible: boolean;
   isPortraitPhone: boolean;
+  isIndoors?: boolean;
+  musicSnapshot?: MusicPlayerSnapshot | null;
+  showMiniRadioBar?: boolean;
   keyBindings: KeyBindings;
   onTriggerInteract: () => void;
+  onExitInterior?: () => void;
   onToggleVehicle: () => void;
   onTriggerHorn: () => void;
   onOpenPhone?: () => void;
+  onOpenPhoneRadio?: () => void;
+  onToggleMiniRadioPlay?: () => void;
+  onMiniRadioNext?: () => void;
+  onCloseMiniRadio?: () => void;
   onOpenCharacterSwitch?: () => void;
   onCancelService?: () => void;
   onOpenMap: () => void;
@@ -126,11 +138,19 @@ export const GameHud: React.FC<GameHudProps> = ({
   showLabels,
   isTouchControlsVisible,
   isPortraitPhone,
+  isIndoors = false,
+  musicSnapshot = null,
+  showMiniRadioBar = false,
   keyBindings,
   onTriggerInteract,
+  onExitInterior,
   onToggleVehicle,
   onTriggerHorn,
   onOpenPhone,
+  onOpenPhoneRadio,
+  onToggleMiniRadioPlay,
+  onMiniRadioNext,
+  onCloseMiniRadio,
   onOpenCharacterSwitch,
   onCancelService,
   onOpenMap,
@@ -160,7 +180,7 @@ export const GameHud: React.FC<GameHudProps> = ({
       {/* Top Row: Compact Responsive Corner Anchors */}
       <div className="flex items-start justify-between gap-2 sm:gap-4">
         {/* Top-Left: Location, Character, Clock, Wallet & GPS Guidance */}
-        <div className="pointer-events-auto bg-[#14110f]/88 border border-white/12 rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 max-w-[58vw] sm:max-w-md backdrop-blur-sm">
+        <div className="pointer-events-auto bg-[#14110f]/94 border border-white/12 rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 max-w-[58vw] sm:max-w-md shadow-lg">
           <div className="flex items-center gap-2 min-w-0">
             <span className="font-display text-xs sm:text-sm font-semibold text-[#f8f5ef] truncate">
               {district}
@@ -234,19 +254,41 @@ export const GameHud: React.FC<GameHudProps> = ({
               )}
             </div>
           )}
+          {isIndoors && onExitInterior && (
+            <button
+              type="button"
+              onClick={onExitInterior}
+              className="mt-1.5 min-h-[34px] px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/35 border border-amber-500/45 text-xs font-semibold text-amber-200 flex items-center gap-1.5 cursor-pointer"
+            >
+              <DoorOpen className="w-3.5 h-3.5" />
+              <span>Step Outside</span>
+            </button>
+          )}
         </div>
 
         {/* Top-Right: Responsive Single-Row Action Bar */}
-        <div className="pointer-events-auto relative flex items-center gap-1 bg-[#14110f]/88 border border-white/12 rounded-xl p-1 backdrop-blur-sm">
+        <div className="pointer-events-auto relative flex items-center gap-1 bg-[#14110f]/94 border border-white/12 rounded-xl p-1 shadow-lg">
           {onOpenPhone && (
             <button
               type="button"
               onClick={onOpenPhone}
-              title="Tamale Phone: Jobs, Rides & Services (P)"
+              title="Tamale Phone: Jobs, Rides, Bank & Music (P)"
               className="min-h-[40px] sm:min-h-[34px] flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-[#12100e] bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Smartphone className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
               <span className="hidden sm:inline">Phone</span>
+            </button>
+          )}
+
+          {onOpenPhoneRadio && (
+            <button
+              type="button"
+              onClick={onOpenPhoneRadio}
+              title="Tamale Music & 7 FM Radio Stations"
+              className="hidden sm:flex min-h-[34px] items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-[#ede8de] hover:bg-white/10 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <Radio className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden md:inline">Radio</span>
             </button>
           )}
 
@@ -470,12 +512,27 @@ export const GameHud: React.FC<GameHudProps> = ({
         </div>
       )}
 
-      {/* Bottom Area: Street Chatter + Contextual Prompts + Collapsible Dock */}
+      {/* Bottom Area: Mini Radio + Street Chatter + Contextual Prompts + Collapsible Dock */}
       <div
         className={`flex flex-col items-center gap-2 ${
           isTouchControlsVisible ? "mb-32 sm:mb-36 md:mb-4" : ""
         }`}
       >
+        {showMiniRadioBar &&
+          musicSnapshot &&
+          onToggleMiniRadioPlay &&
+          onMiniRadioNext &&
+          onCloseMiniRadio &&
+          onOpenPhoneRadio && (
+            <MiniMusicRadioBar
+              snapshot={musicSnapshot}
+              onTogglePlay={onToggleMiniRadioPlay}
+              onNext={onMiniRadioNext}
+              onStop={onCloseMiniRadio}
+              onOpenApp={onOpenPhoneRadio}
+            />
+          )}
+
         {/* Nearby Dagbani Street / Market Chatter Caption */}
         {nearbyChatter && (
           <div className="bg-[#14110f]/88 border border-white/12 rounded-lg px-3 py-1.5 text-[11px] sm:text-xs text-center max-w-md shadow-md">
@@ -651,13 +708,17 @@ export const GameHud: React.FC<GameHudProps> = ({
 
               <span className="text-white/15 hidden sm:inline">|</span>
 
-              <div className="flex items-center gap-1">
+              <div className="flex flex-wrap items-center gap-1">
                 <span className="text-[11px] text-[#9c9487] mr-1">Weather</span>
                 {(
                   [
                     { id: "clear", label: "Sun" },
+                    { id: "cloudy", label: "Cloudy" },
+                    { id: "heat", label: "Heat" },
                     { id: "harmattan", label: "Harmattan" },
+                    { id: "light_rain", label: "Drizzle" },
                     { id: "rain", label: "Rain" },
+                    { id: "thunderstorm", label: "Storm" },
                   ] as const
                 ).map((w) => (
                   <button
