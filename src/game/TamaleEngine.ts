@@ -3,6 +3,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import {
   getDistrictAt,
   getNearestLandmarkGuidance,
+  isShopOpenAtMinutes,
   TAMALE_LANDMARKS,
   TAMALE_NPCS,
   TAMALE_ROADS,
@@ -24,6 +25,13 @@ import {
   ServiceRequestRuntime,
   WeatherType,
 } from "../types/game";
+import {
+  ALL_EW_ROAD_COORDS,
+  ALL_NS_ROAD_COORDS,
+  findRoadRoute,
+  getCrossRoadsAlong,
+  getRoadExtentBounds,
+} from "../data/tamaleRoadGraph";
 import { TamaleAudioEngine } from "./audio";
 import { NpcScheduleController } from "./NpcScheduleController";
 import {
@@ -46,18 +54,22 @@ import {
   createPragyaMesh,
   createPrivateCarMesh,
   createRoadsideBenchMesh,
+  createRoadsidePlanterBinMesh,
   createRoadsideStallMesh,
   createSccaRedClayGroup,
   createSchoolGroup,
   createShopBuilding,
   createSpeechBubbleSprite,
+  createSpeedHumpMesh,
   createStadiumGroup,
+  createStreetDirectionSignMesh,
   createTamaleHouseVariant,
   createTamaleInterchangeGroup,
   createTaxiMesh,
   createTeachingHospitalGroup,
   createTreeMesh,
   createUtilityPoleWithLamp,
+  NpcCarryProp,
   setCharacterPose,
   ShopArchitecturalStyle,
   TamaleHouseVariant,
@@ -68,9 +80,6 @@ import { createProceduralTextures, ProceduralTextureSet } from "./textures";
 const _camTarget = new THREE.Vector3();
 const _desiredCamPos = new THREE.Vector3();
 const _dummyObj = new THREE.Object3D();
-
-const EW_ROAD_COORDS = [-158, -92, -48, 0, 66, 128];
-const NS_ROAD_COORDS = [-162, -102, -66, 0, 66, 128, 186];
 
 function getLaneShift(roadCoord: number): number {
   return roadCoord === 0 ? 4.9 : 2.25;
@@ -126,8 +135,13 @@ interface CrowdAgent {
   speakerName: string;
   district: string;
   voiceName: "Kore" | "Puck" | "Charon" | "Fenrir" | "Zephyr";
-  role: "walker" | "vendor" | "seated" | "student" | "child";
+  role: "walker" | "vendor" | "seated" | "student" | "child" | "social_group" | "commuter_wait";
   vendorShopId?: string;
+  vendorMode?: "walking" | "calling" | "selling" | "restocking";
+  vendorStateTimer?: number;
+  homeMarketCoord?: { x: number; z: number };
+  restocking?: boolean;
+  focusTarget?: { x: number; z: number };
   waypoints: Array<{ x: number; z: number }>;
   wpIndex: number;
   x: number;
@@ -750,7 +764,13 @@ export class TamaleEngine {
       { x: -20, z: 14, rotY: Math.PI, w: 8.2, h: 3.7, d: 6.0, wall: "#f1f5f9", awning: "#1e40af", name: "SAVANNAH TELECOM", sub: "AIRTIME & REPAIRS" },
       { x: -36, z: 14, rotY: Math.PI, w: 8.2, h: 3.8, d: 6.0, wall: "#fde68a", awning: "#15803d", name: "TISHIGU BAKERY", sub: "BREAD & ROASTED YAM", style: "cafe" },
       { x: -60, z: 14, rotY: Math.PI, w: 8.4, h: 3.8, d: 6.0, wall: "#fef9c3", awning: "#9a3412", name: "NORTHERN TAILORS ROW", sub: "BATAKARI · LEATHER SANDALS" },
-      { x: 84, z: -14, rotY: 0, w: 9.5, h: 4.1, d: 6.5, wall: "#f8fafc", awning: "#0369a1", name: "TAMALE ENTERPRISE BANK", sub: "HIGH STREET BRANCH" },
+      { x: 84, z: -14, rotY: 0, w: 9.5, h: 4.1, d: 6.5, wall: "#f8fafc", awning: "#0369a1", name: "TAMALE ENTERPRISE BANK", sub: "HIGH ST BRANCH & ATM", style: "bank_momo" },
+      { x: 102, z: -13, rotY: 0, w: 8.6, h: 3.9, d: 6.0, wall: "#0f172a", awning: "#0284c7", name: "GBEWAA ELECTRONICS HUB", sub: "PHONES · SOLAR · REPAIRS", style: "electronics" },
+      { x: 116, z: -13, rotY: 0, w: 8.2, h: 3.7, d: 6.0, wall: "#fff1f2", awning: "#ec4899", name: "TAMALE COOL SCOOP", sub: "ICE CREAM · SMOOTHIES", style: "ice_cream" },
+      { x: 52, z: 14, rotY: Math.PI, w: 8.4, h: 3.8, d: 6.0, wall: "#fdf2f8", awning: "#be185d", name: "SAVANNAH BOUTIQUE", sub: "FASHION · COSMETICS · PERFUME", style: "boutique" },
+      { x: -82, z: -13, rotY: 0, w: 8.4, h: 3.8, d: 6.0, wall: "#fef3c7", awning: "#7c2d12", name: "NORTHERN FOOTWEAR & BAGS", sub: "SANDALS · SNEAKERS · LEATHER", style: "boutique" },
+      { x: -16, z: 42, rotY: Math.PI / 2, w: 8.6, h: 3.8, d: 6.0, wall: "#fffbeb", awning: "#ea580c", name: "GUKPEGU TILAPIA & JOLLOF", sub: "CHARCOAL FISH · BANKU · SOBOLO", style: "restaurant" },
+      { x: 112, z: 138, rotY: Math.PI, w: 8.6, h: 3.8, d: 6.2, wall: "#f8fafc", awning: "#0d9488", name: "DABOKPAA HOUSEHOLD MART", sub: "PLASTICS · FLASKS · GROCERIES", style: "supermarket" },
       { x: -18, z: -62, rotY: 0, w: 8.6, h: 3.7, d: 6.4, wall: "#e7e5e4", awning: "#b45309", name: "KALPOHIN BOOKSHOP", sub: "STATIONERY & PRINTS" },
       { x: -120, z: 14, rotY: Math.PI, w: 8.4, h: 3.7, d: 6.0, wall: "#fef3c7", awning: "#b45309", name: "ABOABO CHICHINGA GRILL", sub: "SPICED KEBAB & WAAKYE", style: "restaurant" },
       { x: -116, z: 32, rotY: Math.PI / 2, w: 8.6, h: 3.8, d: 6.0, wall: "#fffbeb", awning: "#b45309", name: "HAJIA MEMUNA TZ & FUFU", sub: "SAƔIM · AYOYO · SOUP", style: "restaurant" },
@@ -894,9 +914,17 @@ export class TamaleEngine {
       this.getSectorFor(lane.x, lane.z).add(laneMesh);
     }
 
-    // 21c. Roadside Kiosks, Mobile-Money Booths, Charcoal Food Stalls, Phone Carts & Cloth Tables
+    // 21c. Roadside Kiosks, Mobile-Money Booths, Charcoal Food Stalls, Phone Carts, Ice Cream & Household Tables
     const stallPlacements: Array<{
-      kind: "kiosk" | "food_vendor" | "mobile_money" | "accessories_cart" | "cloth_table" | "corn_grill";
+      kind:
+        | "kiosk"
+        | "food_vendor"
+        | "mobile_money"
+        | "accessories_cart"
+        | "cloth_table"
+        | "corn_grill"
+        | "ice_cream_cart"
+        | "household_table";
       x: number;
       z: number;
       rotY: number;
@@ -908,9 +936,11 @@ export class TamaleEngine {
       { kind: "food_vendor", x: -84, z: 109.5, rotY: 0, color: "#b45309" },
       { kind: "food_vendor", x: -84, z: -140.5, rotY: 0, color: "#ea580c" },
       { kind: "food_vendor", x: -144, z: 140.5, rotY: 0, color: "#15803d" },
+      { kind: "food_vendor", x: -10.8, z: 42, rotY: Math.PI / 2, color: "#ea580c" },
       { kind: "mobile_money", x: 12, z: -10.2, rotY: 0, color: "#facc15" },
       { kind: "mobile_money", x: -24, z: 10.6, rotY: Math.PI, color: "#ef4444" },
       { kind: "mobile_money", x: -72, z: 10.4, rotY: Math.PI, color: "#0284c7" },
+      { kind: "mobile_money", x: 91, z: -10.2, rotY: 0, color: "#facc15" },
       { kind: "kiosk", x: -56, z: 11.5, rotY: Math.PI, color: "#0284c7" },
       { kind: "kiosk", x: 56, z: -11.5, rotY: 0, color: "#0f766e" },
       { kind: "kiosk", x: -140, z: -12, rotY: 0, color: "#d97706" },
@@ -918,12 +948,19 @@ export class TamaleEngine {
       { kind: "kiosk", x: 38, z: 146, rotY: 0, color: "#0369a1" },
       { kind: "accessories_cart", x: -12, z: 9.8, rotY: Math.PI, color: "#facc15" },
       { kind: "accessories_cart", x: -50, z: -10.4, rotY: 0, color: "#0284c7" },
+      { kind: "accessories_cart", x: 106, z: -9.8, rotY: 0, color: "#0284c7" },
       { kind: "cloth_table", x: -42, z: -16.2, rotY: 0, color: "#be123c" },
       { kind: "cloth_table", x: -124, z: 15.8, rotY: Math.PI, color: "#1d4ed8" },
+      { kind: "cloth_table", x: 48, z: 10.2, rotY: Math.PI, color: "#be185d" },
       { kind: "corn_grill", x: 16, z: -10.2, rotY: 0, color: "#ea580c" },
       { kind: "corn_grill", x: -78, z: 108, rotY: 0, color: "#f59e0b" },
       { kind: "corn_grill", x: 90, z: 100, rotY: Math.PI, color: "#dc2626" },
       { kind: "corn_grill", x: -128, z: -100, rotY: 0, color: "#ea580c" },
+      { kind: "ice_cream_cart", x: 112, z: -9.5, rotY: 0, color: "#ec4899" },
+      { kind: "ice_cream_cart", x: 32, z: -56, rotY: 0, color: "#0284c7" },
+      { kind: "ice_cream_cart", x: -136, z: 140, rotY: 0, color: "#f59e0b" },
+      { kind: "household_table", x: -48, z: -41, rotY: Math.PI, color: "#0d9488" },
+      { kind: "household_table", x: 112, z: 134, rotY: Math.PI, color: "#0284c7" },
     ];
     for (const sp of stallPlacements) {
       const built = createRoadsideStallMesh(sp.kind, sp.color, this.textures);
@@ -934,6 +971,55 @@ export class TamaleEngine {
         this.emberMats.push(built.emberMat);
       }
       this.addCollider(sp.x - 1.25, sp.x + 1.25, sp.z - 1.0, sp.z + 1.0);
+    }
+
+    // 21c-1. Tamale Street Direction Signs, Speed Humps & Planters/Waste Bins
+    const directionSignSpecs: Array<{
+      x: number;
+      z: number;
+      rotY: number;
+      title: string;
+      sub: string;
+      bg?: string;
+    }> = [
+      { x: 11, z: -10.5, rotY: -Math.PI / 4, title: "<- CENTRAL MARKET", sub: "AIRPORT N10 ->", bg: "#065f46" },
+      { x: -11, z: 10.5, rotY: (3 * Math.PI) / 4, title: "<- ABOABO / STADIUM", sub: "MOSQUE / SALAGA ->", bg: "#065f46" },
+      { x: -60, z: -10.2, rotY: 0, title: "CENTRAL MARKET", sub: "DAKPEMA PALACE ^", bg: "#047857" },
+      { x: 72, z: 10.2, rotY: Math.PI, title: "JUBILEE PARK", sub: "TEACHING HOSPITAL ->", bg: "#0369a1" },
+      { x: -96, z: 118, rotY: Math.PI / 2, title: "LAMASHEGU HUB", sub: "<- DUNGU | SALAGA ->", bg: "#065f46" },
+      { x: 120, z: 120, rotY: -Math.PI / 2, title: "TEACHING HOSPITAL", sub: "DABOKPAA / VITTIN ->", bg: "#0f766e" },
+    ];
+    for (const ds of directionSignSpecs) {
+      const sign = createStreetDirectionSignMesh(ds.title, ds.sub, ds.bg);
+      sign.position.set(ds.x, 0, ds.z);
+      sign.rotation.y = ds.rotY;
+      this.getSectorFor(ds.x, ds.z).add(sign);
+    }
+
+    const speedHumpSpecs: Array<{ x: number; z: number; rotY: number; w?: number }> = [
+      { x: -24, z: 0, rotY: Math.PI / 2, w: 12 },
+      { x: 30, z: -48, rotY: Math.PI / 2, w: 8.5 },
+      { x: -115, z: 0, rotY: Math.PI / 2, w: 12 },
+      { x: -84, z: 128, rotY: Math.PI / 2, w: 9.2 },
+      { x: 86, z: 128, rotY: Math.PI / 2, w: 9.2 },
+      { x: 0, z: 24, rotY: 0, w: 10.5 },
+    ];
+    for (const sh of speedHumpSpecs) {
+      const hump = createSpeedHumpMesh(sh.w ?? 9.0);
+      hump.position.set(sh.x, 0, sh.z);
+      hump.rotation.y = sh.rotY;
+      this.getSectorFor(sh.x, sh.z).add(hump);
+    }
+
+    const planterBinSpecs: Array<[number, number, boolean]> = [
+      [-15, -9.6, true], [15, 9.6, true], [44, -9.8, false], [74, 9.8, true],
+      [88, 12, true], [104, -9.8, false], [-44, 9.6, false], [-78, -9.8, true],
+      [92, 114, true], [-134, -104, false],
+    ];
+    for (const [px, pz, hasPlant] of planterBinSpecs) {
+      const prop = createRoadsidePlanterBinMesh(hasPlant);
+      prop.position.set(px, 0, pz);
+      this.getSectorFor(px, pz).add(prop);
     }
 
     const benchPlacements: Array<[number, number, number]> = [
@@ -948,6 +1034,8 @@ export class TamaleEngine {
       [24, 174, 0],
       [84, 36, 0],
       [-84, -138, 0],
+      [115, -9.8, 0],
+      [-11.2, 46, Math.PI / 2],
     ];
     for (const [bx, bz, brot] of benchPlacements) {
       const bench = createRoadsideBenchMesh(this.textures);
@@ -967,6 +1055,9 @@ export class TamaleEngine {
       { x: -84, z: -139, color: 0xfb923c },   // Choggu Evening Spot & Grill
       { x: -144, z: 139, color: 0x38bdf8 },   // Dungu Student Hub Café
       { x: 52, z: 32, color: 0xfde047 },      // Jubilee Rest Guest House entrance
+      { x: 116, z: -9.2, color: 0xf472b6 },   // Tamale Cool Scoop Ice Cream Bar
+      { x: -10.5, z: 42, color: 0xfb923c },   // Gukpegu Grilled Tilapia Spot
+      { x: 52, z: 9.8, color: 0xf472b6 },     // Savannah Glamour Boutique
     ];
     for (const spot of nightStringSpots) {
       const bulbMat = new THREE.MeshStandardMaterial({
@@ -1265,6 +1356,7 @@ export class TamaleEngine {
         primaryColor: cust.primaryColor,
         accentColor: cust.accentColor,
         skinTone: cust.skinTone,
+        ownShadowMaterial: true,
       },
       this.textures
     );
@@ -1380,7 +1472,6 @@ export class TamaleEngine {
 
     // Additional key commercial & civic buildings along Gbewaa High St
     const extraBuildings: Array<{ title: string; sub: string; x: number; z: number; y: number; color: string }> = [
-      { title: "Tamale Enterprise Bank", sub: "High Street · Commercial", x: 84, z: -14, y: 6.4, color: "#0ea5e9" },
       { title: "Northern Star Pharmacy", sub: "Gbewaa High St", x: -18, z: -13, y: 6.0, color: "#10b981" },
       { title: "Daa Waakye & TZ Spot", sub: "Saɣim & Bɛŋa", x: 34, z: -13, y: 5.9, color: "#f59e0b" },
       { title: "Alhassan Fabrics & Prints", sub: "Batakari & Nɛma", x: 24, z: 14, y: 6.0, color: "#0f766e" },
@@ -1399,7 +1490,7 @@ export class TamaleEngine {
   }
 
   private buildCrowdPedestrians() {
-    const crowdSpecs: Array<{
+    type CrowdSpec = {
       name: string;
       district: string;
       outfit: "batakari" | "kaba" | "casual" | "polo";
@@ -1408,10 +1499,15 @@ export class TamaleEngine {
       accent: string;
       skin: string;
       voice: "Kore" | "Puck" | "Charon" | "Fenrir" | "Zephyr";
-      role?: "walker" | "vendor" | "seated" | "student" | "child";
+      role?: "walker" | "vendor" | "seated" | "student" | "child" | "social_group" | "commuter_wait";
       vendorShopId?: string;
+      carryProp?: NpcCarryProp;
+      homeMarketCoord?: { x: number; z: number };
+      focusTarget?: { x: number; z: number };
       waypoints: Array<{ x: number; z: number }>;
-    }> = [
+    };
+
+    const crowdSpecs: CrowdSpec[] = [
       // Tamale Central Market bustling crowd (front apron, east/west alleys, north lockups)
       {
         name: "Central Market Shopper",
@@ -1422,6 +1518,7 @@ export class TamaleEngine {
         accent: "#fde047",
         skin: "#62381f",
         voice: "Kore",
+        carryProp: "basket",
         waypoints: [{ x: -58, z: -15.5 }, { x: -42, z: -15.5 }, { x: -30, z: -16 }],
       },
       {
@@ -1433,6 +1530,7 @@ export class TamaleEngine {
         accent: "#fef3c7",
         skin: "#6b3f23",
         voice: "Zephyr",
+        carryProp: "headpan",
         waypoints: [{ x: -27.5, z: -17 }, { x: -27, z: -30 }, { x: -28, z: -43 }],
       },
       {
@@ -1455,6 +1553,7 @@ export class TamaleEngine {
         accent: "#1e293b",
         skin: "#6d4024",
         voice: "Puck",
+        carryProp: "parcel_box",
         waypoints: [{ x: -61.5, z: -20 }, { x: -61.5, z: -38 }, { x: -52, z: -43.5 }],
       },
       {
@@ -1466,6 +1565,7 @@ export class TamaleEngine {
         accent: "#fde68a",
         skin: "#704225",
         voice: "Kore",
+        carryProp: "basket",
         waypoints: [{ x: -46, z: -16 }, { x: -35, z: -16.2 }, { x: -27, z: -20 }],
       },
       {
@@ -1477,6 +1577,7 @@ export class TamaleEngine {
         accent: "#ffffff",
         skin: "#5c341b",
         voice: "Fenrir",
+        carryProp: "apron",
         waypoints: [{ x: -27.5, z: -36 }, { x: -40, z: -43.5 }, { x: -56, z: -43.5 }],
       },
       {
@@ -1499,6 +1600,7 @@ export class TamaleEngine {
         accent: "#facc15",
         skin: "#6b3f23",
         voice: "Zephyr",
+        carryProp: "parcel_box",
         waypoints: [{ x: -54, z: -16 }, { x: -61, z: -28 }, { x: -50, z: -16 }],
       },
       // Gbewaa High Street & Interchange walkways
@@ -1511,6 +1613,7 @@ export class TamaleEngine {
         accent: "#e2e8f0",
         skin: "#62381f",
         voice: "Puck",
+        carryProp: "backpack",
         waypoints: [{ x: -34, z: -9.5 }, { x: -14, z: -9.5 }, { x: 14, z: -9.5 }],
       },
       {
@@ -1522,6 +1625,7 @@ export class TamaleEngine {
         accent: "#fef08a",
         skin: "#6b3f23",
         voice: "Kore",
+        carryProp: "parcel_box",
         waypoints: [{ x: 16, z: 9.8 }, { x: 38, z: 9.8 }, { x: 54, z: 9.8 }],
       },
       {
@@ -1556,6 +1660,7 @@ export class TamaleEngine {
         accent: "#fffbeb",
         skin: "#6b3f23",
         voice: "Kore",
+        carryProp: "headpan",
         waypoints: [{ x: -144, z: 15.5 }, { x: -124, z: 15.5 }, { x: -116, z: 24 }],
       },
       {
@@ -1590,6 +1695,7 @@ export class TamaleEngine {
         accent: "#fef3c7",
         skin: "#6b3f23",
         voice: "Zephyr",
+        carryProp: "basket",
         waypoints: [{ x: -95, z: 113 }, { x: -75, z: 113 }, { x: -70, z: 102 }],
       },
       {
@@ -1613,6 +1719,7 @@ export class TamaleEngine {
         accent: "#fef3c7",
         skin: "#6b3f23",
         voice: "Kore",
+        carryProp: "headpan",
         waypoints: [{ x: 147, z: 38 }, { x: 162, z: 38 }, { x: 169, z: 34 }],
       },
       {
@@ -1624,6 +1731,7 @@ export class TamaleEngine {
         accent: "#fde68a",
         skin: "#5c341b",
         voice: "Charon",
+        carryProp: "apron",
         waypoints: [{ x: 146, z: 24 }, { x: 158, z: 24 }, { x: 168, z: 28 }],
       },
       // Central Mosque Forecourt & Jubilee Park pedestrians
@@ -1669,6 +1777,7 @@ export class TamaleEngine {
         accent: "#e2e8f0",
         skin: "#704225",
         voice: "Kore",
+        carryProp: "backpack",
         waypoints: [{ x: 76, z: 9.5 }, { x: 96, z: 9.5 }, { x: 86, z: 12 }],
       },
       // Road-crossing pedestrians & roadside stall vendors
@@ -1705,6 +1814,7 @@ export class TamaleEngine {
         voice: "Kore",
         role: "vendor",
         vendorShopId: "street_koose_seller",
+        carryProp: "apron",
         waypoints: [{ x: 34, z: -11.5 }, { x: 34.4, z: -11.5 }],
       },
       {
@@ -1718,6 +1828,7 @@ export class TamaleEngine {
         voice: "Puck",
         role: "vendor",
         vendorShopId: "nightlife_grill_lounge",
+        carryProp: "apron",
         waypoints: [{ x: -120, z: 12.1 }, { x: -120.4, z: 12.1 }],
       },
       {
@@ -1731,6 +1842,8 @@ export class TamaleEngine {
         voice: "Zephyr",
         role: "vendor",
         vendorShopId: "street_water_hawker",
+        carryProp: "water_pack",
+        homeMarketCoord: { x: -44, z: -20 },
         waypoints: [{ x: 10, z: -10.2 }, { x: -8, z: -10.2 }],
       },
       {
@@ -1744,6 +1857,8 @@ export class TamaleEngine {
         voice: "Kore",
         role: "vendor",
         vendorShopId: "street_groundnut_fruit",
+        carryProp: "headpan",
+        homeMarketCoord: { x: -44, z: -26 },
         waypoints: [{ x: -30, z: -12.5 }, { x: -46, z: -12.5 }],
       },
       {
@@ -1757,6 +1872,7 @@ export class TamaleEngine {
         voice: "Kore",
         role: "vendor",
         vendorShopId: "street_koose_seller",
+        carryProp: "apron",
         waypoints: [{ x: -140, z: 141.5 }, { x: -140.4, z: 141.5 }],
       },
       {
@@ -1770,6 +1886,8 @@ export class TamaleEngine {
         voice: "Puck",
         role: "vendor",
         vendorShopId: "street_water_hawker",
+        carryProp: "water_pack",
+        homeMarketCoord: { x: -84, z: 104 },
         waypoints: [{ x: -84, z: 111.5 }, { x: -78, z: 111.5 }],
       },
       // Seated residents & elders on benches outside shops and compounds
@@ -1821,7 +1939,7 @@ export class TamaleEngine {
         role: "seated",
         waypoints: [{ x: 42, z: -110 }, { x: 42, z: -111 }],
       },
-      // Students walking to & from Tishigu School and Dungu
+      // Students & Youth
       {
         name: "Tishigu Student",
         district: "Tishigu School Precinct",
@@ -1832,6 +1950,7 @@ export class TamaleEngine {
         skin: "#62381f",
         voice: "Puck",
         role: "student",
+        carryProp: "backpack",
         waypoints: [{ x: 18, z: -55 }, { x: 34, z: -58 }, { x: 44, z: -55 }],
       },
       {
@@ -1844,6 +1963,7 @@ export class TamaleEngine {
         skin: "#6b3f23",
         voice: "Zephyr",
         role: "student",
+        carryProp: "backpack",
         waypoints: [{ x: 46, z: -60 }, { x: 30, z: -58 }, { x: 22, z: -62 }],
       },
       {
@@ -1856,9 +1976,9 @@ export class TamaleEngine {
         skin: "#62381f",
         voice: "Puck",
         role: "student",
+        carryProp: "backpack",
         waypoints: [{ x: -120, z: 146 }, { x: -138, z: 146 }, { x: -148, z: 136 }],
       },
-      // Children playing near compounds & community yards
       {
         name: "Compound Child",
         district: "Aboabo Residential",
@@ -1895,7 +2015,7 @@ export class TamaleEngine {
         role: "child",
         waypoints: [{ x: 86, z: -130 }, { x: 102, z: -130 }, { x: 94, z: -126 }],
       },
-      // --- HIGH DENSITY TAMALE STREETS, HAWKERS, WAITERS, CONVERSING GROUPS & BUSINESS CROWD ---
+      // Mobile Hawkers & Stall Vendors
       {
         name: "Roasted Corn & Kelewele Seller",
         district: "Gbewaa High St East",
@@ -1907,6 +2027,7 @@ export class TamaleEngine {
         voice: "Kore",
         role: "vendor",
         vendorShopId: "street_roasted_corn_plantain",
+        carryProp: "apron",
         waypoints: [{ x: 16, z: -11.0 }, { x: 16.4, z: -11.0 }],
       },
       {
@@ -1972,6 +2093,8 @@ export class TamaleEngine {
         voice: "Zephyr",
         role: "vendor",
         vendorShopId: "street_fruit_juice",
+        carryProp: "headpan",
+        homeMarketCoord: { x: -44, z: -22 },
         waypoints: [{ x: -54, z: -9.5 }, { x: -24, z: -9.5 }],
       },
       {
@@ -1985,6 +2108,7 @@ export class TamaleEngine {
         voice: "Puck",
         role: "vendor",
         vendorShopId: "street_bicycle_bread",
+        carryProp: "parcel_box",
         waypoints: [{ x: 14, z: -32 }, { x: 42, z: -32 }, { x: 42, z: -56 }],
       },
       {
@@ -2007,6 +2131,7 @@ export class TamaleEngine {
         accent: "#ffffff",
         skin: "#6b3f23",
         voice: "Kore",
+        carryProp: "parcel_box",
         waypoints: [{ x: -58, z: -9.5 }, { x: -50, z: -9.5 }, { x: -46, z: -10.5 }],
       },
       {
@@ -2040,10 +2165,11 @@ export class TamaleEngine {
         accent: "#0284c7",
         skin: "#6b3f23",
         voice: "Kore",
+        carryProp: "apron",
         waypoints: [{ x: 86, z: 120 }, { x: 102, z: 120 }, { x: 96, z: 112 }],
       },
       {
-        name: "Hospital Visitor",
+        name: "Hospital Water & Sobolo Hawker",
         district: "Changli · Hospital",
         outfit: "batakari",
         headwear: "kufi",
@@ -2053,6 +2179,8 @@ export class TamaleEngine {
         voice: "Charon",
         role: "vendor",
         vendorShopId: "street_water_hawker",
+        carryProp: "water_pack",
+        homeMarketCoord: { x: 108, z: 130 },
         waypoints: [{ x: 88, z: 122 }, { x: 106, z: 122 }],
       },
       {
@@ -2076,6 +2204,7 @@ export class TamaleEngine {
         skin: "#6b3f23",
         voice: "Zephyr",
         role: "student",
+        carryProp: "backpack",
         waypoints: [{ x: -152, z: 136 }, { x: -132, z: 136 }, { x: -144, z: 140 }],
       },
       {
@@ -2098,6 +2227,7 @@ export class TamaleEngine {
         accent: "#e2e8f0",
         skin: "#62381f",
         voice: "Puck",
+        carryProp: "backpack",
         waypoints: [{ x: -10, z: -184 }, { x: 12, z: -184 }, { x: 0, z: -186 }],
       },
       {
@@ -2111,6 +2241,7 @@ export class TamaleEngine {
         voice: "Kore",
         role: "vendor",
         vendorShopId: "street_roasted_corn_plantain",
+        carryProp: "apron",
         waypoints: [{ x: -132, z: 15 }, { x: -132.4, z: 15 }],
       },
       {
@@ -2122,7 +2253,9 @@ export class TamaleEngine {
         accent: "#fef3c7",
         skin: "#6b3f23",
         voice: "Zephyr",
-        waypoints: [{ x: 16, z: 11.2 }, { x: 20, z: 11.2 }],
+        role: "commuter_wait",
+        focusTarget: { x: 16, z: 0 },
+        waypoints: [{ x: 16, z: 10.6 }, { x: 16.5, z: 10.6 }],
       },
       {
         name: "Kalpohin Pastry Buyer",
@@ -2135,7 +2268,421 @@ export class TamaleEngine {
         voice: "Puck",
         waypoints: [{ x: 46, z: -92 }, { x: 58, z: -92 }],
       },
+      // --- NEW EXPANDED POPULATION: NEW STORE CUSTOMERS, CONVERSING GROUPS, HAWKERS & WAITERS ---
+      {
+        name: "Ice Cream Parlour Seller",
+        district: "High Street East",
+        outfit: "polo",
+        headwear: "none",
+        primary: "#ec4899",
+        accent: "#ffffff",
+        skin: "#62381f",
+        voice: "Puck",
+        role: "vendor",
+        vendorShopId: "street_ice_cream_cart",
+        carryProp: "apron",
+        waypoints: [{ x: 112.5, z: -9.8 }, { x: 115, z: -9.8 }],
+      },
+      {
+        name: "Tishigu Ice Cream Pushcart",
+        district: "Tishigu School Gate",
+        outfit: "polo",
+        headwear: "kufi",
+        primary: "#0284c7",
+        accent: "#fef08a",
+        skin: "#5c341b",
+        voice: "Puck",
+        role: "vendor",
+        vendorShopId: "street_ice_cream_cart",
+        waypoints: [{ x: 26, z: -56 }, { x: 42, z: -56 }, { x: 34, z: -48 }],
+      },
+      {
+        name: "Dabokpaa Household Hawker",
+        district: "Dabokpaa Mini-Mart",
+        outfit: "kaba",
+        headwear: "headwrap",
+        primary: "#0d9488",
+        accent: "#fef3c7",
+        skin: "#6b3f23",
+        voice: "Kore",
+        role: "vendor",
+        vendorShopId: "street_household_hawker",
+        carryProp: "headpan",
+        homeMarketCoord: { x: 112, z: 132 },
+        waypoints: [{ x: 108, z: 132 }, { x: 120, z: 132 }],
+      },
+      {
+        name: "Enterprise Bank Customer",
+        district: "High Street East",
+        outfit: "casual",
+        headwear: "none",
+        primary: "#1e3a5f",
+        accent: "#e2e8f0",
+        skin: "#5c341b",
+        voice: "Charon",
+        carryProp: "backpack",
+        waypoints: [{ x: 78, z: -10.5 }, { x: 86, z: -10.5 }, { x: 82, z: -9.5 }],
+      },
+      {
+        name: "Electronics & Solar Shopper",
+        district: "High Street East",
+        outfit: "polo",
+        headwear: "none",
+        primary: "#0369a1",
+        accent: "#fde047",
+        skin: "#62381f",
+        voice: "Fenrir",
+        carryProp: "parcel_box",
+        waypoints: [{ x: 96, z: -10.2 }, { x: 106, z: -10.2 }],
+      },
+      {
+        name: "Savannah Boutique Browser",
+        district: "Central High St South",
+        outfit: "kaba",
+        headwear: "braids",
+        primary: "#be185d",
+        accent: "#fef08a",
+        skin: "#6b3f23",
+        voice: "Zephyr",
+        carryProp: "parcel_box",
+        waypoints: [{ x: 45, z: 10.2 }, { x: 56, z: 10.2 }],
+      },
+      {
+        name: "Footwear Shop Customer",
+        district: "West High Street",
+        outfit: "casual",
+        headwear: "none",
+        primary: "#7c2d12",
+        accent: "#facc15",
+        skin: "#62381f",
+        voice: "Puck",
+        waypoints: [{ x: -88, z: -10.2 }, { x: -77, z: -10.2 }],
+      },
+      {
+        name: "Gukpegu Tilapia Diner",
+        district: "Gukpegu Road",
+        outfit: "batakari",
+        headwear: "kufi",
+        primary: "#ea580c",
+        accent: "#fffbeb",
+        skin: "#5c341b",
+        voice: "Charon",
+        waypoints: [{ x: -11, z: 37 }, { x: -11, z: 47 }],
+      },
+      {
+        name: "Central Market Plasticware Seller",
+        district: "Central Market North",
+        outfit: "kaba",
+        headwear: "headwrap",
+        primary: "#0284c7",
+        accent: "#fef3c7",
+        skin: "#6b3f23",
+        voice: "Kore",
+        role: "vendor",
+        vendorShopId: "street_household_hawker",
+        carryProp: "headpan",
+        waypoints: [{ x: -48, z: -41.5 }, { x: -48.5, z: -41.5 }],
+      },
+      {
+        name: "Cool Scoop Gelato Fan",
+        district: "High Street East",
+        outfit: "polo",
+        headwear: "braids",
+        primary: "#ec4899",
+        accent: "#fef08a",
+        skin: "#704225",
+        voice: "Zephyr",
+        waypoints: [{ x: 112, z: -10.2 }, { x: 120, z: -10.2 }],
+      },
     ];
+
+    // 1b. Deterministic Social Conversation Groups (2-3 people facing a common focal spot)
+    const socialClusters: Array<{
+      district: string;
+      cx: number;
+      cz: number;
+      members: Array<{ name: string; outfit: CrowdSpec["outfit"]; headwear: CrowdSpec["headwear"]; primary: string }>;
+    }> = [
+      {
+        district: "Tamale Central Market",
+        cx: -35,
+        cz: -13.2,
+        members: [
+          { name: "Shea Bargainer", outfit: "kaba", headwear: "headwrap", primary: "#b45309" },
+          { name: "Yam Wholesaler", outfit: "batakari", headwear: "kufi", primary: "#1e3a5f" },
+          { name: "Market Neighbour", outfit: "kaba", headwear: "braids", primary: "#047857" },
+        ],
+      },
+      {
+        district: "Central Mosque Courtyard",
+        cx: 18,
+        cz: 42,
+        members: [
+          { name: "Mallam Imoro", outfit: "batakari", headwear: "kufi", primary: "#f8fafc" },
+          { name: "Gukpegu Elder", outfit: "batakari", headwear: "kufi", primary: "#0f766e" },
+        ],
+      },
+      {
+        district: "Jubilee Civic Plaza",
+        cx: 85,
+        cz: 26,
+        members: [
+          { name: "Youth Organizer", outfit: "polo", headwear: "none", primary: "#0369a1" },
+          { name: "Jubilee Friend", outfit: "casual", headwear: "braids", primary: "#be185d" },
+          { name: "Civic Volunteer", outfit: "polo", headwear: "none", primary: "#15803d" },
+        ],
+      },
+      {
+        district: "Dungu Academic Quarter",
+        cx: -138,
+        cz: 138,
+        members: [
+          { name: "UDS Study Group A", outfit: "polo", headwear: "none", primary: "#1d4ed8" },
+          { name: "UDS Study Group B", outfit: "casual", headwear: "headwrap", primary: "#7c3aed" },
+          { name: "UDS Study Group C", outfit: "polo", headwear: "none", primary: "#047857" },
+        ],
+      },
+      {
+        district: "Aboabo Market Yard",
+        cx: -120,
+        cz: 24,
+        members: [
+          { name: "Aboabo Tailor", outfit: "batakari", headwear: "kufi", primary: "#9a3412" },
+          { name: "Cloth Buyer", outfit: "kaba", headwear: "headwrap", primary: "#1d4ed8" },
+        ],
+      },
+      {
+        district: "Lamashegu Mechanic Row",
+        cx: -82,
+        cz: 114,
+        members: [
+          { name: "Pragya Driver", outfit: "polo", headwear: "none", primary: "#eab308" },
+          { name: "Welder Apprentice", outfit: "casual", headwear: "none", primary: "#334155" },
+        ],
+      },
+      {
+        district: "Dakpema Palace Forecourt",
+        cx: -34,
+        cz: -56,
+        members: [
+          { name: "Palace Drummer", outfit: "batakari", headwear: "kufi", primary: "#7f2b2b" },
+          { name: "Council Elder", outfit: "batakari", headwear: "kufi", primary: "#f8fafc" },
+        ],
+      },
+      {
+        district: "Daa Waakye Evening Spot",
+        cx: 35,
+        cz: -9.8,
+        members: [
+          { name: "Evening Diner A", outfit: "casual", headwear: "none", primary: "#ea580c" },
+          { name: "Evening Diner B", outfit: "kaba", headwear: "braids", primary: "#ca8a04" },
+        ],
+      },
+    ];
+
+    const skinPalette = ["#59321a", "#62381f", "#6b3f23", "#704225", "#7c4a2a", "#4a2a18"];
+    const voiceCycle: Array<CrowdSpec["voice"]> = ["Kore", "Puck", "Charon", "Fenrir", "Zephyr"];
+
+    for (let c = 0; c < socialClusters.length; c++) {
+      const cl = socialClusters[c];
+      for (let m = 0; m < cl.members.length; m++) {
+        const mem = cl.members[m];
+        const ang = (m / cl.members.length) * Math.PI * 2 + c * 0.4;
+        const mx = cl.cx + Math.cos(ang) * 1.15;
+        const mz = cl.cz + Math.sin(ang) * 1.15;
+        crowdSpecs.push({
+          name: mem.name,
+          district: cl.district,
+          outfit: mem.outfit,
+          headwear: mem.headwear,
+          primary: mem.primary,
+          accent: "#fde047",
+          skin: skinPalette[(c + m) % skinPalette.length],
+          voice: voiceCycle[(c + m) % voiceCycle.length],
+          role: "social_group",
+          focusTarget: { x: cl.cx, z: cl.cz },
+          waypoints: [{ x: mx, z: mz }, { x: mx + 0.1, z: mz + 0.1 }],
+        });
+      }
+    }
+
+    // 1c. Transport Rank Commuters Waiting for Pragya / Taxi / Moto
+    const transportWaitSpots: Array<{
+      district: string;
+      x: number;
+      z: number;
+      lookX: number;
+      lookZ: number;
+    }> = [
+      { district: "Interchange West Rank", x: -12, z: -9.8, lookX: -12, lookZ: 0 },
+      { district: "Central Market Taxi Rank", x: -38, z: -10.0, lookX: -38, lookZ: 0 },
+      { district: "Aboabo Pragya Stop", x: -112, z: 9.8, lookX: -102, lookZ: 9.8 },
+      { district: "Lamashegu Salaga Rank", x: -80, z: 121.5, lookX: -80, lookZ: 128 },
+      { district: "Teaching Hospital Gate Stop", x: 92, z: 121.5, lookX: 92, lookZ: 128 },
+      { district: "Airport Road N10 Stop", x: 9.5, z: -165, lookX: 0, lookZ: -165 },
+      { district: "Dungu Hostel Pragya Stop", x: -128, z: 134.5, lookX: -128, lookZ: 128 },
+      { district: "Stadium Bus & Pragya Stop", x: -112, z: -98.5, lookX: -112, lookZ: -92 },
+    ];
+    for (let i = 0; i < transportWaitSpots.length; i++) {
+      const tw = transportWaitSpots[i];
+      crowdSpecs.push({
+        name: "Commuter Waiting",
+        district: tw.district,
+        outfit: i % 2 === 0 ? "kaba" : "polo",
+        headwear: i % 2 === 0 ? "headwrap" : "none",
+        primary: ["#0284c7", "#b45309", "#15803d", "#dc2626"][i % 4],
+        accent: "#fef08a",
+        skin: skinPalette[i % skinPalette.length],
+        voice: voiceCycle[i % voiceCycle.length],
+        role: "commuter_wait",
+        carryProp: i % 3 === 0 ? "backpack" : "parcel_box",
+        focusTarget: { x: tw.lookX, z: tw.lookZ },
+        waypoints: [{ x: tw.x, z: tw.z }, { x: tw.x + 0.15, z: tw.z }],
+      });
+    }
+
+    // 1d. Distributed District Walkers, Market Bargainers & Street Hawkers across all Tamale Quarters
+    const districtCorridors: Array<{
+      district: string;
+      pts: Array<{ x: number; z: number }>;
+      count: number;
+      vendorRatio?: number;
+    }> = [
+      {
+        district: "Tamale Central Market",
+        pts: [{ x: -58, z: -17 }, { x: -42, z: -17 }, { x: -27, z: -26 }, { x: -56, z: -42 }],
+        count: 10,
+        vendorRatio: 0.35,
+      },
+      {
+        district: "Gbewaa High Street Central",
+        pts: [{ x: -70, z: -9.8 }, { x: -15, z: -9.8 }, { x: 25, z: -9.8 }, { x: 118, z: -9.8 }],
+        count: 10,
+        vendorRatio: 0.3,
+      },
+      {
+        district: "Gbewaa High Street South",
+        pts: [{ x: -60, z: 9.8 }, { x: 18, z: 9.8 }, { x: 56, z: 9.8 }, { x: 96, z: 9.8 }],
+        count: 7,
+        vendorRatio: 0.25,
+      },
+      {
+        district: "Gukpegu Mosque & Tilapia Row",
+        pts: [{ x: -9.5, z: 18 }, { x: -9.5, z: 58 }, { x: 16, z: 54 }, { x: 16, z: 22 }],
+        count: 6,
+      },
+      {
+        district: "Aboabo Market & Compounds",
+        pts: [{ x: -148, z: 15 }, { x: -116, z: 15 }, { x: -116, z: 40 }, { x: -146, z: 40 }],
+        count: 7,
+        vendorRatio: 0.3,
+      },
+      {
+        district: "Lamashegu & Salaga Corridor",
+        pts: [{ x: -96, z: 120 }, { x: -68, z: 120 }, { x: -68, z: 92 }, { x: -96, z: 94 }],
+        count: 5,
+      },
+      {
+        district: "Nyohini & West Ring",
+        pts: [{ x: -154, z: -9.8 }, { x: -112, z: -9.8 }, { x: -154, z: 36 }, { x: -112, z: 36 }],
+        count: 5,
+      },
+      {
+        district: "Tishigu & Kalpohin Estates",
+        pts: [{ x: 12, z: -56 }, { x: 58, z: -56 }, { x: 58, z: -98 }, { x: 12, z: -98 }],
+        count: 6,
+      },
+      {
+        district: "Kukuo & Vittin Corridor",
+        pts: [{ x: 138, z: 12 }, { x: 174, z: 12 }, { x: 174, z: 40 }, { x: 138, z: 40 }],
+        count: 5,
+      },
+      {
+        district: "Teaching Hospital & Dabokpaa",
+        pts: [{ x: 82, z: 120 }, { x: 122, z: 120 }, { x: 122, z: 138 }, { x: 88, z: 138 }],
+        count: 6,
+      },
+      {
+        district: "Dungu Campus & Kakpagyili",
+        pts: [{ x: -150, z: 136 }, { x: -116, z: 136 }, { x: 24, z: 164 }, { x: 42, z: 164 }],
+        count: 6,
+      },
+      {
+        district: "Sagnarigu, Stadium & Choggu",
+        pts: [{ x: -146, z: -99 }, { x: -112, z: -99 }, { x: -92, z: -146 }, { x: -72, z: -146 }],
+        count: 6,
+      },
+    ];
+
+    const outfitPool: Array<CrowdSpec["outfit"]> = ["kaba", "batakari", "polo", "casual"];
+    const colorPool = [
+      "#b45309",
+      "#0284c7",
+      "#047857",
+      "#dc2626",
+      "#1e3a5f",
+      "#7c2d12",
+      "#be185d",
+      "#15803d",
+      "#ca8a04",
+      "#1d4ed8",
+    ];
+    const carryPool: NpcCarryProp[] = [
+      "none",
+      "headpan",
+      "basket",
+      "parcel_box",
+      "backpack",
+      "water_pack",
+      "none",
+    ];
+    const hawkerShops = [
+      "street_water_hawker",
+      "street_groundnut_fruit",
+      "street_fruit_juice",
+      "street_household_hawker",
+      "street_ice_cream_cart",
+    ];
+
+    let dcSeed = 0;
+    for (const corr of districtCorridors) {
+      for (let k = 0; k < corr.count; k++) {
+        dcSeed++;
+        const outfit = outfitPool[(dcSeed + k) % outfitPool.length];
+        const headwear: CrowdSpec["headwear"] =
+          outfit === "kaba"
+            ? dcSeed % 2 === 0
+              ? "headwrap"
+              : "braids"
+            : outfit === "batakari"
+            ? "kufi"
+            : dcSeed % 4 === 0
+            ? "kufi"
+            : "none";
+        const isVendor = (corr.vendorRatio ?? 0) > 0 && k / corr.count < (corr.vendorRatio ?? 0);
+        const startIdx = k % corr.pts.length;
+        const rotatedPts = corr.pts.map((_, pi) => {
+          const p = corr.pts[(startIdx + pi) % corr.pts.length];
+          return { x: p.x + ((dcSeed % 3) - 1) * 0.9, z: p.z + (((dcSeed + pi) % 3) - 1) * 0.9 };
+        });
+
+        crowdSpecs.push({
+          name: isVendor ? `${corr.district} Hawker` : `${corr.district} Resident`,
+          district: corr.district,
+          outfit,
+          headwear,
+          primary: colorPool[dcSeed % colorPool.length],
+          accent: dcSeed % 2 === 0 ? "#fde047" : "#f8fafc",
+          skin: skinPalette[dcSeed % skinPalette.length],
+          voice: voiceCycle[dcSeed % voiceCycle.length],
+          role: isVendor ? "vendor" : "walker",
+          vendorShopId: isVendor ? hawkerShops[dcSeed % hawkerShops.length] : undefined,
+          carryProp: isVendor ? (dcSeed % 2 === 0 ? "water_pack" : "headpan") : carryPool[dcSeed % carryPool.length],
+          homeMarketCoord: isVendor ? { x: -44, z: -24 } : undefined,
+          waypoints: rotatedPts,
+        });
+      }
+    }
 
     for (let i = 0; i < crowdSpecs.length; i++) {
       const spec = crowdSpecs[i];
@@ -2147,6 +2694,7 @@ export class TamaleEngine {
           primaryColor: spec.primary,
           accentColor: spec.accent,
           skinTone: spec.skin,
+          carryProp: spec.carryProp,
         },
         this.textures
       );
@@ -2165,8 +2713,15 @@ export class TamaleEngine {
         rig.rightLegPivot.rotation.x = -Math.PI * 0.45;
         rig.leftArmPivot.rotation.x = -0.3;
         rig.rightArmPivot.rotation.x = -0.3;
+      } else if (spec.focusTarget) {
+        rig.root.rotation.y = Math.atan2(spec.focusTarget.x - start.x, spec.focusTarget.z - start.z);
       }
       this.scene.add(rig.root);
+
+      const isMovingVendor =
+        role === "vendor" &&
+        spec.waypoints.length >= 2 &&
+        Math.hypot(spec.waypoints[0].x - spec.waypoints[1].x, spec.waypoints[0].z - spec.waypoints[1].z) >= 1.5;
 
       this.crowdAgents.push({
         rig,
@@ -2175,13 +2730,18 @@ export class TamaleEngine {
         voiceName: spec.voice,
         role,
         vendorShopId: spec.vendorShopId,
+        vendorMode: isMovingVendor ? "walking" : undefined,
+        vendorStateTimer: isMovingVendor ? 4 + (i % 5) * 1.4 : undefined,
+        homeMarketCoord: spec.homeMarketCoord,
+        restocking: false,
+        focusTarget: spec.focusTarget,
         waypoints: spec.waypoints,
         wpIndex: 1 % spec.waypoints.length,
         x: start.x,
         z: start.z,
         rotY: rig.root.rotation.y,
         walkPhase: i * 1.1,
-        speed: role === "child" ? 2.45 : role === "student" ? 1.85 : 1.5 + (i % 4) * 0.25,
+        speed: role === "child" ? 2.45 : role === "student" ? 1.85 : role === "vendor" ? 1.32 : 1.5 + (i % 4) * 0.24,
         pauseTimer: (i % 3) * 0.8,
         speakCooldown: 1.5 + (i % 5) * 1.6,
         speakingTimer: 0,
@@ -2340,7 +2900,7 @@ export class TamaleEngine {
       { kind: "cargo", axis: "z", roadCoord: 66, pos: 48, dir: -1, speed: 6.9 },
       { kind: "bicycle", axis: "x", roadCoord: -48, pos: -14, dir: 1, speed: 4.8, color: "#15803d", riderOutfit: "#f59e0b" },
       { kind: "bicycle", axis: "z", roadCoord: -102, pos: -12, dir: -1, speed: 4.6, color: "#dc2626", riderOutfit: "#0284c7" },
-      // Expanded Outer Metro & Night Traffic (Total 44 live vehicles across Tamale)
+      // Expanded Outer Metro, Secondary Connectors & Night Traffic (~62 vehicles across Tamale)
       { kind: "pragya", axis: "z", roadCoord: -162, pos: -60, dir: 1, speed: 8.3, color: "#eab308" },
       { kind: "pragya", axis: "z", roadCoord: 186, pos: 25, dir: -1, speed: 8.0, color: "#0284c7" },
       { kind: "moto", axis: "z", roadCoord: 0, pos: -140, dir: 1, speed: 13.8, color: "#dc2626", style: "sport", riderOutfit: "#0f172a" },
@@ -2355,6 +2915,25 @@ export class TamaleEngine {
       { kind: "taxi", axis: "z", roadCoord: -102, pos: 90, dir: 1, speed: 10.6 },
       { kind: "moto", axis: "x", roadCoord: 0, pos: 145, dir: -1, speed: 13.1, color: "#991b1b", style: "commuter", riderOutfit: "#f8fafc" },
       { kind: "car", axis: "x", roadCoord: 0, pos: -145, dir: 1, speed: 11.5, color: "#eab308" },
+      // Secondary Neighbourhood Streets & Extra High-Density Metro Fleet
+      { kind: "moto", axis: "x", roadCoord: 42, pos: -132, dir: 1, speed: 10.8, color: "#dc2626", style: "delivery", hasGoods: true, riderOutfit: "#0f766e" },
+      { kind: "pragya", axis: "x", roadCoord: 172, pos: -40, dir: 1, speed: 7.9, color: "#0284c7" },
+      { kind: "moto", axis: "x", roadCoord: 172, pos: 18, dir: -1, speed: 11.6, color: "#1d4ed8", style: "commuter", hasPassenger: true, riderOutfit: "#1e293b", passengerOutfit: "#ec4899" },
+      { kind: "pragya", axis: "x", roadCoord: 148, pos: 115, dir: 1, speed: 7.8, color: "#eab308" },
+      { kind: "moto", axis: "z", roadCoord: 96, pos: -125, dir: 1, speed: 10.5, color: "#ea580c", style: "delivery", hasGoods: true, riderOutfit: "#0369a1" },
+      { kind: "taxi", axis: "x", roadCoord: 0, pos: 26, dir: 1, speed: 10.4 },
+      { kind: "pragya", axis: "x", roadCoord: 0, pos: -78, dir: -1, speed: 8.5, color: "#0284c7" },
+      { kind: "pragya", axis: "z", roadCoord: 66, pos: -22, dir: -1, speed: 8.2, color: "#eab308" },
+      { kind: "moto", axis: "z", roadCoord: -66, pos: 64, dir: -1, speed: 12.1, color: "#15803d", style: "commuter", hasPassenger: true, riderOutfit: "#f8fafc", passengerOutfit: "#b45309" },
+      { kind: "taxi", axis: "z", roadCoord: 0, pos: 92, dir: 1, speed: 10.7 },
+      { kind: "cargo", axis: "x", roadCoord: -48, pos: 54, dir: -1, speed: 7.0 },
+      { kind: "car", axis: "z", roadCoord: 186, pos: -35, dir: 1, speed: 11.2, color: "#0284c7" },
+      { kind: "bicycle", axis: "x", roadCoord: 66, pos: -48, dir: 1, speed: 4.8, color: "#1d4ed8", riderOutfit: "#eab308" },
+      { kind: "moto", axis: "x", roadCoord: -158, pos: 92, dir: -1, speed: 12.4, color: "#dc2626", style: "sport", riderOutfit: "#0f172a" },
+      { kind: "pragya", axis: "z", roadCoord: -102, pos: -72, dir: 1, speed: 8.3, color: "#eab308" },
+      { kind: "car", axis: "x", roadCoord: 128, pos: 145, dir: -1, speed: 11.0, color: "#1e3a5f" },
+      { kind: "taxi", axis: "x", roadCoord: 66, pos: -90, dir: 1, speed: 10.3 },
+      { kind: "moto", axis: "z", roadCoord: -162, pos: 88, dir: -1, speed: 12.0, color: "#b91c1c", style: "commuter", riderOutfit: "#ca8a04" },
     ];
 
     for (let i = 0; i < trafficSpecs.length; i++) {
@@ -2910,36 +3489,10 @@ export class TamaleEngine {
     tx: number,
     tz: number
   ): Array<{ x: number; z: number }> {
-    const startNs = this.nearestCoord(sx, NS_ROAD_COORDS);
-    const startEw = this.nearestCoord(sz, EW_ROAD_COORDS);
-    const endNs = this.nearestCoord(tx, NS_ROAD_COORDS);
-    const endEw = this.nearestCoord(tz, EW_ROAD_COORDS);
-
-    const pts: Array<{ x: number; z: number }> = [];
-    const pushIfDistinct = (x: number, z: number) => {
-      const last = pts[pts.length - 1];
-      if (!last || Math.hypot(last.x - x, last.z - z) > 2.4) {
-        pts.push({ x, z });
-      }
-    };
-
-    if (Math.hypot(sx - tx, sz - tz) < 28) {
-      pushIfDistinct(tx, tz);
-      return pts;
-    }
-
-    // Enter nearest corridor axis first, traverse road grid, then exit at destination curb
-    if (Math.abs(sx - startNs) < Math.abs(sz - startEw)) {
-      pushIfDistinct(startNs, sz);
-      pushIfDistinct(startNs, endEw);
-      pushIfDistinct(endNs, endEw);
-    } else {
-      pushIfDistinct(sx, startEw);
-      pushIfDistinct(endNs, startEw);
-      pushIfDistinct(endNs, endEw);
-    }
-    pushIfDistinct(tx, tz);
-    return pts;
+    return findRoadRoute(sx, sz, tx, tz, {
+      sidewalkOffset: 0,
+      directThreshold: 24,
+    });
   }
 
   private removeActiveServiceMesh() {
@@ -2957,11 +3510,12 @@ export class TamaleEngine {
     }
     this.removeActiveServiceMesh();
 
-    // Pick a realistic nearby road spawn 85–125m away from pickup point
-    const ns = this.nearestCoord(pickupPos.x, NS_ROAD_COORDS);
-    const ew = this.nearestCoord(pickupPos.z, EW_ROAD_COORDS);
-    const spawnOffsetX = pickupPos.x >= 0 ? -96 : 96;
-    const spawnX = THREE.MathUtils.clamp(ns + spawnOffsetX, -184, 184);
+    // Pick a realistic nearby on-road spawn point clamped cleanly within the street bounds
+    const ew = this.nearestCoord(pickupPos.z, ALL_EW_ROAD_COORDS);
+    const roadBounds = getRoadExtentBounds("x", ew);
+    const ns = this.nearestCoord(pickupPos.x, ALL_NS_ROAD_COORDS);
+    const spawnOffsetX = pickupPos.x >= 0 ? -90 : 90;
+    const spawnX = THREE.MathUtils.clamp(ns + spawnOffsetX, roadBounds.min + 8, roadBounds.max - 8);
     const spawnZ = ew + getLaneShift(ew);
 
     let built: {
@@ -2973,7 +3527,8 @@ export class TamaleEngine {
       req.kind === "moto_ride" ||
       req.kind === "food_delivery" ||
       req.kind === "parcel_delivery" ||
-      req.kind === "roadside_repair"
+      req.kind === "roadside_repair" ||
+      req.kind === "personal_errand"
     ) {
       const tankColor =
         req.kind === "food_delivery"
@@ -2982,6 +3537,8 @@ export class TamaleEngine {
           ? "#0284c7"
           : req.kind === "roadside_repair"
           ? "#15803d"
+          : req.kind === "personal_errand"
+          ? "#0f766e"
           : "#dc2626";
       built = createMotorcycleWithRiderMesh(
         {
@@ -2998,7 +3555,7 @@ export class TamaleEngine {
         "#6b4f3a",
         this.textures
       );
-    } else if (req.kind === "cargo_moving") {
+    } else if (req.kind === "cargo_moving" || req.kind === "business_supply_delivery") {
       built = createCargoTrikeMesh(this.textures);
     } else {
       built = createTaxiMesh(this.textures);
@@ -3021,7 +3578,8 @@ export class TamaleEngine {
       req.kind === "moto_ride" ||
       req.kind === "food_delivery" ||
       req.kind === "parcel_delivery" ||
-      req.kind === "roadside_repair"
+      req.kind === "roadside_repair" ||
+      req.kind === "personal_errand"
         ? 16.5
         : req.kind === "taxi_ride"
         ? 14.5
@@ -3448,10 +4006,8 @@ export class TamaleEngine {
       } else if (agent.role === "child") {
         activeNow = hour >= 7.0 && hour <= 20.5;
       } else if (agent.role === "vendor") {
-        if (agent.vendorShopId === "nightlife_grill_lounge") {
-          activeNow = hour >= 15.5 || hour < 1.5;
-        } else if (agent.vendorShopId === "street_koose_seller") {
-          activeNow = hour >= 5.5 && hour <= 20.0;
+        if (agent.vendorShopId) {
+          activeNow = isShopOpenAtMinutes(agent.vendorShopId, this.gameMinutes).isOpen;
         } else {
           activeNow = hour >= 6.5 && hour <= 20.5;
         }
@@ -3507,12 +4063,36 @@ export class TamaleEngine {
         }
       }
 
-      // Seated residents & stationary food vendors animate in place naturally
+      // Seated residents, conversing social groups, commuter rank waiters, & stationary stalls
+      const animateDetail = distToPlayer <= 52;
+
       if (agent.role === "seated") {
-        agent.rig.headGroup.rotation.y = Math.sin(elapsed * 0.7 + agent.walkPhase) * 0.25;
-        agent.rig.rightArmPivot.rotation.x = -0.3 + Math.sin(elapsed * 1.4 + agent.walkPhase) * 0.08;
+        if (animateDetail) {
+          agent.rig.headGroup.rotation.y = Math.sin(elapsed * 0.7 + agent.walkPhase) * 0.25;
+          agent.rig.rightArmPivot.rotation.x = -0.3 + Math.sin(elapsed * 1.4 + agent.walkPhase) * 0.08;
+        }
         continue;
       }
+
+      if (agent.role === "social_group") {
+        if (animateDetail) {
+          agent.rig.headGroup.rotation.y = Math.sin(elapsed * 1.15 + agent.walkPhase) * 0.24;
+          agent.rig.rightArmPivot.rotation.x = -0.35 + Math.sin(elapsed * 2.1 + agent.walkPhase) * 0.22;
+          agent.rig.leftArmPivot.rotation.x = -0.18 + Math.cos(elapsed * 1.6 + agent.walkPhase) * 0.12;
+        }
+        continue;
+      }
+
+      if (agent.role === "commuter_wait") {
+        if (animateDetail) {
+          agent.rig.headGroup.rotation.y = Math.sin(elapsed * 0.8 + agent.walkPhase) * 0.4;
+          // Periodic hand wave hailing approaching Pragya/taxi
+          const wave = Math.max(0, Math.sin(elapsed * 1.6 + agent.walkPhase));
+          agent.rig.rightArmPivot.rotation.x = -0.15 - wave * 0.75;
+        }
+        continue;
+      }
+
       const isStationaryVendor =
         agent.role === "vendor" &&
         agent.waypoints.length >= 2 &&
@@ -3521,30 +4101,75 @@ export class TamaleEngine {
           agent.waypoints[0].z - agent.waypoints[1].z
         ) < 1.5;
       if (isStationaryVendor) {
-        agent.rig.rightArmPivot.rotation.x = -0.45 + Math.sin(elapsed * 2.4 + agent.walkPhase) * 0.22;
-        agent.rig.leftArmPivot.rotation.x = -0.3 + Math.cos(elapsed * 1.9 + agent.walkPhase) * 0.14;
-        agent.rig.headGroup.rotation.y = Math.sin(elapsed * 0.9 + agent.walkPhase) * 0.3;
+        if (animateDetail) {
+          agent.rig.rightArmPivot.rotation.x = -0.45 + Math.sin(elapsed * 2.4 + agent.walkPhase) * 0.22;
+          agent.rig.leftArmPivot.rotation.x = -0.3 + Math.cos(elapsed * 1.9 + agent.walkPhase) * 0.14;
+          agent.rig.headGroup.rotation.y = Math.sin(elapsed * 0.9 + agent.walkPhase) * 0.3;
+        }
         continue;
       }
 
-      // Movement along local market / street patrol loop
+      // Mobile street hawker multi-state street commerce: walking -> calling -> selling -> restocking
+      if (agent.role === "vendor" && agent.vendorMode) {
+        agent.vendorStateTimer = (agent.vendorStateTimer ?? 4) - dt;
+        if (agent.vendorMode === "calling" || agent.vendorMode === "selling") {
+          if (animateDetail) {
+            agent.rig.leftLegPivot.rotation.x = THREE.MathUtils.damp(agent.rig.leftLegPivot.rotation.x, 0, 8, dt);
+            agent.rig.rightLegPivot.rotation.x = THREE.MathUtils.damp(agent.rig.rightLegPivot.rotation.x, 0, 8, dt);
+            agent.rig.rightArmPivot.rotation.x =
+              agent.vendorMode === "selling"
+                ? -0.65 + Math.sin(elapsed * 3.0 + agent.walkPhase) * 0.2
+                : -0.35 + Math.sin(elapsed * 2.2 + agent.walkPhase) * 0.15;
+            agent.rig.headGroup.rotation.y = Math.sin(elapsed * 1.3 + agent.walkPhase) * 0.32;
+          }
+          if ((agent.vendorStateTimer ?? 0) <= 0) {
+            if (agent.vendorMode === "calling") {
+              agent.vendorMode = "selling";
+              agent.vendorStateTimer = 3.0 + Math.random() * 2.5;
+            } else {
+              agent.vendorMode = "walking";
+              agent.vendorStateTimer = 5.5 + Math.random() * 4.5;
+              if (agent.homeMarketCoord && Math.random() < 0.2) {
+                agent.restocking = true;
+              }
+            }
+          }
+          continue;
+        } else if ((agent.vendorStateTimer ?? 0) <= 0) {
+          agent.vendorMode = "calling";
+          agent.vendorStateTimer = 2.4 + Math.random() * 2.0;
+          continue;
+        }
+      }
+
+      // Movement along local market / street patrol loop (or market restock trip)
       if (agent.pauseTimer > 0) {
         agent.pauseTimer -= dt;
-        agent.rig.leftLegPivot.rotation.x = THREE.MathUtils.damp(agent.rig.leftLegPivot.rotation.x, 0, 8, dt);
-        agent.rig.rightLegPivot.rotation.x = THREE.MathUtils.damp(agent.rig.rightLegPivot.rotation.x, 0, 8, dt);
-        agent.rig.leftArmPivot.rotation.x = THREE.MathUtils.damp(agent.rig.leftArmPivot.rotation.x, 0, 8, dt);
-        agent.rig.rightArmPivot.rotation.x = THREE.MathUtils.damp(agent.rig.rightArmPivot.rotation.x, 0, 8, dt);
+        if (animateDetail) {
+          agent.rig.leftLegPivot.rotation.x = THREE.MathUtils.damp(agent.rig.leftLegPivot.rotation.x, 0, 8, dt);
+          agent.rig.rightLegPivot.rotation.x = THREE.MathUtils.damp(agent.rig.rightLegPivot.rotation.x, 0, 8, dt);
+          agent.rig.leftArmPivot.rotation.x = THREE.MathUtils.damp(agent.rig.leftArmPivot.rotation.x, 0, 8, dt);
+          agent.rig.rightArmPivot.rotation.x = THREE.MathUtils.damp(agent.rig.rightArmPivot.rotation.x, 0, 8, dt);
+        }
         continue;
       }
 
-      const target = agent.waypoints[agent.wpIndex];
+      const target =
+        agent.restocking && agent.homeMarketCoord
+          ? agent.homeMarketCoord
+          : agent.waypoints[agent.wpIndex];
       const dx = target.x - agent.x;
       const dz = target.z - agent.z;
       const dist = Math.hypot(dx, dz);
 
-      if (dist < 0.7) {
-        agent.wpIndex = (agent.wpIndex + 1) % agent.waypoints.length;
-        agent.pauseTimer = agent.role === "child" ? 0.4 + Math.random() * 1.0 : 1.1 + Math.random() * 2.2;
+      if (dist < 0.8) {
+        if (agent.restocking) {
+          agent.restocking = false;
+          agent.pauseTimer = 3.2;
+        } else {
+          agent.wpIndex = (agent.wpIndex + 1) % agent.waypoints.length;
+          agent.pauseTimer = agent.role === "child" ? 0.4 + Math.random() * 1.0 : 1.0 + Math.random() * 2.0;
+        }
         continue;
       }
 
@@ -3561,14 +4186,17 @@ export class TamaleEngine {
       while (diff < -Math.PI) diff += Math.PI * 2;
       agent.rotY += diff * Math.min(1, dt * 8);
 
-      agent.walkPhase += dt * (agent.role === "child" ? 10.5 : 7.5);
-      const swing = Math.sin(agent.walkPhase) * (agent.role === "child" ? 0.56 : 0.44);
       agent.rig.root.position.set(agent.x, 0, agent.z);
       agent.rig.root.rotation.y = agent.rotY;
-      agent.rig.leftLegPivot.rotation.x = swing;
-      agent.rig.rightLegPivot.rotation.x = -swing;
-      agent.rig.leftArmPivot.rotation.x = -swing * 0.8;
-      agent.rig.rightArmPivot.rotation.x = swing * 0.8;
+
+      if (animateDetail) {
+        agent.walkPhase += dt * (agent.role === "child" ? 10.5 : 7.5);
+        const swing = Math.sin(agent.walkPhase) * (agent.role === "child" ? 0.56 : 0.44);
+        agent.rig.leftLegPivot.rotation.x = swing;
+        agent.rig.rightLegPivot.rotation.x = -swing;
+        agent.rig.leftArmPivot.rotation.x = -swing * 0.8;
+        agent.rig.rightArmPivot.rotation.x = swing * 0.8;
+      }
     }
 
     // Compute market + crowd audio intensity (0..1)
@@ -3768,17 +4396,23 @@ export class TamaleEngine {
         tv.z += tv.dir * step;
       }
 
-      // Check intersection turning onto crossroad
-      const crossList = tv.axis === "x" ? NS_ROAD_COORDS : EW_ROAD_COORDS;
+      // Check intersection turning onto physically connected crossroads in tamaleRoadGraph
+      const crossList = getCrossRoadsAlong(tv.axis, tv.roadCoord);
       const mainCoord = tv.axis === "x" ? tv.x : tv.z;
       let turnedThisFrame = false;
       for (const cross of crossList) {
         if (Math.abs(mainCoord - cross) < 0.75 && tv.lastCrossCoord !== cross) {
           tv.lastCrossCoord = cross;
-          // 28% chance to turn cleanly onto intersecting avenue if comfortably inside city bounds
-          if (Math.random() < 0.28 && Math.abs(tv.x) < 165 && Math.abs(tv.z) < 155) {
-            const newDir: 1 | -1 = Math.random() < 0.5 ? 1 : -1;
-            tv.axis = tv.axis === "x" ? "z" : "x";
+          // 28% chance to turn cleanly onto intersecting avenue if away from Interchange center
+          const atCenterRoundabout = Math.abs(tv.x) < 4.5 && Math.abs(tv.z) < 4.5;
+          if (!atCenterRoundabout && Math.random() < 0.28) {
+            const newAxis: "x" | "z" = tv.axis === "x" ? "z" : "x";
+            const nextBounds = getRoadExtentBounds(newAxis, cross);
+            const curAlong = newAxis === "x" ? tv.x : tv.z;
+            let newDir: 1 | -1 = Math.random() < 0.5 ? 1 : -1;
+            if (curAlong <= nextBounds.min + 12) newDir = 1;
+            if (curAlong >= nextBounds.max - 12) newDir = -1;
+            tv.axis = newAxis;
             tv.roadCoord = cross;
             tv.dir = newDir;
             tv.lastCrossCoord = null;
@@ -3791,14 +4425,14 @@ export class TamaleEngine {
         tv.lastCrossCoord = null;
       }
 
-      // Wrap smoothly at road boundaries
-      const bound = tv.axis === "x" ? 198 : 172;
+      // Wrap smoothly at actual road segment boundaries
+      const roadBounds = getRoadExtentBounds(tv.axis, tv.roadCoord);
       if (tv.axis === "x") {
-        if (tv.x > bound) tv.x = -bound;
-        if (tv.x < -bound) tv.x = bound;
+        if (tv.x > roadBounds.max) tv.x = roadBounds.min;
+        if (tv.x < roadBounds.min) tv.x = roadBounds.max;
       } else {
-        if (tv.z > bound) tv.z = -bound;
-        if (tv.z < -bound) tv.z = bound;
+        if (tv.z > roadBounds.max) tv.z = roadBounds.min;
+        if (tv.z < roadBounds.min) tv.z = roadBounds.max;
       }
 
       // Keep vehicle aligned cleanly on its right-hand lane + weave offset
@@ -4099,7 +4733,8 @@ export class TamaleEngine {
             srv.request.kind === "moto_ride" ||
               srv.request.kind === "food_delivery" ||
               srv.request.kind === "parcel_delivery" ||
-              srv.request.kind === "roadside_repair"
+              srv.request.kind === "roadside_repair" ||
+              srv.request.kind === "personal_errand"
               ? "moto"
               : "pragya",
             srv.x,

@@ -71,6 +71,10 @@ export interface ShopMetadata {
     | "hardware_artisan"
     | "telecom_bank"
     | "cultural_craft"
+    | "electronics"
+    | "fashion_footwear"
+    | "ice_cream"
+    | "household"
     | "street_vendor";
   openHour: number; // 0..24
   closeHour: number; // 0..24 (can be < openHour for overnight/late-night spots)
@@ -494,6 +498,7 @@ export interface CityTaskJob {
   energyCost: number;
   skillReward: { skill: SkillKey; points: number };
   recommendedVehicle?: "any" | "pragya" | "motorcycle" | "foot";
+  shiftDomain?: "kitchen" | "supermarket" | "electronics" | "fashion" | "event" | "community";
   distanceMeters?: number;
 }
 
@@ -513,7 +518,9 @@ export type ServiceRequestKind =
   | "grocery_delivery"
   | "parcel_delivery"
   | "roadside_repair"
-  | "cargo_moving";
+  | "cargo_moving"
+  | "business_supply_delivery"
+  | "personal_errand";
 
 export type ServiceRequestStatus =
   | "searching"

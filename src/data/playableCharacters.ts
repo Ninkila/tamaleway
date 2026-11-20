@@ -121,7 +121,7 @@ export const PLAYABLE_CHARACTERS: PlayableCharacterProfile[] = [
     },
     startingDiscoveredLandmarks: ["tamale_interchange", "tamale_school", "jubilee_park"],
     startingVocabIds: ["dasuba", "antire", "alaafee"],
-    recommendedJobCategories: ["courier_delivery", "food_delivery", "passenger_ride", "exploration"],
+    recommendedJobCategories: ["courier_delivery", "food_delivery", "passenger_ride", "community_errand", "exploration"],
   },
   {
     id: "mariama_trader",
@@ -179,7 +179,7 @@ export const PLAYABLE_CHARACTERS: PlayableCharacterProfile[] = [
     },
     startingDiscoveredLandmarks: ["central_market", "tamale_interchange", "kukuo_market_pottery"],
     startingVocabIds: ["dasuba", "boogima", "didanyela", "mpaɣiya"],
-    recommendedJobCategories: ["market_trade", "shop_assistant", "business_ops", "grocery_delivery"],
+    recommendedJobCategories: ["market_trade", "shop_assistant", "business_ops", "grocery_delivery", "community_errand"],
   },
   {
     id: "karim_student",
@@ -237,7 +237,7 @@ export const PLAYABLE_CHARACTERS: PlayableCharacterProfile[] = [
     },
     startingDiscoveredLandmarks: ["dungu_campus", "dungu_student_hub", "scca_red_clay"],
     startingVocabIds: ["dasuba", "antire", "mpaɣiya"],
-    recommendedJobCategories: ["photography", "student_activity", "cultural_activity", "exploration"],
+    recommendedJobCategories: ["photography", "student_activity", "cultural_activity", "event_crew", "exploration"],
   },
   {
     id: "fuseini_artisan",
@@ -353,7 +353,7 @@ export const PLAYABLE_CHARACTERS: PlayableCharacterProfile[] = [
     },
     startingDiscoveredLandmarks: ["jubilee_night_spot", "central_market", "aboabo_market"],
     startingVocabIds: ["dasuba", "antire", "boogima"],
-    recommendedJobCategories: ["food_prep", "food_delivery", "grocery_delivery", "shop_assistant"],
+    recommendedJobCategories: ["food_prep", "food_delivery", "grocery_delivery", "shop_assistant", "social_activity"],
   },
 ];
 

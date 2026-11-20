@@ -1,3 +1,4 @@
+import { findRoadRoute } from "../data/tamaleRoadGraph";
 import {
   NpcInteractionState,
   NpcProfile,
@@ -26,90 +27,16 @@ interface ScheduledNpcEntity {
   isMoving: boolean;
 }
 
-// Sidewalk verges aligned along Tamale's main N-S and E-W arterial roads
-const SIDEWALK_X = [-157.5, -97.5, -61.5, 7.8, 61.5, 123.5, 181.5];
-const SIDEWALK_Z = [-153.5, -87.5, -43.5, 7.8, 61.5, 123.5];
-
-function nearestValue(val: number, candidates: number[]): number {
-  let best = candidates[0];
-  let bestDiff = Math.abs(val - best);
-  for (let i = 1; i < candidates.length; i++) {
-    const d = Math.abs(val - candidates[i]);
-    if (d < bestDiff) {
-      bestDiff = d;
-      best = candidates[i];
-    }
-  }
-  return best;
-}
-
-function pathLength(start: Waypoint, pts: Waypoint[]): number {
-  let total = 0;
-  let px = start.x;
-  let pz = start.z;
-  for (const p of pts) {
-    total += Math.hypot(p.x - px, p.z - pz);
-    px = p.x;
-    pz = p.z;
-  }
-  return total;
-}
-
-function dedupeWaypoints(start: Waypoint, pts: Waypoint[]): Waypoint[] {
-  const out: Waypoint[] = [];
-  let prevX = start.x;
-  let prevZ = start.z;
-  for (const p of pts) {
-    if (Math.hypot(p.x - prevX, p.z - prevZ) > 2.4) {
-      out.push(p);
-      prevX = p.x;
-      prevZ = p.z;
-    }
-  }
-  if (pts.length > 0) {
-    const last = pts[pts.length - 1];
-    if (out.length === 0 || Math.hypot(out[out.length - 1].x - last.x, out[out.length - 1].z - last.z) > 0.5) {
-      out.push(last);
-    }
-  }
-  return out;
-}
-
 export function computeCorridorWaypoints(
   fromX: number,
   fromZ: number,
   toX: number,
   toZ: number
 ): Waypoint[] {
-  const directDist = Math.hypot(toX - fromX, toZ - fromZ);
-  if (directDist <= 28) {
-    return [{ x: toX, z: toZ }];
-  }
-
-  const startRoadX = nearestValue(fromX, SIDEWALK_X);
-  const startRoadZ = nearestValue(fromZ, SIDEWALK_Z);
-  const endRoadX = nearestValue(toX, SIDEWALK_X);
-  const endRoadZ = nearestValue(toZ, SIDEWALK_Z);
-
-  // Route A: step onto nearest E-W sidewalk, traverse X to target N-S sidewalk, traverse Z, enter target
-  const routeA: Waypoint[] = [
-    { x: fromX, z: startRoadZ },
-    { x: endRoadX, z: startRoadZ },
-    { x: endRoadX, z: endRoadZ },
-    { x: toX, z: toZ },
-  ];
-
-  // Route B: step onto nearest N-S sidewalk, traverse Z to target E-W sidewalk, traverse X, enter target
-  const routeB: Waypoint[] = [
-    { x: startRoadX, z: fromZ },
-    { x: startRoadX, z: endRoadZ },
-    { x: endRoadX, z: endRoadZ },
-    { x: toX, z: toZ },
-  ];
-
-  const startPt = { x: fromX, z: fromZ };
-  const chosen = pathLength(startPt, routeA) <= pathLength(startPt, routeB) ? routeA : routeB;
-  return dedupeWaypoints(startPt, chosen);
+  return findRoadRoute(fromX, fromZ, toX, toZ, {
+    sidewalkOffset: 7.4,
+    directThreshold: 20,
+  });
 }
 
 export function isMinuteInSlot(minute: number, slot: NpcScheduleSlot): boolean {

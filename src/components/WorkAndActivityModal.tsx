@@ -23,14 +23,61 @@ interface WorkAndActivityModalProps {
   onClose: () => void;
 }
 
-const KITCHEN_MENU_ITEMS = [
-  { id: "sagim", label: "Hot Tuo Zaafi & Ayoyo", dagbani: "Saɣim" },
-  { id: "waakye", label: "Sorghum-Leaf Waakye", dagbani: "Bɛŋa ni Shinkaafa" },
-  { id: "fried_chicken", label: "Fried Chicken & Jollof", dagbani: "Noo ni Shinkaafa" },
-  { id: "sobolo", label: "Chilled Ginger Sobolo", dagbani: "Sobolo Kom" },
-  { id: "sugar_bread", label: "Warm Tamale Sugar Bread", dagbani: "Paano" },
-  { id: "shea_jar", label: "Golden Shea Butter Jar", dagbani: "Kpakpili" },
-];
+type ShiftItem = { id: string; label: string; dagbani: string };
+
+const SHIFT_POOLS: Record<
+  "kitchen" | "supermarket" | "electronics" | "fashion" | "event" | "community",
+  ShiftItem[]
+> = {
+  kitchen: [
+    { id: "sagim", label: "Hot Tuo Zaafi & Ayoyo", dagbani: "Saɣim" },
+    { id: "waakye", label: "Sorghum-Leaf Waakye", dagbani: "Bɛŋa ni Shinkaafa" },
+    { id: "tilapia_banku", label: "Grilled Tilapia & Banku", dagbani: "Zom Nimdi ni Banku" },
+    { id: "fried_chicken", label: "Fried Chicken & Party Jollof", dagbani: "Noo ni Shinkaafa" },
+    { id: "sobolo", label: "Chilled Ginger Sobolo", dagbani: "Sobolo Kom" },
+    { id: "sugar_bread", label: "Warm Tamale Sugar Bread", dagbani: "Paano" },
+  ],
+  supermarket: [
+    { id: "water_pack", label: "Chilled Water Pack", dagbani: "Kom" },
+    { id: "shea_jar", label: "Golden Shea Butter Jar", dagbani: "Kpakpili" },
+    { id: "sugar_bread", label: "Warm Sugar Bread Loaf", dagbani: "Paano" },
+    { id: "mango_juice", label: "Tamale Mango Juice Carton", dagbani: "Mango Kom" },
+    { id: "yam_bag", label: "Pona Yam Sacks", dagbani: "Nyuli" },
+    { id: "honey_jar", label: "Northern Savannah Honey", dagbani: "Shiri" },
+  ],
+  electronics: [
+    { id: "solar_lantern", label: "Rechargeable Solar Lantern", dagbani: "Fitila Solar" },
+    { id: "power_bank", label: "20,000mAh Fast Power Bank", dagbani: "Batiri Kpaŋ" },
+    { id: "usb_cable", label: "Braided USB-C Charging Cable", dagbani: "Wayaa" },
+    { id: "radio_speaker", label: "Portable Radio & Speaker", dagbani: "Radiyo" },
+    { id: "screen_guard", label: "Tempered Smartphone Guard", dagbani: "Wayaa Gilas" },
+    { id: "solar_panel", label: "50W Rooftop Solar Kit", dagbani: "Solar Tuma" },
+  ],
+  fashion: [
+    { id: "kaba_wrap", label: "Embroidered Kaba & Wax Print", dagbani: "Nɛma Viɛlli" },
+    { id: "batakari", label: "Handwoven Fugu / Batakari", dagbani: "Batakari" },
+    { id: "leather_sandals", label: "Stitched Northern Sandals", dagbani: "Kpahi" },
+    { id: "shea_mist", label: "Whipped Shea & Oud Perfume", dagbani: "Kpakpili Turi" },
+    { id: "kufi_cap", label: "Royal Embroidered Kufi Cap", dagbani: "Zupiligu" },
+    { id: "satchel", label: "Tanned Leather Commuter Bag", dagbani: "Bɔɔgu" },
+  ],
+  event: [
+    { id: "canopy_tent", label: "Shaded Durbar Canopy Tent", dagbani: "Chugu Pɔŋ" },
+    { id: "dondo_drum", label: "Carved Dondo Talking Drum", dagbani: "Dondo" },
+    { id: "mic_pa", label: "Wireless PA Microphone Set", dagbani: "Yɛltɔɣa Wayaa" },
+    { id: "guest_chairs", label: "VIP Guest Seating Row", dagbani: "Kujɛrisi" },
+    { id: "banner_flags", label: "Heritage Stage Banners", dagbani: "Tiŋa Tuuta" },
+    { id: "cooler_drinks", label: "Chilled Sobolo & Water Cooler", dagbani: "Kom Maasim" },
+  ],
+  community: [
+    { id: "hydration_kit", label: "Clinic Hydration Salt Pack", dagbani: "Alaafee Kom" },
+    { id: "solar_lamp", label: "Streetlight Solar Check Unit", dagbani: "Fitila Solar" },
+    { id: "plastic_basin", label: "Household Utility Basin", dagbani: "Taasa" },
+    { id: "literacy_book", label: "Dagbani School Exercise Pack", dagbani: "Karimbu Gbaŋ" },
+    { id: "black_soap", label: "Alata Samina Hygiene Bundle", dagbani: "Alata Samina" },
+    { id: "thermos_flask", label: "Insulated Water Flask", dagbani: "Kom Kpakpaŋ" },
+  ],
+};
 
 const REPAIR_STEPS = [
   {
@@ -104,18 +151,21 @@ export const WorkAndActivityModal: React.FC<WorkAndActivityModalProps> = ({
 }) => {
   const mode = task.job.executionMode;
 
+  const domainKey = task.job.shiftDomain ?? "kitchen";
+  const activeShiftItems = SHIFT_POOLS[domainKey];
+
   // 1. Work Shift (Customer Orders)
   const shiftOrders = useMemo(() => {
-    const startIdx = task.job.id.length % KITCHEN_MENU_ITEMS.length;
+    const startIdx = task.job.id.length % activeShiftItems.length;
     return Array.from({ length: 5 }, (_, i) => {
-      const item = KITCHEN_MENU_ITEMS[(startIdx + i * 2) % KITCHEN_MENU_ITEMS.length];
+      const item = activeShiftItems[(startIdx + i * 2) % activeShiftItems.length];
       return {
         orderNo: i + 1,
         customer: ["Amina", "Yakubu", "Zainab", "Mohammed", "Fati"][i],
         item,
       };
     });
-  }, [task.job.id]);
+  }, [task.job.id, activeShiftItems]);
   const [shiftIndex, setShiftIndex] = useState(0);
   const [shiftMistakes, setShiftMistakes] = useState(0);
   const [shiftFeedback, setShiftFeedback] = useState<string>(
@@ -255,7 +305,7 @@ export const WorkAndActivityModal: React.FC<WorkAndActivityModalProps> = ({
                   <div className="text-xs text-[#cfc8bc]">{shiftFeedback}</div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {KITCHEN_MENU_ITEMS.map((item) => (
+                    {activeShiftItems.map((item) => (
                       <button
                         key={item.id}
                         type="button"

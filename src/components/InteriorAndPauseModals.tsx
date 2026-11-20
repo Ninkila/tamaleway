@@ -91,6 +91,20 @@ export const BuildingInteriorModal: React.FC<BuildingInteriorModalProps> = ({
                   ? "Browse Timber & Tools"
                   : landmark.shopId === "dungu_student_hub"
                   ? "Campus Café, Printing & Waakye"
+                  : landmark.shopId === "tamale_enterprise_bank"
+                  ? "Bank Desk & MoMo Services"
+                  : landmark.shopId === "gbewaa_electronics_hub"
+                  ? "Shop Phones, Solar & Repairs"
+                  : landmark.shopId === "tamale_ice_cream_bar"
+                  ? "Order Ice Cream & Smoothies"
+                  : landmark.shopId === "savannah_fashion_boutique"
+                  ? "Browse Fashion & Cosmetics"
+                  : landmark.shopId === "tamale_footwear_leather"
+                  ? "Shop Footwear & Leather Bags"
+                  : landmark.shopId === "gukpegu_jollof_tilapia"
+                  ? "Order Grilled Tilapia, Banku & Jollof"
+                  : landmark.shopId === "dabokpaa_household_mart"
+                  ? "Shop Household & Mini-Mart"
                   : "Browse Market & Goods"}
               </button>
             )}
