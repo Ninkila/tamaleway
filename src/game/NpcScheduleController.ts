@@ -25,6 +25,8 @@ interface ScheduledNpcEntity {
   waitTimer: number;
   walkPhase: number;
   isMoving: boolean;
+  stuckTimer: number;
+  detourSign: 1 | -1;
 }
 
 export function computeCorridorWaypoints(
@@ -118,12 +120,26 @@ function interpolateAlongPath(start: Waypoint, waypoints: Waypoint[], t: number)
   return { x: last.x, z: last.z, remainingQueue: [], rotY: 0 };
 }
 
+export type ProbeObstacleFn = (
+  x: number,
+  z: number,
+  dirX: number,
+  dirZ: number,
+  lookahead: number,
+  radius: number
+) => { blocked: boolean; steerX: number; steerZ: number };
+
 export class NpcScheduleController {
   private entities: ScheduledNpcEntity[] = [];
   private resolveCollision?: (x: number, z: number, radius: number) => { x: number; z: number };
+  private probeObstacle?: ProbeObstacleFn;
 
-  constructor(resolveCollision?: (x: number, z: number, radius: number) => { x: number; z: number }) {
+  constructor(
+    resolveCollision?: (x: number, z: number, radius: number) => { x: number; z: number },
+    probeObstacle?: ProbeObstacleFn
+  ) {
     this.resolveCollision = resolveCollision;
+    this.probeObstacle = probeObstacle;
   }
 
   public registerNpc(profile: NpcProfile, rig: CharacterRig) {
@@ -141,6 +157,8 @@ export class NpcScheduleController {
       waitTimer: 1.5 + Math.random() * 2,
       walkPhase: Math.random() * Math.PI * 2,
       isMoving: false,
+      stuckTimer: 0,
+      detourSign: this.entities.length % 2 === 0 ? 1 : -1,
     });
   }
 
@@ -237,16 +255,10 @@ export class NpcScheduleController {
         } else {
           const commuteSpeed = 3.5;
           const step = Math.min(dist, commuteSpeed * dt);
-          let nx = ent.x + (dx / dist) * step;
-          let nz = ent.z + (dz / dist) * step;
-          if (this.resolveCollision) {
-            const resolved = this.resolveCollision(nx, nz, 0.42);
-            nx = resolved.x;
-            nz = resolved.z;
-          }
-          ent.x = nx;
-          ent.z = nz;
-          ent.rotY = Math.atan2(dx, dz);
+          const nextPos = this.stepWithAvoidance(ent, dx / dist, dz / dist, step, dt);
+          ent.x = nextPos.x;
+          ent.z = nextPos.z;
+          ent.rotY = Math.atan2(nextPos.moveX, nextPos.moveZ);
           ent.isMoving = true;
           this.animateWalk(ent, dt, 8.5);
         }
@@ -264,6 +276,7 @@ export class NpcScheduleController {
         if (dist < 0.45) {
           ent.waitTimer -= dt;
           ent.isMoving = false;
+          ent.stuckTimer = 0;
           this.resetLimbs(ent.rig);
           if (ent.waitTimer <= 0) {
             ent.patrolIdx = (ent.patrolIdx + 1) % points.length;
@@ -275,16 +288,10 @@ export class NpcScheduleController {
         } else {
           const patrolSpeed = ent.currentSlot.interactionState === "resting" ? 1.1 : 1.55;
           const step = Math.min(dist, patrolSpeed * dt);
-          let nx = ent.x + (dx / dist) * step;
-          let nz = ent.z + (dz / dist) * step;
-          if (this.resolveCollision) {
-            const resolved = this.resolveCollision(nx, nz, 0.42);
-            nx = resolved.x;
-            nz = resolved.z;
-          }
-          ent.x = nx;
-          ent.z = nz;
-          ent.rotY = Math.atan2(dx, dz);
+          const nextPos = this.stepWithAvoidance(ent, dx / dist, dz / dist, step, dt);
+          ent.x = nextPos.x;
+          ent.z = nextPos.z;
+          ent.rotY = Math.atan2(nextPos.moveX, nextPos.moveZ);
           ent.isMoving = true;
           this.animateWalk(ent, dt, 6.0);
         }
@@ -293,6 +300,60 @@ export class NpcScheduleController {
       ent.rig.root.position.set(ent.x, 0, ent.z);
       ent.rig.root.rotation.y = ent.rotY;
     }
+  }
+
+  private stepWithAvoidance(
+    ent: ScheduledNpcEntity,
+    dirX: number,
+    dirZ: number,
+    step: number,
+    dt: number
+  ): { x: number; z: number; moveX: number; moveZ: number } {
+    let moveX = dirX;
+    let moveZ = dirZ;
+
+    if (this.probeObstacle) {
+      const probe = this.probeObstacle(ent.x, ent.z, dirX, dirZ, 1.55, 0.42);
+      if (probe.blocked) {
+        moveX = dirX * 0.25 + probe.steerX * 0.75;
+        moveZ = dirZ * 0.25 + probe.steerZ * 0.75;
+        const mLen = Math.hypot(moveX, moveZ) || 1;
+        moveX /= mLen;
+        moveZ /= mLen;
+      }
+    }
+
+    if (ent.stuckTimer > 0.65) {
+      // Temporary lateral sidestep along tangent to escape tight obstacle corners
+      const perpX = -dirZ * ent.detourSign;
+      const perpZ = dirX * ent.detourSign;
+      moveX = moveX * 0.25 + perpX * 0.75;
+      moveZ = moveZ * 0.25 + perpZ * 0.75;
+      const mLen = Math.hypot(moveX, moveZ) || 1;
+      moveX /= mLen;
+      moveZ /= mLen;
+    }
+
+    let nx = ent.x + moveX * step;
+    let nz = ent.z + moveZ * step;
+    if (this.resolveCollision) {
+      const resolved = this.resolveCollision(nx, nz, 0.42);
+      nx = resolved.x;
+      nz = resolved.z;
+    }
+
+    const actualMoved = Math.hypot(nx - ent.x, nz - ent.z);
+    if (step > 0.005 && actualMoved < step * 0.22) {
+      ent.stuckTimer += dt;
+      if (ent.stuckTimer > 2.2) {
+        ent.detourSign = ent.detourSign === 1 ? -1 : 1;
+        ent.stuckTimer = 0.7;
+      }
+    } else {
+      ent.stuckTimer = Math.max(0, ent.stuckTimer - dt * 1.5);
+    }
+
+    return { x: nx, z: nz, moveX, moveZ };
   }
 
   private animateWalk(ent: ScheduledNpcEntity, dt: number, rate: number) {

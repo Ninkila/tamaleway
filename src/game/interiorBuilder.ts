@@ -8,6 +8,8 @@ export interface InteriorBoxCollider {
   maxX: number;
   minZ: number;
   maxZ: number;
+  minY?: number;
+  maxY?: number;
 }
 
 export interface BuiltInteriorScene {
@@ -66,6 +68,8 @@ function addDesk(
     maxX: x + w / 2,
     minZ: z - d / 2,
     maxZ: z + d / 2,
+    minY: 0,
+    maxY: h + 0.08,
   });
 }
 
@@ -96,7 +100,8 @@ function addInteriorAttendant(
   primary: string,
   accent: string,
   headwear: "none" | "kufi" | "headwrap" | "braids",
-  textures: ProceduralTextureSet
+  textures: ProceduralTextureSet,
+  colliders?: InteriorBoxCollider[]
 ) {
   const rig = createCharacterRig(
     {
@@ -111,6 +116,16 @@ function addInteriorAttendant(
   rig.root.position.set(x, 0, z);
   rig.root.rotation.y = rotY;
   group.add(rig.root);
+  if (colliders) {
+    colliders.push({
+      minX: x - 0.36,
+      maxX: x + 0.36,
+      minZ: z - 0.36,
+      maxZ: z + 0.36,
+      minY: 0,
+      maxY: 1.75,
+    });
+  }
 }
 
 /**
@@ -245,8 +260,8 @@ export function buildPhysicalInteriorScene(
       group.add(atmScreen);
       // Waiting bench
       addDesk(group, colliders, -4.4, 1.8, 1.0, 0.55, 3.4, darkTrimMat, accentMat);
-      addInteriorAttendant(group, -2.5, -4.6, 0, "#0369a1", "#f8fafc", "none", textures);
-      addInteriorAttendant(group, 2.8, -4.6, 0, "#facc15", "#0f172a", "headwrap", textures);
+      addInteriorAttendant(group, -2.5, -4.6, 0, "#0369a1", "#f8fafc", "none", textures, colliders);
+      addInteriorAttendant(group, 2.8, -4.6, 0, "#facc15", "#0f172a", "headwrap", textures, colliders);
       break;
     }
 
@@ -256,8 +271,8 @@ export function buildPhysicalInteriorScene(
       addDesk(group, colliders, 2.5, -2.8, 3.6, 1.05, 0.9, accentMat, woodMat);
       // Tall cold-drink fridge
       addDesk(group, colliders, halfW - 1.0, -1.0, 1.0, 2.2, 1.5, darkTrimMat, glassMat);
-      addInteriorAttendant(group, -2.0, -3.9, 0, "#facc15", "#1e293b", "braids", textures);
-      addInteriorAttendant(group, 2.5, -3.9, 0, "#0284c7", "#ffffff", "none", textures);
+      addInteriorAttendant(group, -2.0, -3.9, 0, "#facc15", "#1e293b", "braids", textures, colliders);
+      addInteriorAttendant(group, 2.5, -3.9, 0, "#0284c7", "#ffffff", "none", textures, colliders);
       break;
     }
 
@@ -282,8 +297,8 @@ export function buildPhysicalInteriorScene(
         plate.position.set(tx - 0.35, 0.84, tz);
         group.add(plate);
       }
-      addInteriorAttendant(group, -1.4, -4.5, 0, "#ea580c", "#fef3c7", "headwrap", textures);
-      addInteriorAttendant(group, 1.4, -4.5, 0, "#f8fafc", "#dc2626", "none", textures);
+      addInteriorAttendant(group, -1.4, -4.5, 0, "#ea580c", "#fef3c7", "headwrap", textures, colliders);
+      addInteriorAttendant(group, 1.4, -4.5, 0, "#f8fafc", "#dc2626", "none", textures, colliders);
       break;
     }
 
@@ -307,7 +322,7 @@ export function buildPhysicalInteriorScene(
       addDesk(group, colliders, 0, -halfD + 1.1, 6.5, 2.2, 1.1, glassMat, darkTrimMat);
       // Checkout counter near exit
       addDesk(group, colliders, -2.4, 3.6, 3.2, 1.02, 0.9, accentMat, darkTrimMat);
-      addInteriorAttendant(group, -2.4, 2.5, Math.PI, "#0284c7", "#ffffff", "braids", textures);
+      addInteriorAttendant(group, -2.4, 2.5, Math.PI, "#0284c7", "#ffffff", "braids", textures, colliders);
       break;
     }
 
@@ -323,7 +338,7 @@ export function buildPhysicalInteriorScene(
         mirror.position.set(cx, 1.75, -halfD + 0.25);
         group.add(mirror);
       }
-      addInteriorAttendant(group, -2.4, -3.5, 0, "#7c3aed", "#f8fafc", "none", textures);
+      addInteriorAttendant(group, -2.4, -3.5, 0, "#7c3aed", "#f8fafc", "none", textures, colliders);
       break;
     }
 
@@ -339,7 +354,7 @@ export function buildPhysicalInteriorScene(
       const solar = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.8, 2.6), darkTrimMat);
       solar.position.set(halfW - 0.25, 1.8, -1.0);
       group.add(solar);
-      addInteriorAttendant(group, 0, -4.0, 0, "#0284c7", "#f8fafc", "kufi", textures);
+      addInteriorAttendant(group, 0, -4.0, 0, "#0284c7", "#f8fafc", "kufi", textures, colliders);
       break;
     }
 
@@ -355,7 +370,15 @@ export function buildPhysicalInteriorScene(
         tire.position.set(4.5, 0.16 + i * 0.26, 1.2);
         group.add(tire);
       }
-      addInteriorAttendant(group, -2.2, -3.6, 0, "#dc2626", "#f8fafc", "kufi", textures);
+      colliders.push({
+        minX: 3.9,
+        maxX: 5.1,
+        minZ: 0.6,
+        maxZ: 1.8,
+        minY: 0,
+        maxY: 1.0,
+      });
+      addInteriorAttendant(group, -2.2, -3.6, 0, "#dc2626", "#f8fafc", "kufi", textures, colliders);
       break;
     }
 
@@ -367,7 +390,7 @@ export function buildPhysicalInteriorScene(
         addDesk(group, colliders, -4.6, 0.4, 1.4, 0.65, 2.6, whiteClean, accentMat);
         addDesk(group, colliders, 4.6, 0.4, 1.4, 0.65, 2.6, whiteClean, accentMat);
       }
-      addInteriorAttendant(group, -1.2, -4.3, 0, "#f8fafc", "#dc2626", "headwrap", textures);
+      addInteriorAttendant(group, -1.2, -4.3, 0, "#f8fafc", "#dc2626", "headwrap", textures, colliders);
       break;
     }
 
@@ -384,7 +407,7 @@ export function buildPhysicalInteriorScene(
       group.add(pillow);
       if (spec.archetype === "guesthouse") {
         addDesk(group, colliders, -3.2, -3.0, 3.6, 1.05, 0.9, woodMat, accentMat);
-        addInteriorAttendant(group, -3.2, -4.1, 0, "#0f766e", "#fef3c7", "headwrap", textures);
+        addInteriorAttendant(group, -3.2, -4.1, 0, "#0f766e", "#fef3c7", "headwrap", textures, colliders);
       } else {
         // Wardrobe + Table radio
         addDesk(group, colliders, 3.6, -2.4, 1.6, 2.1, 0.9, woodMat, accentMat);
@@ -396,7 +419,7 @@ export function buildPhysicalInteriorScene(
     case "fitness_print": {
       addDesk(group, colliders, 3.6, -2.8, 3.2, 1.02, 1.0, darkTrimMat, accentMat);
       addDesk(group, colliders, -3.8, -1.2, 2.2, 1.35, 2.2, darkTrimMat, accentMat);
-      addInteriorAttendant(group, 3.6, -4.0, 0, "#dc2626", "#f8fafc", "none", textures);
+      addInteriorAttendant(group, 3.6, -4.0, 0, "#dc2626", "#f8fafc", "none", textures, colliders);
       break;
     }
 
@@ -404,7 +427,7 @@ export function buildPhysicalInteriorScene(
       // Market hall, Cultural gallery, Palace, Mosque
       addDesk(group, colliders, 0, -2.8, 5.2, 0.98, 1.0, woodMat, accentMat);
       addDesk(group, colliders, -4.2, 0.4, 1.1, 0.52, 3.2, woodMat, accentMat);
-      addInteriorAttendant(group, 0, -4.0, 0, spec.accentColor, "#fef3c7", "kufi", textures);
+      addInteriorAttendant(group, 0, -4.0, 0, spec.accentColor, "#fef3c7", "kufi", textures, colliders);
       break;
     }
   }

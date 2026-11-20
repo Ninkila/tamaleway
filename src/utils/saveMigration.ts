@@ -100,6 +100,7 @@ export function migrateSavedGameState(
   weather: WeatherType;
   gameMinutes: number;
   activeCityEvent: NonNullable<SavedGameState["activeCityEvent"]>;
+  musicLibrary?: SavedGameState["musicLibrary"];
 } {
   const defaultsMap = buildAllDefaultCharacterStates();
   const settings: GameSettings = {
@@ -148,6 +149,7 @@ export function migrateSavedGameState(
       weather,
       gameMinutes,
       activeCityEvent,
+      musicLibrary: raw.musicLibrary,
     };
   }
 
@@ -182,5 +184,6 @@ export function migrateSavedGameState(
     weather,
     gameMinutes,
     activeCityEvent,
+    musicLibrary: raw.musicLibrary,
   };
 }

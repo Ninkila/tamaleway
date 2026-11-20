@@ -28,6 +28,7 @@ export class TamaleAudioEngine {
   private enabled = true;
   private volume = 0.5;
   private indoorMode = false;
+  private personalMusicActive = false;
   private lastStepTime = 0;
   private lastBirdTime = 0;
   private lastMarketAccentTime = 0;
@@ -401,6 +402,20 @@ export class TamaleAudioEngine {
     this.indoorBedGain.gain.setTargetAtTime(indoor ? 0.04 : 0, now, 0.14);
   }
 
+  public setPersonalMusicActive(active: boolean) {
+    this.personalMusicActive = active;
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const musicDuck = active ? 0.14 : 1.0;
+    for (const em of this.spatialEmitters) {
+      if (em.kind === "radio" || em.kind === "lounge") {
+        em.gain.gain.setTargetAtTime(musicDuck, now, 0.18);
+      } else if (em.kind === "house_radio") {
+        em.gain.gain.setTargetAtTime(0.55 * musicDuck, now, 0.18);
+      }
+    }
+  }
+
   public updateListener(x: number, y: number, z: number, yaw: number) {
     if (!this.ctx || this.ctx.state !== "running") return;
     const listener = this.ctx.listener;
@@ -566,7 +581,7 @@ export class TamaleAudioEngine {
         }
       } else if (em.kind === "radio" || em.kind === "house_radio") {
         const maxRange = em.kind === "house_radio" ? 24 : 34;
-        if (!isNightHours && dist < maxRange && time - this.lastRadioNoteTime > 0.34) {
+        if (!this.personalMusicActive && !isNightHours && dist < maxRange && time - this.lastRadioNoteTime > 0.34) {
           this.lastRadioNoteTime = time;
           this.playShopRadioNote(em.gain);
         }
@@ -594,7 +609,7 @@ export class TamaleAudioEngine {
         }
       } else if (em.kind === "lounge") {
         const isNightSpotOpen = hour >= 17.0 || hour < 2.0;
-        if (isNightSpotOpen && dist < 40 && time - em.lastBurstAt > 0.28) {
+        if (!this.personalMusicActive && isNightSpotOpen && dist < 40 && time - em.lastBurstAt > 0.28) {
           em.lastBurstAt = time;
           this.playNightLoungeBeat(em.gain, time);
         }

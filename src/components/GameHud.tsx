@@ -12,9 +12,13 @@ import {
   Maximize2,
   MessageSquarePlus,
   MoreHorizontal,
+  Music,
   Package,
   Pause,
+  Play,
   Radio,
+  SkipBack,
+  SkipForward,
   Smartphone,
   Tag,
   User,
@@ -83,6 +87,9 @@ interface GameHudProps {
   onOpenPhoneRadio?: () => void;
   onToggleMiniRadioPlay?: () => void;
   onMiniRadioNext?: () => void;
+  onMiniRadioPrev?: () => void;
+  onToggleVehicleRadio?: () => void;
+  onToggleVehicleAudioSource?: () => void;
   onCloseMiniRadio?: () => void;
   onOpenCharacterSwitch?: () => void;
   onCancelService?: () => void;
@@ -150,6 +157,9 @@ export const GameHud: React.FC<GameHudProps> = ({
   onOpenPhoneRadio,
   onToggleMiniRadioPlay,
   onMiniRadioNext,
+  onMiniRadioPrev,
+  onToggleVehicleRadio,
+  onToggleVehicleAudioSource,
   onCloseMiniRadio,
   onOpenCharacterSwitch,
   onCancelService,
@@ -615,28 +625,92 @@ export const GameHud: React.FC<GameHudProps> = ({
           </div>
         )}
 
-        {/* Driving Speedometer & Desktop/Touch Vehicle Info */}
+        {/* Driving Speedometer, Vehicle Radio & Desktop/Touch Vehicle Info */}
         {isDriving && (
-          <div className="pointer-events-auto flex items-center gap-3 bg-[#14110f]/92 border border-amber-500/40 rounded-xl px-3.5 py-2 shadow-lg">
-            <div className="text-xs text-[#cfc8bc] truncate max-w-[140px] sm:max-w-none">
+          <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2 sm:gap-3 bg-[#14110f]/94 border border-amber-500/40 rounded-xl px-3.5 py-2 shadow-lg max-w-[94vw]">
+            <div className="text-xs text-[#cfc8bc] truncate max-w-[130px] sm:max-w-none">
               {drivingLabel}
             </div>
             <div className="font-mono-num text-sm font-bold text-amber-400 whitespace-nowrap">
               {speedKmh} km/h
             </div>
+
+            {musicSnapshot && (
+              <div className="flex items-center gap-1 pl-2 border-l border-white/12">
+                <button
+                  type="button"
+                  onClick={onToggleVehicleRadio ?? onToggleMiniRadioPlay}
+                  title={musicSnapshot.isPlaying ? "Turn Vehicle Radio Off" : "Turn Vehicle Radio On"}
+                  className={`min-h-[36px] px-2.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer ${
+                    musicSnapshot.isPlaying
+                      ? "bg-amber-500 text-[#12100e]"
+                      : "bg-white/10 hover:bg-white/20 text-[#f8f5ef]"
+                  }`}
+                >
+                  {musicSnapshot.isPlaying ? (
+                    <Pause className="w-3.5 h-3.5" />
+                  ) : (
+                    <Play className="w-3.5 h-3.5" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {musicSnapshot.isPlaying
+                      ? musicSnapshot.mode === "radio"
+                        ? musicSnapshot.currentStation.frequency
+                        : "Playing"
+                      : "Radio"}
+                  </span>
+                </button>
+                {onToggleVehicleAudioSource && (
+                  <button
+                    type="button"
+                    onClick={onToggleVehicleAudioSource}
+                    title="Switch between FM Radio and Personal Playlist"
+                    className="min-h-[36px] px-2 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] font-medium text-[#ede8de] flex items-center gap-1 cursor-pointer"
+                  >
+                    {musicSnapshot.mode === "radio" ? (
+                      <Radio className="w-3.5 h-3.5 text-amber-400" />
+                    ) : (
+                      <Music className="w-3.5 h-3.5 text-amber-400" />
+                    )}
+                    <span>{musicSnapshot.mode === "radio" ? "FM" : "Mix"}</span>
+                  </button>
+                )}
+                {onMiniRadioPrev && (
+                  <button
+                    type="button"
+                    onClick={onMiniRadioPrev}
+                    aria-label="Previous station or track"
+                    className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-[#f8f5ef] cursor-pointer"
+                  >
+                    <SkipBack className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                {onMiniRadioNext && (
+                  <button
+                    type="button"
+                    onClick={onMiniRadioNext}
+                    aria-label="Next station or track"
+                    className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-[#f8f5ef] cursor-pointer"
+                  >
+                    <SkipForward className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
+
             {!isTouchControlsVisible && (
               <>
                 <button
                   type="button"
                   onClick={onTriggerHorn}
-                  className="text-xs font-medium bg-white/10 hover:bg-white/20 text-[#f8f5ef] px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+                  className="text-xs font-medium bg-white/10 hover:bg-white/20 text-[#f8f5ef] px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
                 >
                   Horn ({keyHint(keyBindings.horn)})
                 </button>
                 <button
                   type="button"
                   onClick={onToggleVehicle}
-                  className="text-xs font-medium bg-red-500/20 hover:bg-red-500/35 text-red-200 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+                  className="text-xs font-medium bg-red-500/20 hover:bg-red-500/35 text-red-200 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
                 >
                   Exit ({keyHint(keyBindings.vehicleToggle)})
                 </button>

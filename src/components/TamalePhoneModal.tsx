@@ -96,7 +96,8 @@ interface TamalePhoneModalProps {
   }) => void;
   onSendPhoneMessage: (npcId: string, text: string) => void;
   onMarkMessagesRead: () => void;
-  onPlayTrack: (trackId: string) => void;
+  onPlayTrack: (trackId: string, playlistId?: string | null) => void;
+  onPlayPlaylist: (playlistId: string, startTrackId?: string) => void;
   onTuneStation: (station: RadioStation) => void;
   onRefreshDjSegment: (station: RadioStation) => void;
   onToggleMusicPlay: () => void;
@@ -106,6 +107,11 @@ interface TamalePhoneModalProps {
   onMusicVolume: (vol: number) => void;
   onToggleMusicShuffle: () => void;
   onCycleMusicRepeat: () => void;
+  onToggleFavorite: (trackId: string) => void;
+  onCreatePlaylist: (name: string) => void;
+  onAddTrackToPlaylist: (playlistId: string, trackId: string) => void;
+  onRemoveTrackFromPlaylist: (playlistId: string, trackId: string) => void;
+  onDeletePlaylist: (playlistId: string) => void;
   onSwitchCharacter: (characterId: string) => void;
   onOpenCustomize: () => void;
   onInvestBusiness: (shopId: string) => void;
@@ -141,6 +147,7 @@ export const TamalePhoneModal: React.FC<TamalePhoneModalProps> = ({
   onSendPhoneMessage,
   onMarkMessagesRead,
   onPlayTrack,
+  onPlayPlaylist,
   onTuneStation,
   onRefreshDjSegment,
   onToggleMusicPlay,
@@ -150,6 +157,11 @@ export const TamalePhoneModal: React.FC<TamalePhoneModalProps> = ({
   onMusicVolume,
   onToggleMusicShuffle,
   onCycleMusicRepeat,
+  onToggleFavorite,
+  onCreatePlaylist,
+  onAddTrackToPlaylist,
+  onRemoveTrackFromPlaylist,
+  onDeletePlaylist,
   onSwitchCharacter,
   onOpenCustomize,
   onInvestBusiness,
@@ -935,6 +947,7 @@ export const TamalePhoneModal: React.FC<TamalePhoneModalProps> = ({
               section={tab}
               snapshot={musicSnapshot}
               onPlayTrack={onPlayTrack}
+              onPlayPlaylist={onPlayPlaylist}
               onTuneStation={onTuneStation}
               onRefreshDjSegment={onRefreshDjSegment}
               onTogglePlay={onToggleMusicPlay}
@@ -944,6 +957,11 @@ export const TamalePhoneModal: React.FC<TamalePhoneModalProps> = ({
               onSetVolume={onMusicVolume}
               onToggleShuffle={onToggleMusicShuffle}
               onCycleRepeat={onCycleMusicRepeat}
+              onToggleFavorite={onToggleFavorite}
+              onCreatePlaylist={onCreatePlaylist}
+              onAddTrackToPlaylist={onAddTrackToPlaylist}
+              onRemoveTrackFromPlaylist={onRemoveTrackFromPlaylist}
+              onDeletePlaylist={onDeletePlaylist}
             />
           )}
 

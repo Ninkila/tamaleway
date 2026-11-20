@@ -84,6 +84,7 @@ import {
 } from "./utils/saveMigration";
 
 const SAVE_STORAGE_KEY = "tamale3d_save_v1";
+const MUSIC_STORAGE_KEY = "tamale3d_music_library_v1";
 
 function buildDefaultCharacterStates(): Record<string, CharacterRuntimeState> {
   return buildAllDefaultCharacterStates();
@@ -482,8 +483,21 @@ export default function App() {
   useEffect(() => {
     const mr = new TamaleMusicRadioEngine();
     musicEngineRef.current = mr;
+    try {
+      const rawMusic = localStorage.getItem(MUSIC_STORAGE_KEY);
+      if (rawMusic) {
+        mr.hydratePersistedState(JSON.parse(rawMusic));
+      }
+    } catch {
+      // ignore storage errors
+    }
     const unsub = mr.subscribe((snap) => {
       setMusicSnap(snap);
+      try {
+        localStorage.setItem(MUSIC_STORAGE_KEY, JSON.stringify(mr.getPersistedState()));
+      } catch {
+        // ignore quota errors
+      }
     });
     return () => {
       unsub();
@@ -576,6 +590,10 @@ export default function App() {
         if (item.kind === "npc") {
           setActiveNpcId(item.id);
         } else if (item.kind === "building") {
+          if (item.doorClosed) {
+            showToast(item.sublabel || `${item.label} is currently closed.`);
+            return;
+          }
           const entered = engineRef.current?.enterInterior(item.id);
           if (!entered) {
             setActiveInteriorLandmarkId(item.id);
@@ -928,10 +946,18 @@ export default function App() {
   }, [anyModalOpen]);
 
   useEffect(() => {
-    audioRef.current?.setIndoorMode(
-      Boolean(activeShopId || activeInteriorLandmarkId || activeInteriorSpec)
-    );
+    const indoor = Boolean(activeShopId || activeInteriorLandmarkId || activeInteriorSpec);
+    audioRef.current?.setIndoorMode(indoor);
+    musicEngineRef.current?.setIndoorTransition(indoor);
   }, [activeShopId, activeInteriorLandmarkId, activeInteriorSpec]);
+
+  useEffect(() => {
+    musicEngineRef.current?.setVehicleMode(isDriving);
+  }, [isDriving]);
+
+  useEffect(() => {
+    audioRef.current?.setPersonalMusicActive(musicSnap.isPlaying);
+  }, [musicSnap.isPlaying]);
 
   useEffect(() => {
     musicEngineRef.current?.setDucking(activeNpcId ? 0.28 : 1.0);
@@ -1049,6 +1075,7 @@ export default function App() {
       completedGigsCount,
       totalEarnedCedis,
       playerPos,
+      musicLibrary: musicEngineRef.current?.getPersistedState(),
     };
     try {
       localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(saveObj));
@@ -1107,6 +1134,9 @@ export default function App() {
         migrated.activeCharacterId,
         migrated.characterStates[migrated.activeCharacterId]
       );
+      if (migrated.musicLibrary) {
+        musicEngineRef.current?.hydratePersistedState(migrated.musicLibrary);
+      }
       return true;
     } catch {
       return false;
@@ -1766,6 +1796,43 @@ export default function App() {
           }}
           onToggleMiniRadioPlay={() => musicEngineRef.current?.togglePlayPause()}
           onMiniRadioNext={() => musicEngineRef.current?.next()}
+          onMiniRadioPrev={() => musicEngineRef.current?.previous()}
+          onToggleVehicleRadio={() => {
+            const st = musicEngineRef.current?.getCurrentStation();
+            const seg = st
+              ? buildDynamicRadioSegment({
+                  station: st,
+                  gameMinutes: lastClockMinsRef.current,
+                  weather: weatherRef.current,
+                  district: districtRef.current,
+                  activeCityEventLabel:
+                    INITIAL_CITY_EVENT_DESCRIPTIONS[activeCityEventRef.current].label,
+                })
+              : undefined;
+            musicEngineRef.current?.toggleVehicleRadio(seg);
+            setShowMiniRadioBar(true);
+          }}
+          onToggleVehicleAudioSource={() => {
+            const cur = musicEngineRef.current?.getSnapshot().mode ?? "radio";
+            const nextMode = cur === "radio" ? "music" : "radio";
+            const st = musicEngineRef.current?.getCurrentStation();
+            const seg =
+              nextMode === "radio" && st
+                ? buildDynamicRadioSegment({
+                    station: st,
+                    gameMinutes: lastClockMinsRef.current,
+                    weather: weatherRef.current,
+                    district: districtRef.current,
+                    activeCityEventLabel:
+                      INITIAL_CITY_EVENT_DESCRIPTIONS[activeCityEventRef.current].label,
+                  })
+                : undefined;
+            musicEngineRef.current?.setMode(nextMode, seg);
+            if (!musicEngineRef.current?.getSnapshot().isPlaying) {
+              musicEngineRef.current?.play();
+            }
+            setShowMiniRadioBar(true);
+          }}
           onCloseMiniRadio={() => {
             musicEngineRef.current?.pause();
             setShowMiniRadioBar(false);
@@ -1916,8 +1983,12 @@ export default function App() {
           onAdjustWallets={handleAdjustWallets}
           onSendPhoneMessage={handleSendPhoneMessage}
           onMarkMessagesRead={handleMarkMessagesRead}
-          onPlayTrack={(trackId) => {
-            musicEngineRef.current?.playTrackById(trackId);
+          onPlayTrack={(trackId, playlistId) => {
+            musicEngineRef.current?.playTrackById(trackId, playlistId);
+            setShowMiniRadioBar(true);
+          }}
+          onPlayPlaylist={(playlistId, startTrackId) => {
+            musicEngineRef.current?.playPlaylist(playlistId, startTrackId);
             setShowMiniRadioBar(true);
           }}
           onTuneStation={handleTuneRadioStation}
@@ -1932,6 +2003,23 @@ export default function App() {
           onMusicVolume={(vol) => musicEngineRef.current?.setVolume(vol)}
           onToggleMusicShuffle={() => musicEngineRef.current?.toggleShuffle()}
           onCycleMusicRepeat={() => musicEngineRef.current?.cycleRepeat()}
+          onToggleFavorite={(trackId) => musicEngineRef.current?.toggleFavorite(trackId)}
+          onCreatePlaylist={(name) => {
+            const created = musicEngineRef.current?.createCustomPlaylist(name);
+            if (created) showToast(`Created playlist “${created.name}”`);
+          }}
+          onAddTrackToPlaylist={(playlistId, trackId) => {
+            musicEngineRef.current?.addTrackToPlaylist(playlistId, trackId);
+            showToast("Added track to playlist.");
+          }}
+          onRemoveTrackFromPlaylist={(playlistId, trackId) => {
+            musicEngineRef.current?.removeTrackFromPlaylist(playlistId, trackId);
+            showToast("Removed track from playlist.");
+          }}
+          onDeletePlaylist={(playlistId) => {
+            musicEngineRef.current?.deleteCustomPlaylist(playlistId);
+            showToast("Deleted custom playlist.");
+          }}
           onSwitchCharacter={handleSwitchCharacter}
           onOpenCustomize={() => {
             setCustomizeTargetCharId(activeCharacterId);

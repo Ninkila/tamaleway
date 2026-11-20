@@ -375,6 +375,7 @@ export interface NearbyInteractable {
   isGigDelivery?: boolean;
   servicePhase?: "pickup_food_or_repair" | "board_ride";
   jobActionMode?: "pickup_passenger" | "work_shift" | "mechanic_repair" | "photo_capture" | "sports_drill";
+  doorClosed?: boolean;
 }
 
 export interface NearbyChatter {
@@ -644,6 +645,7 @@ export interface SavedGameState {
   completedGigsCount?: number;
   totalEarnedCedis?: number;
   playerPos: { x: number; z: number; rotY: number };
+  musicLibrary?: SavedMusicLibraryState;
 }
 
 export type InteriorBuildingArchetype =
@@ -716,9 +718,30 @@ export interface InteriorRoomSpec {
 }
 
 export type MusicLicenseStatus =
-  | "procedural-preview"
   | "licensed-audio-file"
-  | "metadata-only-placeholder";
+  | "artist-approved"
+  | "royalty-free"
+  | "awaiting-authorization"
+  | "procedural-preview";
+
+export type MusicPermissionStatus =
+  | "cleared-for-distribution"
+  | "pending-artist-clearance"
+  | "procedural-original";
+
+export type MusicGenre =
+  | "Northern Hip-Hop"
+  | "Dagbon Rap"
+  | "Afrobeat"
+  | "Dancehall"
+  | "Hiplife"
+  | "Traditional"
+  | "Folk"
+  | "Gospel"
+  | "Hausa Music"
+  | "Instrumental"
+  | "Highlife"
+  | "Contemporary African";
 
 export type MusicGrooveStyle =
   | "dondo_hiphop"
@@ -726,30 +749,76 @@ export type MusicGrooveStyle =
   | "highlife"
   | "traditional_drum"
   | "gospel"
-  | "reggae";
+  | "reggae"
+  | "hausa_percussion"
+  | "instrumental_kologo";
 
 export interface MusicTrack {
   id: string;
   title: string;
   artist: string;
   featuredArtist?: string;
+  album: string;
+  releaseYear: number;
+  explicit: boolean;
   region: "Tamale" | "Dagbon" | "Northern Ghana" | "Ghana";
-  genre:
-    | "Northern Hip-Hop"
-    | "Afrobeats"
-    | "Dagbon Traditional"
-    | "Highlife"
-    | "Reggae/Dancehall"
-    | "Northern Gospel"
-    | "Folk";
+  genre: MusicGenre;
   mood: string;
   bpm: number;
   durationSec: number;
   scaleNotes: number[];
   grooveStyle: MusicGrooveStyle;
   licenseStatus: MusicLicenseStatus;
+  licenseOwner: string;
+  permissionStatus: MusicPermissionStatus;
   audioUrl?: string;
+  coverPalette: [string, string, string];
+  coverArt: string;
+  playlistIds: string[];
+  featured?: boolean;
+  isNewRelease?: boolean;
+  chartRank?: number;
   notes: string;
+}
+
+export interface UserPlaylist {
+  id: string;
+  name: string;
+  description: string;
+  trackIds: string[];
+  isCustom?: boolean;
+}
+
+export interface ArtistProfileSummary {
+  id: string;
+  name: string;
+  origin: string;
+  primaryGenre: MusicGenre;
+  spotlightTag: "Featured Northern Artist" | "Artist of the Week" | "Upcoming Artist" | "Heritage Custodian";
+  bio: string;
+  palette: [string, string, string];
+  trackIds: string[];
+}
+
+export interface AlbumCollection {
+  id: string;
+  title: string;
+  artist: string;
+  releaseYear: number;
+  genre: MusicGenre;
+  coverPalette: [string, string, string];
+  coverArt: string;
+  trackIds: string[];
+  featured?: boolean;
+}
+
+export interface SavedMusicLibraryState {
+  favorites: string[];
+  recentTrackIds: string[];
+  customPlaylists: UserPlaylist[];
+  volume: number;
+  lastTrackId?: string;
+  lastStationId?: string;
 }
 
 export interface RadioStation {
