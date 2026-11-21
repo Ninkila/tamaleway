@@ -49,6 +49,7 @@ import { MusicPlayerSnapshot, TamaleMusicRadioEngine } from "./game/musicPlayer"
 import { TamaleEngine } from "./game/TamaleEngine";
 import {
   ActiveCityEventMode,
+  ActiveInputMethod,
   ActiveTaskRuntime,
   CapturedPhotoRecord,
   CharacterRuntimeState,
@@ -78,6 +79,20 @@ import {
   WeatherType,
 } from "./types/game";
 import {
+  advanceOnboardingState,
+  computeContextualHint,
+  loadOnboardingState,
+  OnboardingState,
+  resetOnboardingStorage,
+  saveOnboardingComplete,
+} from "./game/contextualHints";
+import {
+  computeDeviceLayoutConfig,
+  DeviceSignals,
+  getDefaultSettingsForDevice,
+  readBrowserDeviceSignals,
+} from "./utils/deviceProfile";
+import {
   buildAllDefaultCharacterStates,
   CURRENT_SAVE_VERSION,
   migrateSavedGameState,
@@ -91,22 +106,7 @@ function buildDefaultCharacterStates(): Record<string, CharacterRuntimeState> {
 }
 
 function createInitialSettings(): GameSettings {
-  const isCompactOrTouch =
-    typeof window !== "undefined" &&
-    (window.innerWidth < 900 || (navigator.maxTouchPoints ?? 0) > 0);
-  return {
-    languageMode: "mixed",
-    showSubtitles: true,
-    audioEnabled: true,
-    soundVolume: 0.55,
-    cameraMode: "third-person",
-    graphicsQuality: isCompactOrTouch ? "medium" : "high",
-    resolutionScale: isCompactOrTouch ? 0.85 : 1.0,
-    cameraSensitivity: 1.0,
-    vibrationEnabled: true,
-    controlMode: "auto",
-    keyBindings: { ...DEFAULT_KEY_BINDINGS },
-  };
+  return getDefaultSettingsForDevice(readBrowserDeviceSignals("keyboard"));
 }
 
 function getPeriodFromMinutes(mins: number): { period: TimePeriod; label: string } {
@@ -138,31 +138,48 @@ export default function App() {
   const [hasSavedGame, setHasSavedGame] = useState(false);
   const [webglLost, setWebglLost] = useState(false);
 
-  // Responsive device detection
-  const [viewportInfo, setViewportInfo] = useState(() => ({
-    width: typeof window !== "undefined" ? window.innerWidth : 1280,
-    height: typeof window !== "undefined" ? window.innerHeight : 720,
-    hasTouch:
+  // Live Device & Input Detection (Desktop vs Mobile Phone vs Tablet vs Hybrid)
+  const [deviceSignals, setDeviceSignals] = useState<DeviceSignals>(() =>
+    readBrowserDeviceSignals(
       typeof window !== "undefined" &&
-      ((navigator.maxTouchPoints ?? 0) > 0 ||
-        window.matchMedia?.("(pointer: coarse)").matches === true),
-  }));
+        window.matchMedia?.("(pointer: coarse)").matches === true
+        ? "touch"
+        : "keyboard"
+    )
+  );
+  const lastInputMethodRef = useRef<ActiveInputMethod>(deviceSignals.lastInputMethod);
+  lastInputMethodRef.current = deviceSignals.lastInputMethod;
 
   useEffect(() => {
-    const updateViewport = () => {
-      setViewportInfo({
-        width: window.innerWidth,
-        height: window.innerHeight,
-        hasTouch:
-          (navigator.maxTouchPoints ?? 0) > 0 ||
-          window.matchMedia?.("(pointer: coarse)").matches === true,
-      });
+    const syncSignals = (overrideInput?: ActiveInputMethod) => {
+      const nextInput = overrideInput ?? lastInputMethodRef.current;
+      lastInputMethodRef.current = nextInput;
+      setDeviceSignals(readBrowserDeviceSignals(nextInput));
     };
-    window.addEventListener("resize", updateViewport);
-    window.addEventListener("orientationchange", updateViewport);
+
+    const handleResize = () => syncSignals();
+    const handleKeyInput = () => {
+      if (lastInputMethodRef.current !== "keyboard") {
+        syncSignals("keyboard");
+      }
+    };
+    const handlePointerInput = (e: PointerEvent) => {
+      if (e.pointerType === "touch" && lastInputMethodRef.current !== "touch") {
+        syncSignals("touch");
+      } else if (e.pointerType === "mouse" && lastInputMethodRef.current !== "keyboard") {
+        syncSignals("keyboard");
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    window.addEventListener("orientationchange", handleResize);
+    window.addEventListener("keydown", handleKeyInput, { passive: true });
+    window.addEventListener("pointerdown", handlePointerInput, { passive: true });
     return () => {
-      window.removeEventListener("resize", updateViewport);
-      window.removeEventListener("orientationchange", updateViewport);
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("orientationchange", handleResize);
+      window.removeEventListener("keydown", handleKeyInput);
+      window.removeEventListener("pointerdown", handlePointerInput);
     };
   }, []);
 
@@ -241,7 +258,9 @@ export default function App() {
     label: string;
     shopId?: string;
   } | null>(null);
-  const [phoneInitialTab, setPhoneInitialTab] = useState<PhoneTab>("jobs");
+  const [phoneInitialTab, setPhoneInitialTab] = useState<PhoneTab>("home");
+  const [onboarding, setOnboarding] = useState<OnboardingState>(() => loadOnboardingState());
+  const [drivingHintTimerSec, setDrivingHintTimerSec] = useState(0);
   const [showMiniRadioBar, setShowMiniRadioBar] = useState(false);
   const [musicSnap, setMusicSnap] = useState<MusicPlayerSnapshot>(() =>
     new TamaleMusicRadioEngine().getSnapshot()
@@ -314,11 +333,17 @@ export default function App() {
   const activeCityEventRef = useRef<ActiveCityEventMode>(activeCityEvent);
   activeCityEventRef.current = activeCityEvent;
   const menuPickedCharacterRef = useRef(false);
+  const prevDrivingRef = useRef(false);
+  const hasOpenedPhoneRef = useRef(false);
+  const inMenuOrPauseRef = useRef(true);
+  inMenuOrPauseRef.current = inMainMenu || exitedScreen;
 
-  const isPortraitPhone = viewportInfo.width < 768 && viewportInfo.height > viewportInfo.width;
-  const isTouchControlsVisible =
-    settings.controlMode === "touch" ||
-    (settings.controlMode === "auto" && (viewportInfo.hasTouch || viewportInfo.width < 900));
+  const deviceLayout = useMemo(
+    () => computeDeviceLayoutConfig(deviceSignals, settings),
+    [deviceSignals, settings]
+  );
+  const deviceClassRef = useRef(deviceLayout.deviceClass);
+  deviceClassRef.current = deviceLayout.deviceClass;
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -373,8 +398,26 @@ export default function App() {
     engineRef.current?.setCameraMode(next.cameraMode);
     engineRef.current?.setCameraSensitivity(next.cameraSensitivity);
     engineRef.current?.setKeyBindings(next.keyBindings);
-    engineRef.current?.applyGraphicsSettings(next.graphicsQuality, next.resolutionScale);
+    engineRef.current?.setDevicePerformanceProfile(
+      deviceClassRef.current,
+      next.graphicsQuality,
+      next.resolutionScale
+    );
   }, []);
+
+  useEffect(() => {
+    engineRef.current?.setTouchControlsActive(deviceLayout.showTouchControls);
+    engineRef.current?.setDevicePerformanceProfile(
+      deviceLayout.deviceClass,
+      settings.graphicsQuality,
+      settings.resolutionScale
+    );
+  }, [
+    deviceLayout.deviceClass,
+    deviceLayout.showTouchControls,
+    settings.graphicsQuality,
+    settings.resolutionScale,
+  ]);
 
   const updateSettings = useCallback(
     (patch: Partial<GameSettings>) => {
@@ -529,6 +572,28 @@ export default function App() {
         setPlayerPos(data.playerPos);
         setServicePos(data.servicePos);
         setNpcStates(data.npcStates);
+
+        if (!inMenuOrPauseRef.current) {
+          if (data.isDriving && !prevDrivingRef.current) {
+            setDrivingHintTimerSec(4.2);
+          } else if (data.isDriving) {
+            setDrivingHintTimerSec((sec) => Math.max(0, sec - 0.14));
+          } else if (prevDrivingRef.current) {
+            setDrivingHintTimerSec(0);
+          }
+          prevDrivingRef.current = data.isDriving;
+
+          setOnboarding((prev) =>
+            prev.step === "complete"
+              ? prev
+              : advanceOnboardingState(prev, {
+                  dt: 0.14,
+                  isMoving: data.isMoving,
+                  isRunning: data.isRunning,
+                  hasOpenedPhone: hasOpenedPhoneRef.current,
+                })
+          );
+        }
         if (engineRef.current) {
           const nextMins = engineRef.current.getGameMinutes();
           const prevMins = lastClockMinsRef.current;
@@ -1016,7 +1081,8 @@ export default function App() {
       } else if (e.code === kb.inventory && !anyModalOpen) {
         setShowInventory(true);
       } else if (e.code === "KeyP" && !anyModalOpen) {
-        setPhoneInitialTab("jobs");
+        hasOpenedPhoneRef.current = true;
+        setPhoneInitialTab("home");
         setShowPhone(true);
       } else if (e.code === "KeyC" && !anyModalOpen) {
         setShowCharacterSwitch(true);
@@ -1170,9 +1236,7 @@ export default function App() {
     setExitedScreen(false);
     setShowPause(false);
     setInMainMenu(false);
-    showToast(
-      `Dasuba! Playing as ${startProfile.name} (${startProfile.occupation}). Press P for City Phone.`
-    );
+    showToast(`Dasuba! Playing as ${startProfile.name} (${startProfile.occupation}).`);
   }, [activeCharacterId, applyCharacterStateToRuntime, showToast]);
 
   const handleContinueGame = useCallback(() => {
@@ -1198,9 +1262,7 @@ export default function App() {
       setExitedScreen(false);
       setShowPause(false);
       setInMainMenu(false);
-      showToast(
-        `Dasuba! Playing as ${activeProfile.name} (${activeProfile.occupation}). Press P for City Phone.`
-      );
+      showToast(`Dasuba! Playing as ${activeProfile.name} (${activeProfile.occupation}).`);
     }
   }, [activeProfile.name, activeProfile.occupation, handleContinueGame, hasSavedGame, showToast]);
 
@@ -1226,7 +1288,7 @@ export default function App() {
               const ori = screen.orientation as unknown as {
                 lock?: (mode: string) => Promise<void>;
               };
-              if (viewportInfo.hasTouch && ori?.lock) {
+              if (deviceSignals.hasTouch && ori?.lock) {
                 void ori.lock("landscape").catch(() => undefined);
               }
             })
@@ -1238,7 +1300,7 @@ export default function App() {
     } catch {
       // Ignore fullscreen denial on restricted browsers
     }
-  }, [viewportInfo.hasTouch]);
+  }, [deviceSignals.hasTouch]);
 
   const handleAdjustWallets = useCallback(
     (patch: {
@@ -1662,6 +1724,63 @@ export default function App() {
       ? customization
       : (allCharacterStatesLive[customizeTargetId]?.customization ?? customization);
 
+  const contextualHint = useMemo(
+    () =>
+      computeContextualHint({
+        showTutorialHints: settings.showTutorialHints,
+        onboarding,
+        inputMethod: deviceLayout.effectiveInput,
+        keyBindings: settings.keyBindings,
+        isDriving,
+        isIndoors: Boolean(activeInteriorSpec),
+        nearby,
+        nearbyVehicle,
+        activeTask,
+        drivingHintTimerSec,
+      }),
+    [
+      settings.showTutorialHints,
+      onboarding,
+      deviceLayout.effectiveInput,
+      settings.keyBindings,
+      isDriving,
+      activeInteriorSpec,
+      nearby,
+      nearbyVehicle,
+      activeTask,
+      drivingHintTimerSec,
+    ]
+  );
+
+  const handleDismissOnboarding = useCallback(() => {
+    saveOnboardingComplete();
+    setOnboarding({
+      step: "complete",
+      movedSeconds: 99,
+      rotatedCamera: true,
+      ranOnce: true,
+      openedPhone: true,
+      stepElapsedSec: 0,
+    });
+    updateSettings({ showTutorialHints: false });
+    showToast("Tutorial hints hidden (re-enable anytime in Settings).");
+  }, [showToast, updateSettings]);
+
+  const handleResetTutorialHints = useCallback(() => {
+    resetOnboardingStorage();
+    hasOpenedPhoneRef.current = false;
+    setOnboarding({
+      step: "move",
+      movedSeconds: 0,
+      rotatedCamera: false,
+      ranOnce: false,
+      openedPhone: false,
+      stepElapsedSec: 0,
+    });
+    updateSettings({ showTutorialHints: true });
+    showToast("Contextual onboarding hints reset.");
+  }, [showToast, updateSettings]);
+
   return (
     <div className="relative w-screen h-[100dvh] overflow-hidden bg-[#12100e]">
       {/* Isolated WebGL Mount */}
@@ -1683,6 +1802,7 @@ export default function App() {
       {/* Main Menu */}
       {inMainMenu && !exitedScreen && (
         <MainMenu
+          deviceLayout={deviceLayout}
           hasSavedGame={hasSavedGame}
           languageMode={settings.languageMode}
           activeCharacterName={customization.name || activeProfile.name}
@@ -1750,6 +1870,9 @@ export default function App() {
       {/* Active Gameplay HUD */}
       {!inMainMenu && !exitedScreen && (
         <GameHud
+          deviceLayout={deviceLayout}
+          contextualHint={contextualHint}
+          onDismissOnboarding={handleDismissOnboarding}
           district={district}
           formattedTime={formatClock(gameMinutes)}
           timePeriodLabel={timePeriodLabel}
@@ -1776,8 +1899,6 @@ export default function App() {
           languageMode={settings.languageMode}
           audioEnabled={settings.audioEnabled}
           showLabels={showLabels}
-          isTouchControlsVisible={isTouchControlsVisible}
-          isPortraitPhone={isPortraitPhone}
           isIndoors={Boolean(activeInteriorSpec)}
           musicSnapshot={musicSnap}
           showMiniRadioBar={showMiniRadioBar}
@@ -1787,10 +1908,12 @@ export default function App() {
           onToggleVehicle={() => engineRef.current?.handleVehicleToggle()}
           onTriggerHorn={() => engineRef.current?.triggerHorn()}
           onOpenPhone={() => {
-            setPhoneInitialTab("jobs");
+            hasOpenedPhoneRef.current = true;
+            setPhoneInitialTab("home");
             setShowPhone(true);
           }}
           onOpenPhoneRadio={() => {
+            hasOpenedPhoneRef.current = true;
             setPhoneInitialTab("radio");
             setShowPhone(true);
           }}
@@ -1887,8 +2010,9 @@ export default function App() {
       )}
 
       {/* Multi-Touch Mobile & Tablet Controls */}
-      {!inMainMenu && !exitedScreen && !anyModalOpen && isTouchControlsVisible && (
+      {!inMainMenu && !exitedScreen && !anyModalOpen && deviceLayout.showTouchControls && (
         <MobileTouchControls
+          deviceLayout={deviceLayout}
           isDriving={isDriving}
           isRidingService={isRidingService}
           drivingKind={drivingKind}
@@ -1922,8 +2046,7 @@ export default function App() {
             engineRef.current?.triggerHorn();
           }}
           onCameraRotate={(dx, dy) => engineRef.current?.rotateCamera(dx, dy)}
-          onOpenPhone={() => setShowPhone(true)}
-          onOpenCharacterSwitch={() => setShowCharacterSwitch(true)}
+          onPinchZoom={(delta) => engineRef.current?.adjustZoom(delta)}
         />
       )}
 
@@ -1949,10 +2072,11 @@ export default function App() {
         />
       )}
 
-      {/* Tamale Smartphone: Jobs, 3D Services, Bank & MoMo, Music, 7 FM Radio Stations, Messages, Businesses & Skills */}
+      {/* Tamale Smartphone: Launcher, Jobs, 3D Services, Bank & MoMo, Music, 7 FM Radio Stations, Messages, Businesses & Skills */}
       {showPhone && (
         <TamalePhoneModal
           initialTab={phoneInitialTab}
+          deviceLayout={deviceLayout}
           activeProfile={activeProfile}
           characterState={allCharacterStatesLive[activeCharacterId]}
           allCharacterStates={allCharacterStatesLive}
@@ -1962,6 +2086,12 @@ export default function App() {
           activeTask={activeTask}
           activeService={activeService}
           musicSnapshot={musicSnap}
+          onOpenMap={() => setShowMap(true)}
+          onOpenInventory={() => setShowInventory(true)}
+          onOpenSettings={() => {
+            setSettingsTab("settings");
+            setShowSettings(true);
+          }}
           onAcceptTask={handleAcceptTask}
           onAbandonTask={handleAbandonTask}
           onRefreshJobs={() => {
@@ -2134,6 +2264,7 @@ export default function App() {
       {/* Tamale City Map */}
       {showMap && (
         <MapModal
+          deviceLayout={deviceLayout}
           playerPos={playerPos}
           discoveredLandmarks={discoveredLandmarks}
           activeErrandLandmarkId={activeErrand ? activeErrand.targetLandmarkId : null}
@@ -2262,7 +2393,11 @@ export default function App() {
             setShowInventory(false);
           }}
           onConsumeItem={handleConsumeItem}
-          onOpenPhone={() => setShowPhone(true)}
+          onOpenPhone={() => {
+            hasOpenedPhoneRef.current = true;
+            setPhoneInitialTab("home");
+            setShowPhone(true);
+          }}
           onClose={() => setShowInventory(false)}
         />
       )}
@@ -2271,11 +2406,13 @@ export default function App() {
       {showSettings && (
         <SettingsAndControlsModal
           initialTab={settingsTab}
+          deviceLayout={deviceLayout}
           settings={settings}
           onUpdateSettings={updateSettings}
           onResetKeyBindings={() =>
             updateSettings({ keyBindings: { ...DEFAULT_KEY_BINDINGS } })
           }
+          onResetTutorialHints={handleResetTutorialHints}
           onClose={() => setShowSettings(false)}
         />
       )}
@@ -2292,6 +2429,7 @@ export default function App() {
       {/* Pause & Save Menu */}
       {showPause && (
         <PauseModal
+          deviceLayout={deviceLayout}
           hasSavedGame={hasSavedGame}
           onResume={() => setShowPause(false)}
           onSaveGame={handleSaveGame}
@@ -2303,6 +2441,18 @@ export default function App() {
           onOpenControls={() => {
             setSettingsTab("controls");
             setShowSettings(true);
+          }}
+          onOpenBag={() => {
+            setShowPause(false);
+            setShowInventory(true);
+          }}
+          onOpenCharacterSwitch={() => {
+            setShowPause(false);
+            setShowCharacterSwitch(true);
+          }}
+          onOpenDagbaniGuide={() => {
+            setShowPause(false);
+            setShowDagbaniGuide(true);
           }}
           onReturnMainMenu={() => {
             setShowPause(false);

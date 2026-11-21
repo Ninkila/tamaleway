@@ -386,7 +386,21 @@ export interface NearbyChatter {
 }
 
 export type GraphicsQuality = "low" | "medium" | "high";
-export type ControlDisplayMode = "auto" | "touch" | "keyboard";
+export type ControlDisplayMode = "auto" | "touch" | "keyboard" | "hybrid";
+export type DeviceClass = "desktop" | "mobile" | "tablet" | "hybrid";
+export type ActiveInputMethod = "keyboard" | "touch";
+export type JoystickSize = "small" | "medium" | "large";
+export type UiScaleMode = "compact" | "normal" | "large";
+export type HudVisibilityMode = "standard" | "minimal";
+export type PreferredOrientation = "auto" | "landscape" | "portrait";
+
+export interface ContextualHintPayload {
+  id: string;
+  text: string;
+  keyCap?: string;
+  priority: "situation" | "onboarding";
+  tone?: "amber" | "emerald" | "sky";
+}
 
 export interface KeyBindings {
   forward: string;
@@ -429,6 +443,11 @@ export interface GameSettings {
   cameraSensitivity: number;
   vibrationEnabled: boolean;
   controlMode: ControlDisplayMode;
+  joystickSize: JoystickSize;
+  uiScale: UiScaleMode;
+  hudVisibility: HudVisibilityMode;
+  showTutorialHints: boolean;
+  preferredOrientation: PreferredOrientation;
   keyBindings: KeyBindings;
 }
 

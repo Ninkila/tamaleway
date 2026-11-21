@@ -1,9 +1,14 @@
 import { createInitialCharacterState, PLAYABLE_CHARACTERS } from "../data/playableCharacters";
 import {
   CharacterRuntimeState,
+  ControlDisplayMode,
   DEFAULT_KEY_BINDINGS,
   GameSettings,
+  HudVisibilityMode,
+  JoystickSize,
+  PreferredOrientation,
   SavedGameState,
+  UiScaleMode,
   WeatherType,
 } from "../types/game";
 
@@ -17,6 +22,21 @@ const VALID_WEATHERS: ReadonlySet<WeatherType> = new Set([
   "light_rain",
   "rain",
   "thunderstorm",
+]);
+
+const VALID_CONTROL_MODES: ReadonlySet<ControlDisplayMode> = new Set([
+  "auto",
+  "touch",
+  "keyboard",
+  "hybrid",
+]);
+const VALID_JOYSTICK_SIZES: ReadonlySet<JoystickSize> = new Set(["small", "medium", "large"]);
+const VALID_UI_SCALES: ReadonlySet<UiScaleMode> = new Set(["compact", "normal", "large"]);
+const VALID_HUD_VISIBILITIES: ReadonlySet<HudVisibilityMode> = new Set(["standard", "minimal"]);
+const VALID_ORIENTATIONS: ReadonlySet<PreferredOrientation> = new Set([
+  "auto",
+  "landscape",
+  "portrait",
 ]);
 
 export function normalizeWeather(w: unknown): WeatherType {
@@ -103,12 +123,34 @@ export function migrateSavedGameState(
   musicLibrary?: SavedGameState["musicLibrary"];
 } {
   const defaultsMap = buildAllDefaultCharacterStates();
+  const rawSettings = (raw.settings ?? {}) as Partial<GameSettings>;
   const settings: GameSettings = {
     ...defaultSettings,
-    ...(raw.settings ?? {}),
+    ...rawSettings,
+    controlMode: VALID_CONTROL_MODES.has(rawSettings.controlMode as ControlDisplayMode)
+      ? (rawSettings.controlMode as ControlDisplayMode)
+      : defaultSettings.controlMode,
+    joystickSize: VALID_JOYSTICK_SIZES.has(rawSettings.joystickSize as JoystickSize)
+      ? (rawSettings.joystickSize as JoystickSize)
+      : defaultSettings.joystickSize,
+    uiScale: VALID_UI_SCALES.has(rawSettings.uiScale as UiScaleMode)
+      ? (rawSettings.uiScale as UiScaleMode)
+      : defaultSettings.uiScale,
+    hudVisibility: VALID_HUD_VISIBILITIES.has(rawSettings.hudVisibility as HudVisibilityMode)
+      ? (rawSettings.hudVisibility as HudVisibilityMode)
+      : defaultSettings.hudVisibility,
+    showTutorialHints:
+      typeof rawSettings.showTutorialHints === "boolean"
+        ? rawSettings.showTutorialHints
+        : defaultSettings.showTutorialHints,
+    preferredOrientation: VALID_ORIENTATIONS.has(
+      rawSettings.preferredOrientation as PreferredOrientation
+    )
+      ? (rawSettings.preferredOrientation as PreferredOrientation)
+      : defaultSettings.preferredOrientation,
     keyBindings: {
       ...DEFAULT_KEY_BINDINGS,
-      ...(raw.settings?.keyBindings ?? {}),
+      ...(rawSettings.keyBindings ?? {}),
     },
   };
 

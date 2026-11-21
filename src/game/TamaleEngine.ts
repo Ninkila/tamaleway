@@ -16,6 +16,7 @@ import {
   ActiveTaskRuntime,
   CameraMode,
   DEFAULT_KEY_BINDINGS,
+  DeviceClass,
   GraphicsQuality,
   InteriorRoomSpec,
   KeyBindings,
@@ -247,6 +248,8 @@ export interface EngineCallbacks {
     servicePos: { x: number; z: number } | null;
     discoveredLandmarkId: string | null;
     npcStates: NpcRuntimeSnapshot[];
+    isMoving: boolean;
+    isRunning: boolean;
   }) => void;
   onInteract: (item: NearbyInteractable) => void;
   onServiceUpdate?: (req: ServiceRequestRuntime | null) => void;
@@ -305,6 +308,8 @@ export class TamaleEngine {
 
   private camYaw = 0.72;
   private camPitch = 0.28;
+  private camYawTarget = 0.72;
+  private camPitchTarget = 0.28;
   private camDist = 9.5;
   private cameraMode: CameraMode = "third-person";
   private cameraSensitivity = 1.0;
@@ -314,6 +319,9 @@ export class TamaleEngine {
   private virtualMoveX = 0;
   private virtualMoveY = 0;
   private virtualRun = false;
+  private touchControlsActive = false;
+  private playerMoving = false;
+  private playerRunning = false;
   private vehicleInput = { throttle: 0, steer: 0, brake: false, handbrake: false };
 
   private isPointerDragging = false;
@@ -346,6 +354,7 @@ export class TamaleEngine {
   private serviceSyncDirty = false;
   private servicePassengerRiding = false;
 
+  private deviceClass: DeviceClass = "desktop";
   private graphicsQuality: GraphicsQuality = "high";
   private resolutionScale = 1.0;
   private crowdUpdateRadius = 115;
@@ -3551,6 +3560,8 @@ export class TamaleEngine {
 
     const onPointerDown = (e: PointerEvent) => {
       this.audio.init();
+      // When touch controls are active, MobileTouchControls manages touch camera swipes + pinch zoom
+      if (this.touchControlsActive && e.pointerType === "touch") return;
       if (this.activeDragPointerId !== null) return;
       this.isPointerDragging = true;
       this.activeDragPointerId = e.pointerId;
@@ -3657,14 +3668,30 @@ export class TamaleEngine {
     this.keyBindings = { ...bindings };
   }
 
+  public setTouchControlsActive(active: boolean) {
+    this.touchControlsActive = active;
+    if (!active) {
+      this.virtualMoveX = 0;
+      this.virtualMoveY = 0;
+      this.virtualRun = false;
+    } else if (this.activeDragPointerId !== null) {
+      this.isPointerDragging = false;
+      this.activeDragPointerId = null;
+    }
+  }
+
   public setCameraSensitivity(sens: number) {
     this.cameraSensitivity = THREE.MathUtils.clamp(sens, 0.35, 2.5);
   }
 
   public rotateCamera(dx: number, dy: number) {
     const mult = this.cameraSensitivity;
-    this.camYaw -= dx * 0.0055 * mult;
-    this.camPitch = THREE.MathUtils.clamp(this.camPitch + dy * 0.0045 * mult, 0.08, 1.15);
+    this.camYawTarget -= dx * 0.0055 * mult;
+    this.camPitchTarget = THREE.MathUtils.clamp(
+      this.camPitchTarget + dy * 0.0045 * mult,
+      0.08,
+      1.15
+    );
   }
 
   public adjustZoom(delta: number) {
@@ -3715,11 +3742,24 @@ export class TamaleEngine {
     );
   }
 
+  public setDevicePerformanceProfile(
+    deviceClass: DeviceClass,
+    quality: GraphicsQuality,
+    resolutionScale: number
+  ) {
+    this.deviceClass = deviceClass;
+    this.applyGraphicsSettings(quality, resolutionScale);
+  }
+
   public applyGraphicsSettings(quality: GraphicsQuality, resolutionScale: number) {
     this.graphicsQuality = quality;
     this.resolutionScale = THREE.MathUtils.clamp(resolutionScale, 0.5, 1.0);
 
-    const maxPr = quality === "low" ? 1.0 : quality === "medium" ? 1.5 : 2.0;
+    const isMobile = this.deviceClass === "mobile";
+    const isTablet = this.deviceClass === "tablet";
+    const devicePrCap = isMobile ? 1.25 : isTablet ? 1.5 : 2.0;
+    const qualityPrCap = quality === "low" ? 1.0 : quality === "medium" ? 1.5 : 2.0;
+    const maxPr = Math.min(devicePrCap, qualityPrCap);
     const basePr = this.isSoftwareGl ? 1.0 : Math.min(window.devicePixelRatio || 1, maxPr);
     this.renderer.setPixelRatio(Math.max(0.55, basePr * this.resolutionScale));
 
@@ -3727,16 +3767,24 @@ export class TamaleEngine {
     this.renderer.shadowMap.enabled = enableShadows;
     this.sunLight.castShadow = enableShadows;
 
-    if (quality === "low") {
-      this.camera.far = 230;
-      this.crowdUpdateRadius = 56;
-      this.trafficUpdateRadius = 115;
-      this.labelMaxDist = 115;
-      this.sectorStreamRadius = 135;
-    } else if (quality === "medium") {
+    const targetShadowSize = isMobile ? 512 : isTablet || quality === "medium" ? 1024 : 2048;
+    if (enableShadows && this.sunLight.shadow.mapSize.width !== targetShadowSize) {
+      this.sunLight.shadow.mapSize.width = targetShadowSize;
+      this.sunLight.shadow.mapSize.height = targetShadowSize;
+      this.sunLight.shadow.map?.dispose();
+      this.sunLight.shadow.map = null;
+    }
+
+    if (quality === "low" || isMobile) {
+      this.camera.far = quality === "low" ? 220 : 280;
+      this.crowdUpdateRadius = quality === "low" ? 44 : 62;
+      this.trafficUpdateRadius = quality === "low" ? 95 : 135;
+      this.labelMaxDist = quality === "low" ? 105 : 130;
+      this.sectorStreamRadius = quality === "low" ? 120 : 155;
+    } else if (quality === "medium" || isTablet) {
       this.camera.far = 360;
-      this.crowdUpdateRadius = 86;
-      this.trafficUpdateRadius = 175;
+      this.crowdUpdateRadius = isTablet ? 78 : 86;
+      this.trafficUpdateRadius = isTablet ? 165 : 175;
       this.labelMaxDist = 155;
       this.sectorStreamRadius = 175;
     } else {
@@ -3841,12 +3889,15 @@ export class TamaleEngine {
     if (mode === "wide") {
       this.camDist = 15.5;
       this.camPitch = 0.42;
+      this.camPitchTarget = 0.42;
     } else if (mode === "overhead") {
       this.camDist = 22;
       this.camPitch = 1.05;
+      this.camPitchTarget = 1.05;
     } else {
       this.camDist = 9.5;
       this.camPitch = 0.28;
+      this.camPitchTarget = 0.28;
     }
   }
 
@@ -3907,7 +3958,9 @@ export class TamaleEngine {
 
     this.camDist = Math.min(5.2, Math.max(3.2, spec.depth * 0.4));
     this.camPitch = 0.24;
+    this.camPitchTarget = 0.24;
     this.camYaw = 0;
+    this.camYawTarget = 0;
     this.camera.position.set(
       this.playerPos.x,
       Math.min(spec.height - 0.5, 2.6),
@@ -3950,6 +4003,7 @@ export class TamaleEngine {
 
     this.camDist = this.exteriorCamDist;
     this.camPitch = this.exteriorCamPitch;
+    this.camPitchTarget = this.exteriorCamPitch;
     this.setWeather(this.weather);
     this.lastSectorSync = -10;
 
@@ -4360,8 +4414,10 @@ export class TamaleEngine {
       this.playerRig.root.position.set(worldX, localY, worldZ);
       this.playerRig.root.rotation.y = srv.rotY;
       if (!this.isPointerDragging) {
-        this.camYaw = THREE.MathUtils.damp(this.camYaw, srv.rotY + Math.PI, 2.2, dt);
+        this.camYawTarget = THREE.MathUtils.damp(this.camYawTarget, srv.rotY + Math.PI, 2.2, dt);
       }
+      this.playerMoving = true;
+      this.playerRunning = false;
       return;
     }
 
@@ -4494,8 +4550,10 @@ export class TamaleEngine {
 
       this.playerPos.set(veh.x, vehGroundY, veh.z);
       this.playerRotY = veh.rotY;
+      this.playerMoving = Math.abs(veh.speed) > 0.3;
+      this.playerRunning = false;
       if (!this.isPointerDragging) {
-        this.camYaw = THREE.MathUtils.damp(this.camYaw, veh.rotY + Math.PI, 2.2, dt);
+        this.camYawTarget = THREE.MathUtils.damp(this.camYawTarget, veh.rotY + Math.PI, 2.2, dt);
       }
       return;
     }
@@ -4545,6 +4603,8 @@ export class TamaleEngine {
 
     const currentSpeed = Math.hypot(this.playerVelX, this.playerVelZ);
     const isMoving = currentSpeed > 0.22;
+    this.playerMoving = isMoving;
+    this.playerRunning = isMoving && isRunning;
 
     if (isMoving) {
       const nextX = this.playerPos.x + this.playerVelX * dt;
@@ -5471,6 +5531,8 @@ export class TamaleEngine {
   }
 
   private updateCamera(dt: number) {
+    this.camYaw = THREE.MathUtils.damp(this.camYaw, this.camYawTarget, 18, dt);
+    this.camPitch = THREE.MathUtils.damp(this.camPitch, this.camPitchTarget, 18, dt);
     const targetY = this.playerPos.y + 1.45;
     _camTarget.set(this.playerPos.x, targetY, this.playerPos.z);
 
@@ -5723,6 +5785,8 @@ export class TamaleEngine {
         servicePos: this.activeService ? { x: this.activeService.x, z: this.activeService.z } : null,
         discoveredLandmarkId: spec.landmarkId,
         npcStates: npcSnapshots,
+        isMoving: this.playerMoving,
+        isRunning: this.playerRunning,
       });
       return;
     }
@@ -6017,6 +6081,8 @@ export class TamaleEngine {
       servicePos: this.activeService ? { x: this.activeService.x, z: this.activeService.z } : null,
       discoveredLandmarkId,
       npcStates: npcSnapshots,
+      isMoving: this.playerMoving,
+      isRunning: this.playerRunning,
     });
   }
 

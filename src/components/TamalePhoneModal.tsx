@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
+  ArrowLeft,
   Award,
   Banknote,
   Bike,
@@ -8,16 +9,21 @@ import {
   Camera,
   CheckCircle2,
   Landmark,
+  Map as MapIcon,
   MapPin,
+  Maximize2,
   MessageSquare,
+  Minimize2,
   Music,
   Navigation,
+  Package,
   PackageCheck,
   Palette,
   PhoneCall,
   Radio,
   RefreshCw,
   Send,
+  Settings,
   ShoppingBag,
   Smartphone,
   Users,
@@ -54,8 +60,10 @@ import {
   ServiceRequestRuntime,
   SkillKey,
 } from "../types/game";
+import { DeviceLayoutConfig } from "../utils/deviceProfile";
 
 export type PhoneTab =
+  | "home"
   | "jobs"
   | "services"
   | "businesses"
@@ -68,6 +76,7 @@ export type PhoneTab =
 
 interface TamalePhoneModalProps {
   initialTab?: PhoneTab;
+  deviceLayout?: DeviceLayoutConfig;
   activeProfile: PlayableCharacterProfile;
   characterState: CharacterRuntimeState;
   allCharacterStates: Record<string, CharacterRuntimeState>;
@@ -116,6 +125,9 @@ interface TamalePhoneModalProps {
   onOpenCustomize: () => void;
   onInvestBusiness: (shopId: string) => void;
   onFastTravelLandmark: (landmark: LandmarkData) => void;
+  onOpenMap?: () => void;
+  onOpenInventory?: () => void;
+  onOpenSettings?: () => void;
   onClose: () => void;
 }
 
@@ -128,7 +140,8 @@ const SKILL_DISPLAY: Array<{ key: SkillKey; label: string; hint: string }> = [
 ];
 
 export const TamalePhoneModal: React.FC<TamalePhoneModalProps> = ({
-  initialTab = "jobs",
+  initialTab = "home",
+  deviceLayout,
   activeProfile,
   characterState,
   allCharacterStates,
@@ -166,9 +179,13 @@ export const TamalePhoneModal: React.FC<TamalePhoneModalProps> = ({
   onOpenCustomize,
   onInvestBusiness,
   onFastTravelLandmark,
+  onOpenMap,
+  onOpenInventory,
+  onOpenSettings,
   onClose,
 }) => {
   const [tab, setTab] = useState<PhoneTab>(initialTab);
+  const [desktopExpanded, setDesktopExpanded] = useState(false);
   const [jobCategory, setJobCategory] = useState<CityTaskCategory | "all">("all");
   const [selectedDestByKind, setSelectedDestByKind] = useState<Record<string, string>>({});
   const [selectedPkgByKind, setSelectedPkgByKind] = useState<Record<string, string>>({});
@@ -205,90 +222,334 @@ export const TamalePhoneModal: React.FC<TamalePhoneModalProps> = ({
     return remote;
   };
 
+  const isPhone = deviceLayout?.isPhoneLayout ?? false;
+  const isTablet = deviceLayout?.isTabletLayout ?? false;
+  const isTabletDualPane = isTablet && deviceLayout?.orientation === "landscape";
+  const isDesktopCompact = !isPhone && !isTablet && !desktopExpanded;
+
+  const unreadCount = (characterState.phoneMessages ?? []).filter((m) => !m.read).length;
+
+  const phoneApps: Array<{
+    id: Exclude<PhoneTab, "home">;
+    label: string;
+    subtitle: string;
+    Icon: typeof Briefcase;
+    accent: string;
+    badge?: string | number;
+  }> = [
+    {
+      id: "jobs",
+      label: "Jobs",
+      subtitle: activeTask ? "1 Active" : `${availableJobs.length} Open`,
+      Icon: Briefcase,
+      accent: "bg-amber-500/20 text-amber-300 border-amber-500/35",
+      badge: activeTask ? "Live" : undefined,
+    },
+    {
+      id: "services",
+      label: "Rides",
+      subtitle: activeService ? "En Route" : "Moto & Pragya",
+      Icon: PhoneCall,
+      accent: "bg-emerald-500/20 text-emerald-300 border-emerald-500/35",
+      badge: activeService ? "Live" : undefined,
+    },
+    {
+      id: "bank_momo",
+      label: "MoMo & Bank",
+      subtitle: `GH₵ ${(characterState.momoBalanceCedis ?? 0) + (characterState.bankBalanceCedis ?? 0)}`,
+      Icon: Landmark,
+      accent: "bg-sky-500/20 text-sky-300 border-sky-500/35",
+    },
+    {
+      id: "music",
+      label: "Music",
+      subtitle: musicSnapshot.isPlaying && musicSnapshot.mode === "music" ? "Playing" : "Northern Beats",
+      Icon: Music,
+      accent: "bg-rose-500/20 text-rose-300 border-rose-500/35",
+    },
+    {
+      id: "radio",
+      label: "Radio FM",
+      subtitle: musicSnapshot.currentStation.frequency,
+      Icon: Radio,
+      accent: "bg-amber-600/20 text-amber-200 border-amber-500/35",
+    },
+    {
+      id: "messages",
+      label: "Messages",
+      subtitle: unreadCount > 0 ? `${unreadCount} unread` : "City SMS",
+      Icon: MessageSquare,
+      accent: "bg-indigo-500/20 text-indigo-300 border-indigo-500/35",
+      badge: unreadCount > 0 ? unreadCount : undefined,
+    },
+    {
+      id: "businesses",
+      label: "Businesses",
+      subtitle: `${characterState.ownedBusinessIds.length} Owned`,
+      Icon: Building2,
+      accent: "bg-teal-500/20 text-teal-300 border-teal-500/35",
+    },
+    {
+      id: "characters",
+      label: "Residents",
+      subtitle: activeProfile.nickname,
+      Icon: Users,
+      accent: "bg-orange-500/20 text-orange-300 border-orange-500/35",
+    },
+    {
+      id: "skills",
+      label: "Skills & Album",
+      subtitle: rank.title,
+      Icon: Award,
+      accent: "bg-yellow-500/20 text-yellow-300 border-yellow-500/35",
+    },
+  ];
+
+  const activeAppTitle =
+    tab === "home"
+      ? "Tamale City Phone"
+      : phoneApps.find((a) => a.id === tab)?.label ?? "Tamale City Phone";
+
+  const openApp = (id: Exclude<PhoneTab, "home">) => {
+    setTab(id);
+    if (id === "messages") onMarkMessagesRead();
+  };
+
+  const overlayClass = isPhone
+    ? "fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/70 p-0 sm:p-3"
+    : isDesktopCompact
+    ? "fixed inset-0 z-40 flex items-end sm:items-center justify-end bg-black/45 p-3 sm:p-5"
+    : "fixed inset-0 z-40 flex items-center justify-center bg-black/72 p-3 sm:p-5";
+
+  const cardClass = isPhone
+    ? "w-full max-w-lg max-h-[86dvh] bg-[#171411] border-t sm:border border-white/15 rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+    : isDesktopCompact
+    ? "w-full max-w-[460px] h-[84dvh] max-h-[760px] bg-[#171411] border border-white/15 rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+    : "w-full max-w-4xl max-h-[90dvh] bg-[#171411] border border-white/15 rounded-2xl shadow-2xl overflow-hidden flex flex-col";
+
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/75 p-2 sm:p-4">
-      <div className="w-full max-w-4xl max-h-[92dvh] bg-[#171411] border border-white/15 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+    <div className={overlayClass}>
+      <div className={cardClass}>
         {/* Top Device Header */}
-        <div className="px-4 sm:px-6 py-3.5 border-b border-white/10 flex items-center justify-between gap-3 bg-[#120f0d]">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs text-amber-400 font-medium">
-              <Smartphone className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">
-                Tamale City Phone · {activeProfile.name} ({rank.title})
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-[#cfc8bc] font-mono-num mt-0.5">
-              <span className="text-amber-400 font-bold">Cash GH₵ {characterState.moneyCedis}</span>
-              <span aria-hidden="true">·</span>
-              <span className="text-yellow-300">
-                MoMo GH₵ {characterState.momoBalanceCedis ?? 0}
-              </span>
-              <span aria-hidden="true">·</span>
-              <span className="text-sky-300">Bank GH₵ {characterState.bankBalanceCedis ?? 0}</span>
-              <span aria-hidden="true">·</span>
-              <span>Energy {Math.round(characterState.energy)}%</span>
-              <span aria-hidden="true">·</span>
-              <span>{characterState.completedJobsCount} Jobs Done</span>
+        <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between gap-2 bg-[#120f0d] shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            {tab !== "home" && !isTabletDualPane && (
+              <button
+                type="button"
+                onClick={() => setTab("home")}
+                className="min-h-[38px] px-2.5 py-1 rounded-xl bg-[#241f1a] hover:bg-white/10 border border-white/10 text-xs font-semibold text-amber-300 flex items-center gap-1 shrink-0 cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Apps</span>
+              </button>
+            )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 text-xs sm:text-sm text-amber-400 font-semibold">
+                <Smartphone className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{activeAppTitle}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-[#cfc8bc] font-mono-num">
+                <span className="text-amber-400 font-bold">GH₵ {characterState.moneyCedis}</span>
+                <span aria-hidden="true">·</span>
+                <span className="text-yellow-300">
+                  MoMo GH₵ {characterState.momoBalanceCedis ?? 0}
+                </span>
+                {!isPhone && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span className="text-sky-300">
+                      Bank GH₵ {characterState.bankBalanceCedis ?? 0}
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close Tamale phone"
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-[#bfb7aa] hover:text-white rounded-lg hover:bg-white/10 cursor-pointer shrink-0"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Navigation Tabs */}
-        <div className="px-3 sm:px-6 py-2 bg-[#14110f] border-b border-white/10 flex items-center gap-1.5 overflow-x-auto">
-          {(
-            [
-              { id: "jobs", label: "Jobs & Tasks", Icon: Briefcase },
-              { id: "services", label: "Rides & Services", Icon: PhoneCall },
-              { id: "bank_momo", label: "Bank & MoMo", Icon: Landmark },
-              { id: "music", label: "Music", Icon: Music },
-              { id: "radio", label: "Radio FM", Icon: Radio },
-              { id: "messages", label: "Messages", Icon: MessageSquare },
-              { id: "businesses", label: "Businesses", Icon: Building2 },
-              { id: "characters", label: "Characters", Icon: Users },
-              { id: "skills", label: "Skills & Album", Icon: Award },
-            ] as const
-          ).map(({ id, label, Icon }) => {
-            const unreadCount =
-              id === "messages"
-                ? (characterState.phoneMessages ?? []).filter((m) => !m.read).length
-                : 0;
-            return (
+          <div className="flex items-center gap-1 shrink-0">
+            {!isPhone && !isTablet && (
               <button
-                key={id}
                 type="button"
-                onClick={() => {
-                  setTab(id);
-                  if (id === "messages") onMarkMessagesRead();
-                }}
-                className={`min-h-[42px] px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                  tab === id
-                    ? "bg-amber-500 text-[#12100e]"
-                    : "bg-[#211c17] text-[#d4cdc2] hover:bg-white/10"
-                }`}
+                onClick={() => setDesktopExpanded((v) => !v)}
+                aria-label={desktopExpanded ? "Compact handheld phone" : "Expand phone panel"}
+                title={desktopExpanded ? "Compact Handheld" : "Expand Panel"}
+                className="min-h-[40px] min-w-[40px] flex items-center justify-center text-[#bfb7aa] hover:text-white rounded-xl hover:bg-white/10 cursor-pointer"
               >
-                <Icon className="w-3.5 h-3.5 shrink-0" />
-                <span>{label}</span>
-                {unreadCount > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full bg-red-500 text-white text-[10px] font-bold">
-                    {unreadCount}
-                  </span>
+                {desktopExpanded ? (
+                  <Minimize2 className="w-4 h-4" />
+                ) : (
+                  <Maximize2 className="w-4 h-4" />
                 )}
               </button>
-            );
-          })}
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close Tamale phone"
+              className="min-h-[42px] min-w-[42px] flex items-center justify-center text-[#bfb7aa] hover:text-white rounded-xl hover:bg-white/10 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
+        {/* Tablet Landscape Dual-Pane Shell OR Standard Body */}
+        <div
+          className={`flex-1 overflow-hidden flex ${
+            isTabletDualPane ? "flex-row" : "flex-col"
+          }`}
+        >
+          {isTabletDualPane && (
+            <div className="w-52 border-r border-white/10 bg-[#14110f] p-2.5 overflow-y-auto space-y-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setTab("home")}
+                className={`w-full min-h-[42px] px-3 rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer ${
+                  tab === "home"
+                    ? "bg-amber-500 text-[#12100e]"
+                    : "bg-[#211c17] text-[#e5dfd5] hover:bg-white/10"
+                }`}
+              >
+                <Smartphone className="w-4 h-4 shrink-0" />
+                <span>App Launcher</span>
+              </button>
+              {phoneApps.map(({ id, label, Icon, badge }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => openApp(id)}
+                  className={`w-full min-h-[42px] px-3 rounded-xl text-xs font-semibold flex items-center justify-between gap-2 cursor-pointer ${
+                    tab === id
+                      ? "bg-amber-500 text-[#12100e]"
+                      : "bg-[#1d1814] text-[#d4cdc2] hover:bg-white/10"
+                  }`}
+                >
+                  <span className="flex items-center gap-2 truncate">
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span className="truncate">{label}</span>
+                  </span>
+                  {badge !== undefined && (
+                    <span className="px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold">
+                      {badge}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Scrollable Body */}
+          <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+            {/* HOME APP LAUNCHER GRID */}
+            {tab === "home" && (
+              <div className="space-y-4">
+                <div className="p-3.5 rounded-2xl bg-[#1f1a16] border border-white/10 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-[#f8f5ef] truncate">
+                      {activeProfile.name}
+                    </div>
+                    <div className="text-[11px] text-amber-300 truncate">
+                      {rank.title} · {characterState.completedJobsCount} Jobs Done
+                    </div>
+                  </div>
+                  <div className="text-right font-mono-num shrink-0">
+                    <div className="text-xs font-bold text-emerald-400">
+                      Energy {Math.round(characterState.energy)}%
+                    </div>
+                    <div className="text-[11px] text-[#9c9487]">
+                      XP {characterState.cultureXp}
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  className={`grid gap-2.5 ${
+                    isPhone && deviceLayout?.orientation === "portrait"
+                      ? "grid-cols-3"
+                      : isDesktopCompact
+                      ? "grid-cols-3"
+                      : "grid-cols-3 sm:grid-cols-4"
+                  }`}
+                >
+                  {phoneApps.map(({ id, label, subtitle, Icon, accent, badge }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => openApp(id)}
+                      className="relative min-h-[86px] p-3 rounded-2xl bg-[#1f1a16] hover:bg-[#2a231d] active:scale-[0.97] border border-white/10 flex flex-col items-center justify-center text-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      {badge !== undefined && (
+                        <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-amber-500 text-[#12100e] text-[10px] font-bold">
+                          {badge}
+                        </span>
+                      )}
+                      <div
+                        className={`w-10 h-10 rounded-xl border flex items-center justify-center ${accent}`}
+                      >
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div className="text-xs font-bold text-[#f8f5ef] leading-tight">
+                        {label}
+                      </div>
+                      <div className="text-[10px] text-[#9c9487] truncate max-w-full">
+                        {subtitle}
+                      </div>
+                    </button>
+                  ))}
+
+                  {onOpenMap && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenMap();
+                      }}
+                      className="min-h-[86px] p-3 rounded-2xl bg-[#1f1a16] hover:bg-[#2a231d] active:scale-[0.97] border border-white/10 flex flex-col items-center justify-center text-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <div className="w-10 h-10 rounded-xl border bg-amber-500/15 text-amber-300 border-amber-500/30 flex items-center justify-center">
+                        <MapIcon className="w-5 h-5" />
+                      </div>
+                      <div className="text-xs font-bold text-[#f8f5ef]">City Map</div>
+                      <div className="text-[10px] text-[#9c9487]">GPS &amp; Travel</div>
+                    </button>
+                  )}
+
+                  {onOpenInventory && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenInventory();
+                      }}
+                      className="min-h-[86px] p-3 rounded-2xl bg-[#1f1a16] hover:bg-[#2a231d] active:scale-[0.97] border border-white/10 flex flex-col items-center justify-center text-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <div className="w-10 h-10 rounded-xl border bg-emerald-500/15 text-emerald-300 border-emerald-500/30 flex items-center justify-center">
+                        <Package className="w-5 h-5" />
+                      </div>
+                      <div className="text-xs font-bold text-[#f8f5ef]">Bag</div>
+                      <div className="text-[10px] text-[#9c9487]">Items &amp; Gigs</div>
+                    </button>
+                  )}
+
+                  {onOpenSettings && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenSettings();
+                      }}
+                      className="min-h-[86px] p-3 rounded-2xl bg-[#1f1a16] hover:bg-[#2a231d] active:scale-[0.97] border border-white/10 flex flex-col items-center justify-center text-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <div className="w-10 h-10 rounded-xl border bg-white/10 text-[#f5f2eb] border-white/20 flex items-center justify-center">
+                        <Settings className="w-5 h-5" />
+                      </div>
+                      <div className="text-xs font-bold text-[#f8f5ef]">Settings</div>
+                      <div className="text-[10px] text-[#9c9487]">HUD &amp; Controls</div>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           {/* TAB 1: JOBS & TASKS */}
           {tab === "jobs" && (
             <div className="space-y-4">
@@ -1030,6 +1291,7 @@ export const TamalePhoneModal: React.FC<TamalePhoneModalProps> = ({
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>

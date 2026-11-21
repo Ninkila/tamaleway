@@ -10,14 +10,14 @@ import {
   OctagonX,
   RotateCcw,
   ShoppingBag,
-  Smartphone,
-  Users,
   Volume2,
   Wrench,
 } from "lucide-react";
 import { NearbyInteractable } from "../types/game";
+import { DeviceLayoutConfig } from "../utils/deviceProfile";
 
 interface MobileTouchControlsProps {
+  deviceLayout: DeviceLayoutConfig;
   isDriving: boolean;
   isRidingService?: boolean;
   drivingKind: "pragya" | "motorcycle" | null;
@@ -38,11 +38,11 @@ interface MobileTouchControlsProps {
   }) => void;
   onHorn: () => void;
   onCameraRotate: (dx: number, dy: number) => void;
-  onOpenPhone?: () => void;
-  onOpenCharacterSwitch?: () => void;
+  onPinchZoom?: (delta: number) => void;
 }
 
 export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
+  deviceLayout,
   isDriving,
   isRidingService = false,
   drivingKind,
@@ -58,11 +58,12 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
   onVehicleControls,
   onHorn,
   onCameraRotate,
-  onOpenPhone,
-  onOpenCharacterSwitch,
+  onPinchZoom,
 }) => {
   const [runActive, setRunActive] = useState(false);
   const [stickOffset, setStickOffset] = useState({ x: 0, y: 0 });
+  const [stickEngaged, setStickEngaged] = useState(false);
+  const [stickSprinting, setStickSprinting] = useState(false);
   const [steerOffset, setSteerOffset] = useState(0);
   const [gasPressed, setGasPressed] = useState(false);
   const [brakePressed, setBrakePressed] = useState(false);
@@ -72,10 +73,16 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
   const stickCenter = useRef({ x: 0, y: 0 });
   const steerPointerId = useRef<number | null>(null);
   const steerCenterX = useRef(0);
-  const camPointerId = useRef<number | null>(null);
-  const camLastPos = useRef({ x: 0, y: 0 });
+  const camPointers = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchDistPrev = useRef<number | null>(null);
 
-  const vibrate = (ms = 14) => {
+  const isTablet = deviceLayout.isTabletLayout;
+  const stickDia = deviceLayout.joystickDiameterPx;
+  const maxStickRadius = deviceLayout.joystickRadiusPx;
+  const knobSize = Math.round(stickDia * 0.42);
+  const btnPx = deviceLayout.actionButtonPx;
+
+  const vibrate = (ms = 12) => {
     if (!vibrationEnabled) return;
     if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
       navigator.vibrate(ms);
@@ -83,7 +90,6 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
   };
 
   // --- Left Thumb: Virtual Movement Joystick (On Foot) ---
-  const maxStickRadius = 40;
   const handleStickDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation();
     if (stickPointerId.current !== null) return;
@@ -94,6 +100,7 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
       y: rect.top + rect.height / 2,
     };
     stickPointerId.current = e.pointerId;
+    setStickEngaged(true);
     updateStickFromClient(e.clientX, e.clientY);
   };
 
@@ -106,6 +113,15 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
     const ox = Math.cos(angle) * clamped;
     const oy = Math.sin(angle) * clamped;
     setStickOffset({ x: ox, y: oy });
+
+    const normMag = clamped / Math.max(1, maxStickRadius);
+    if (normMag < 0.12) {
+      setStickSprinting(false);
+      onMoveChange(0, 0);
+      return;
+    }
+
+    setStickSprinting(normMag >= 0.88);
     // +x = strafe right, +y = forward (screen up = negative dy)
     onMoveChange(ox / maxStickRadius, -oy / maxStickRadius);
   };
@@ -120,12 +136,14 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
     if (e.pointerId !== stickPointerId.current) return;
     e.stopPropagation();
     stickPointerId.current = null;
+    setStickEngaged(false);
+    setStickSprinting(false);
     setStickOffset({ x: 0, y: 0 });
     onMoveChange(0, 0);
   };
 
   // --- Left Thumb: Virtual Vehicle Steering Pad ---
-  const maxSteerRadius = 48;
+  const maxSteerRadius = isTablet ? 60 : 48;
   const handleSteerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation();
     if (steerPointerId.current !== null) return;
@@ -157,25 +175,46 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
     onVehicleControls({ steer: 0 });
   };
 
-  // --- Right Side: Touch Camera Drag Surface ---
+  // --- Right/Center Side: Multi-Touch Camera Look + Pinch-to-Zoom Surface ---
+  const computePinchDistance = (): number | null => {
+    if (camPointers.current.size !== 2) return null;
+    const pts = Array.from(camPointers.current.values());
+    return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+  };
+
   const handleCamDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (camPointerId.current !== null) return;
     e.currentTarget.setPointerCapture(e.pointerId);
-    camPointerId.current = e.pointerId;
-    camLastPos.current = { x: e.clientX, y: e.clientY };
+    camPointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (camPointers.current.size === 2) {
+      pinchDistPrev.current = computePinchDistance();
+    } else {
+      pinchDistPrev.current = null;
+    }
   };
 
   const handleCamMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.pointerId !== camPointerId.current) return;
-    const dx = e.clientX - camLastPos.current.x;
-    const dy = e.clientY - camLastPos.current.y;
-    camLastPos.current = { x: e.clientX, y: e.clientY };
-    onCameraRotate(dx * 1.15, dy * 1.15);
+    const prev = camPointers.current.get(e.pointerId);
+    if (!prev) return;
+    const dx = e.clientX - prev.x;
+    const dy = e.clientY - prev.y;
+    camPointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (camPointers.current.size === 1) {
+      onCameraRotate(dx * 1.15, dy * 1.15);
+    } else if (camPointers.current.size === 2 && onPinchZoom) {
+      const nextDist = computePinchDistance();
+      if (nextDist !== null && pinchDistPrev.current !== null) {
+        onPinchZoom((pinchDistPrev.current - nextDist) * 0.045);
+      }
+      pinchDistPrev.current = nextDist;
+    }
   };
 
   const handleCamUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.pointerId !== camPointerId.current) return;
-    camPointerId.current = null;
+    camPointers.current.delete(e.pointerId);
+    if (camPointers.current.size < 2) {
+      pinchDistPrev.current = null;
+    }
   };
 
   const contextLabel =
@@ -192,7 +231,7 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
         ? "PHOTO"
         : nearby.jobActionMode === "sports_drill"
         ? "DRILL"
-        : "WORK SHIFT"
+        : "WORK"
       : nearby?.interactionVerb === "talk"
       ? "TALK"
       : nearby?.interactionVerb === "enter"
@@ -218,84 +257,72 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
       ? Bike
       : ShoppingBag;
 
+  const edgeInsetClass = isTablet
+    ? "left-7 bottom-7"
+    : "left-4 bottom-4";
+  const rightInsetClass = isTablet
+    ? "right-7 bottom-7"
+    : "right-4 bottom-4";
+
   return (
     <div className="fixed inset-0 z-20 pointer-events-none select-none">
-      {/* Right Half Transparent Camera Look Zone */}
+      {/* Camera Swipe & 2-Finger Pinch Region (Isolated from Left Joystick) */}
       <div
         onPointerDown={handleCamDown}
         onPointerMove={handleCamMove}
         onPointerUp={handleCamUp}
         onPointerCancel={handleCamUp}
         aria-label="Touch camera look pad"
-        className="pointer-events-auto touch-gameplay-pad fixed top-14 right-0 bottom-0 w-1/2"
+        className={`pointer-events-auto touch-gameplay-pad fixed right-0 bottom-0 ${
+          isTablet ? "top-16 left-[34%]" : "top-14 left-[40%]"
+        }`}
       />
 
-      {/* Quick Mobile Phone & Character Switch Dock (Above Left Joystick/Pad) */}
-      {(onOpenPhone || onOpenCharacterSwitch) && (
-        <div className="fixed left-3 bottom-40 sm:left-5 sm:bottom-44 flex items-center gap-2 pointer-events-none">
-          {onOpenPhone && (
-            <button
-              type="button"
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                vibrate(12);
-                onOpenPhone();
-              }}
-              className="pointer-events-auto touch-gameplay-pad min-h-[44px] px-3 rounded-xl bg-[#14110f]/88 border border-amber-500/45 text-amber-300 text-xs font-bold flex items-center gap-1.5 shadow-lg"
-            >
-              <Smartphone className="w-4 h-4" />
-              <span>PHONE</span>
-            </button>
-          )}
-          {onOpenCharacterSwitch && (
-            <button
-              type="button"
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                vibrate(12);
-                onOpenCharacterSwitch();
-              }}
-              className="pointer-events-auto touch-gameplay-pad min-h-[44px] px-3 rounded-xl bg-[#14110f]/88 border border-white/25 text-[#f5f2eb] text-xs font-semibold flex items-center gap-1.5 shadow-lg"
-            >
-              <Users className="w-4 h-4 text-amber-400" />
-              <span>SWITCH</span>
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* LEFT SIDE CONTROLS */}
+      {/* LEFT SIDE: Movement Joystick or Vehicle Steering */}
       {!isDriving && !isRidingService ? (
-        <div className="fixed left-4 bottom-5 sm:left-6 sm:bottom-6 pointer-events-auto touch-gameplay-pad">
+        <div className={`fixed ${edgeInsetClass} pointer-events-auto touch-gameplay-pad`}>
           <div
             onPointerDown={handleStickDown}
             onPointerMove={handleStickMove}
             onPointerUp={handleStickUp}
             onPointerCancel={handleStickUp}
             aria-label="Movement virtual joystick"
-            className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-[#14110f]/80 border-2 border-white/25 flex items-center justify-center shadow-xl"
+            style={{ width: stickDia, height: stickDia }}
+            className={`relative rounded-full bg-[#14110f]/75 border-2 flex items-center justify-center shadow-xl transition-colors ${
+              stickSprinting
+                ? "border-amber-400/80"
+                : stickEngaged
+                ? "border-white/45"
+                : "border-white/25"
+            }`}
           >
-            <div className="w-12 h-12 rounded-full border border-white/15 pointer-events-none" />
+            <div
+              style={{ width: Math.round(stickDia * 0.46), height: Math.round(stickDia * 0.46) }}
+              className="rounded-full border border-white/15 pointer-events-none"
+            />
             <div
               style={{
+                width: knobSize,
+                height: knobSize,
                 transform: `translate(${stickOffset.x}px, ${stickOffset.y}px)`,
               }}
-              className="absolute w-12 h-12 rounded-full bg-amber-500/90 border-2 border-amber-200 shadow-lg pointer-events-none"
+              className={`absolute rounded-full bg-amber-500/92 border-2 border-amber-200 shadow-lg pointer-events-none ${
+                stickEngaged ? "" : "transition-transform duration-100 ease-out"
+              }`}
             />
-          </div>
-          <div className="text-[10px] text-center text-[#cfc8bc] mt-1 font-medium tracking-wide">
-            MOVE
           </div>
         </div>
       ) : isDriving ? (
-        <div className="fixed left-4 bottom-5 sm:left-6 sm:bottom-6 pointer-events-auto touch-gameplay-pad">
+        <div className={`fixed ${edgeInsetClass} pointer-events-auto touch-gameplay-pad`}>
           <div
             onPointerDown={handleSteerDown}
             onPointerMove={handleSteerMove}
             onPointerUp={handleSteerUp}
             onPointerCancel={handleSteerUp}
             aria-label="Vehicle steering control"
-            className="relative w-36 h-16 sm:w-44 sm:h-20 rounded-2xl bg-[#14110f]/80 border-2 border-white/25 flex items-center justify-between px-3 shadow-xl"
+            className={`relative rounded-2xl bg-[#14110f]/80 border-2 border-white/25 flex items-center justify-between px-3 shadow-xl ${
+              isTablet ? "w-48 h-20" : "w-36 h-16"
+            }`}
           >
             <span className="text-xs font-bold text-[#bfb7aa] pointer-events-none">L</span>
             <div
@@ -307,64 +334,70 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
             <span className="text-xs font-bold text-[#bfb7aa] pointer-events-none">R</span>
           </div>
           <div className="text-[10px] text-center text-[#cfc8bc] mt-1 font-medium tracking-wide">
-            STEER {drivingKind === "motorcycle" ? "MOTO" : "PRAGYA"}
+            {drivingKind === "motorcycle" ? "MOTO" : "PRAGYA"}
           </div>
         </div>
       ) : null}
 
-      {/* RIGHT SIDE CONTROLS */}
+      {/* RIGHT SIDE: Contextual Actions, Jump/Run, or Driving Pedals */}
       {isRidingService ? (
-        <div className="fixed right-4 bottom-5 sm:right-6 sm:bottom-6 flex flex-col items-end gap-2.5 pointer-events-none">
+        <div className={`fixed ${rightInsetClass} flex flex-col items-end gap-2.5 pointer-events-none`}>
           <button
             type="button"
             onPointerDown={(e) => {
               e.stopPropagation();
-              vibrate(18);
+              vibrate(16);
               onEnterVehicle();
             }}
-            className="pointer-events-auto touch-gameplay-pad min-h-[52px] px-4 rounded-xl bg-red-600/92 active:scale-95 text-white border border-red-300/60 font-bold text-xs flex items-center justify-center gap-1.5 shadow-xl"
+            className="pointer-events-auto touch-gameplay-pad min-h-[50px] px-4 rounded-xl bg-red-600/92 active:scale-95 text-white border border-red-300/60 font-bold text-xs flex items-center justify-center gap-1.5 shadow-xl"
           >
             <LogOut className="w-4 h-4" />
-            <span className="whitespace-nowrap">EXIT SERVICE RIDE</span>
+            <span className="whitespace-nowrap">EXIT RIDE</span>
           </button>
         </div>
       ) : !isDriving ? (
-        <div className="fixed right-4 bottom-5 sm:right-6 sm:bottom-6 flex flex-col items-end gap-2.5 pointer-events-none">
-          {/* Contextual Buttons Row */}
-          <div className="flex items-center gap-2.5">
-            {nearby && (
-              <button
-                type="button"
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  vibrate(18);
-                  onInteract();
-                }}
-                className="pointer-events-auto touch-gameplay-pad min-h-[52px] min-w-[92px] px-4 rounded-xl bg-amber-500 active:scale-95 text-[#12100e] font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg border border-amber-200"
-              >
-                <ContextIcon className="w-4 h-4 shrink-0" />
-                <span className="whitespace-nowrap">{contextLabel}</span>
-              </button>
-            )}
+        <div
+          className={`fixed ${rightInsetClass} flex flex-col items-end ${
+            isTablet ? "gap-3.5" : "gap-2.5"
+          } pointer-events-none`}
+        >
+          {/* Contextual Buttons Row — Only rendered when player is near an interactable or vehicle */}
+          {(nearby || nearbyVehicle) && (
+            <div className="flex items-center gap-2.5">
+              {nearby && (
+                <button
+                  type="button"
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    vibrate(16);
+                    onInteract();
+                  }}
+                  className="pointer-events-auto touch-gameplay-pad min-h-[48px] min-w-[92px] px-4 rounded-xl bg-amber-500 active:scale-95 text-[#12100e] font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg border border-amber-200"
+                >
+                  <ContextIcon className="w-4 h-4 shrink-0" />
+                  <span className="whitespace-nowrap">{contextLabel}</span>
+                </button>
+              )}
 
-            {nearbyVehicle && (
-              <button
-                type="button"
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  vibrate(18);
-                  onEnterVehicle();
-                }}
-                className="pointer-events-auto touch-gameplay-pad min-h-[52px] min-w-[116px] px-3.5 rounded-xl bg-emerald-500 active:scale-95 text-[#081c11] font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg border border-emerald-200"
-              >
-                <Bike className="w-4 h-4 shrink-0" />
-                <span className="whitespace-nowrap">ENTER VEHICLE</span>
-              </button>
-            )}
-          </div>
+              {nearbyVehicle && (
+                <button
+                  type="button"
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    vibrate(16);
+                    onEnterVehicle();
+                  }}
+                  className="pointer-events-auto touch-gameplay-pad min-h-[48px] min-w-[104px] px-3.5 rounded-xl bg-emerald-500 active:scale-95 text-[#081c11] font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg border border-emerald-200"
+                >
+                  <Bike className="w-4 h-4 shrink-0" />
+                  <span className="whitespace-nowrap">RIDE</span>
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Primary On-Foot Buttons: Run Toggle & Jump */}
-          <div className="flex items-center gap-3">
+          <div className={`flex items-center ${isTablet ? "gap-4" : "gap-3"}`}>
             <button
               type="button"
               onPointerDown={(e) => {
@@ -375,8 +408,9 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
                 onToggleRun(next);
               }}
               aria-pressed={runActive}
-              className={`pointer-events-auto touch-gameplay-pad w-14 h-14 rounded-full font-bold text-[11px] flex flex-col items-center justify-center gap-0.5 shadow-lg border active:scale-95 transition-transform ${
-                runActive
+              style={{ width: btnPx, height: btnPx }}
+              className={`pointer-events-auto touch-gameplay-pad rounded-full font-bold text-[11px] flex flex-col items-center justify-center gap-0.5 shadow-lg border active:scale-95 transition-transform ${
+                runActive || stickSprinting
                   ? "bg-amber-500 text-[#12100e] border-amber-200"
                   : "bg-[#14110f]/82 text-[#f5f2eb] border-white/25"
               }`}
@@ -392,7 +426,8 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
                 vibrate(14);
                 onJump();
               }}
-              className="pointer-events-auto touch-gameplay-pad w-16 h-16 rounded-full bg-[#14110f]/85 active:bg-white/20 active:scale-95 text-[#f8f5ef] border-2 border-white/30 font-bold text-[11px] flex flex-col items-center justify-center gap-0.5 shadow-xl"
+              style={{ width: Math.round(btnPx * 1.14), height: Math.round(btnPx * 1.14) }}
+              className="pointer-events-auto touch-gameplay-pad rounded-full bg-[#14110f]/85 active:bg-white/20 active:scale-95 text-[#f8f5ef] border-2 border-white/30 font-bold text-[11px] flex flex-col items-center justify-center gap-0.5 shadow-xl"
             >
               <ArrowUp className="w-5 h-5 text-amber-400" />
               <span>JUMP</span>
@@ -400,13 +435,17 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
           </div>
         </div>
       ) : (
-        <div className="fixed right-4 bottom-5 sm:right-6 sm:bottom-6 flex flex-col items-end gap-2.5 pointer-events-none">
+        <div
+          className={`fixed ${rightInsetClass} flex flex-col items-end ${
+            isTablet ? "gap-3" : "gap-2.5"
+          } pointer-events-none`}
+        >
           {(nearby?.kind === "delivery" || nearby?.kind === "job_action") && (
             <button
               type="button"
               onPointerDown={(e) => {
                 e.stopPropagation();
-                vibrate(20);
+                vibrate(18);
                 onInteract();
               }}
               className="pointer-events-auto touch-gameplay-pad min-h-[48px] px-4 rounded-xl bg-emerald-500 active:scale-95 text-[#071c0e] border border-emerald-200 font-bold text-xs flex items-center justify-center gap-1.5 shadow-xl"
@@ -415,7 +454,7 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
               <span className="whitespace-nowrap">{contextLabel}</span>
             </button>
           )}
-          {/* Top Utility Row: Horn, Handbrake, Exit Vehicle */}
+          {/* Top Utility Row: Horn, Stop, Exit */}
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -424,7 +463,7 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
                 vibrate(12);
                 onHorn();
               }}
-              className="pointer-events-auto touch-gameplay-pad min-h-[48px] min-w-[64px] px-3 rounded-xl bg-[#14110f]/85 active:scale-95 text-[#f8f5ef] border border-white/25 font-semibold text-xs flex items-center justify-center gap-1 shadow-lg"
+              className="pointer-events-auto touch-gameplay-pad min-h-[46px] min-w-[62px] px-3 rounded-xl bg-[#14110f]/85 active:scale-95 text-[#f8f5ef] border border-white/25 font-semibold text-xs flex items-center justify-center gap-1 shadow-lg"
             >
               <Volume2 className="w-4 h-4 text-amber-400" />
               <span>HORN</span>
@@ -447,7 +486,7 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
                 setHandbrakePressed(false);
                 onVehicleControls({ handbrake: false });
               }}
-              className={`pointer-events-auto touch-gameplay-pad min-h-[48px] min-w-[78px] px-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-1 shadow-lg border ${
+              className={`pointer-events-auto touch-gameplay-pad min-h-[46px] min-w-[70px] px-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-1 shadow-lg border ${
                 handbrakePressed
                   ? "bg-amber-600 text-white border-amber-300"
                   : "bg-[#14110f]/85 text-[#f8f5ef] border-white/25"
@@ -461,10 +500,10 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
               type="button"
               onPointerDown={(e) => {
                 e.stopPropagation();
-                vibrate(18);
+                vibrate(16);
                 onExitVehicle();
               }}
-              className="pointer-events-auto touch-gameplay-pad min-h-[48px] px-3.5 rounded-xl bg-red-600/90 active:scale-95 text-white border border-red-300/60 font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg"
+              className="pointer-events-auto touch-gameplay-pad min-h-[46px] px-3.5 rounded-xl bg-red-600/90 active:scale-95 text-white border border-red-300/60 font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg"
             >
               <LogOut className="w-4 h-4" />
               <span className="whitespace-nowrap">EXIT</span>
@@ -472,7 +511,7 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
           </div>
 
           {/* Bottom Pedals Row: Brake/Reverse & Accelerate */}
-          <div className="flex items-center gap-3">
+          <div className={`flex items-center ${isTablet ? "gap-4" : "gap-3"}`}>
             <button
               type="button"
               onPointerDown={(e) => {
@@ -490,14 +529,16 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
                 setBrakePressed(false);
                 onVehicleControls({ brake: false });
               }}
-              className={`pointer-events-auto touch-gameplay-pad w-20 h-16 rounded-2xl font-bold text-[11px] flex flex-col items-center justify-center gap-0.5 shadow-xl border-2 ${
+              className={`pointer-events-auto touch-gameplay-pad ${
+                isTablet ? "w-24 h-18" : "w-20 h-16"
+              } rounded-2xl font-bold text-[11px] flex flex-col items-center justify-center gap-0.5 shadow-xl border-2 ${
                 brakePressed
                   ? "bg-red-600 text-white border-red-200 scale-95"
                   : "bg-[#14110f]/85 text-[#f8f5ef] border-red-400/50"
               }`}
             >
               <RotateCcw className="w-4 h-4 text-red-400" />
-              <span>BRAKE / REV</span>
+              <span>BRAKE</span>
             </button>
 
             <button
@@ -517,7 +558,9 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
                 setGasPressed(false);
                 onVehicleControls({ throttle: 0 });
               }}
-              className={`pointer-events-auto touch-gameplay-pad w-24 h-20 rounded-2xl font-bold text-xs flex flex-col items-center justify-center gap-1 shadow-xl border-2 ${
+              className={`pointer-events-auto touch-gameplay-pad ${
+                isTablet ? "w-28 h-22" : "w-24 h-20"
+              } rounded-2xl font-bold text-xs flex flex-col items-center justify-center gap-1 shadow-xl border-2 ${
                 gasPressed
                   ? "bg-amber-400 text-[#12100e] border-white scale-95"
                   : "bg-amber-500/92 text-[#12100e] border-amber-200"

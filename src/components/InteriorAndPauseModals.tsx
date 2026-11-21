@@ -4,12 +4,15 @@ import {
   FolderOpen,
   Gamepad2,
   Home,
+  Package,
   Play,
   Save,
   Settings,
+  Users,
   X,
 } from "lucide-react";
 import { LandmarkData } from "../types/game";
+import { DeviceLayoutConfig } from "../utils/deviceProfile";
 
 interface BuildingInteriorModalProps {
   landmark: LandmarkData;
@@ -131,27 +134,40 @@ export const BuildingInteriorModal: React.FC<BuildingInteriorModalProps> = ({
 };
 
 interface PauseModalProps {
+  deviceLayout?: DeviceLayoutConfig;
   hasSavedGame: boolean;
   onResume: () => void;
   onSaveGame: () => void;
   onLoadGame: () => void;
   onOpenSettings: () => void;
   onOpenControls: () => void;
+  onOpenBag?: () => void;
+  onOpenCharacterSwitch?: () => void;
+  onOpenDagbaniGuide?: () => void;
   onReturnMainMenu: () => void;
 }
 
 export const PauseModal: React.FC<PauseModalProps> = ({
+  deviceLayout,
   hasSavedGame,
   onResume,
   onSaveGame,
   onLoadGame,
   onOpenSettings,
   onOpenControls,
+  onOpenBag,
+  onOpenCharacterSwitch,
+  onOpenDagbaniGuide,
   onReturnMainMenu,
 }) => {
+  const isPhone = deviceLayout?.isPhoneLayout ?? false;
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/75 p-3 sm:p-4">
-      <div className="w-full max-w-md max-h-[92dvh] overflow-y-auto bg-[#171411] border border-white/15 rounded-2xl shadow-2xl p-5 sm:p-6 space-y-4">
+      <div
+        className={`w-full ${
+          isPhone ? "max-w-sm" : "max-w-md"
+        } max-h-[92dvh] overflow-y-auto bg-[#171411] border border-white/15 rounded-2xl shadow-2xl p-5 sm:p-6 space-y-4`}
+      >
         <div className="flex items-center justify-between">
           <div>
             <div className="text-[11px] font-medium text-amber-400">Game Paused</div>
@@ -220,6 +236,41 @@ export const PauseModal: React.FC<PauseModalProps> = ({
               <span>CONTROLS</span>
             </button>
           </div>
+
+          {(onOpenBag || onOpenCharacterSwitch || onOpenDagbaniGuide) && (
+            <div className="grid grid-cols-3 gap-2">
+              {onOpenBag && (
+                <button
+                  type="button"
+                  onClick={onOpenBag}
+                  className="min-h-[42px] px-2 py-1.5 bg-[#201b17] hover:bg-white/10 text-[#e8e2d7] border border-white/10 text-xs font-medium rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Package className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>Bag</span>
+                </button>
+              )}
+              {onOpenCharacterSwitch && (
+                <button
+                  type="button"
+                  onClick={onOpenCharacterSwitch}
+                  className="min-h-[42px] px-2 py-1.5 bg-[#201b17] hover:bg-white/10 text-[#e8e2d7] border border-white/10 text-xs font-medium rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Users className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>Switch</span>
+                </button>
+              )}
+              {onOpenDagbaniGuide && (
+                <button
+                  type="button"
+                  onClick={onOpenDagbaniGuide}
+                  className="min-h-[42px] px-2 py-1.5 bg-[#201b17] hover:bg-white/10 text-[#e8e2d7] border border-white/10 text-xs font-medium rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <BookOpen className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>Dagbani</span>
+                </button>
+              )}
+            </div>
+          )}
 
           <button
             type="button"

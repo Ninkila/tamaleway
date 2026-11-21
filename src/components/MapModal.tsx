@@ -8,8 +8,10 @@ import {
   TAMALE_SCALE_DISCLOSURE,
 } from "../data/tamaleWorldData";
 import { CommunityZone, LandmarkData, NpcProfile, NpcRuntimeSnapshot } from "../types/game";
+import { DeviceLayoutConfig } from "../utils/deviceProfile";
 
 interface MapModalProps {
+  deviceLayout?: DeviceLayoutConfig;
   playerPos: { x: number; z: number };
   discoveredLandmarks: string[];
   activeErrandLandmarkId: string | null;
@@ -23,6 +25,7 @@ interface MapModalProps {
 }
 
 export const MapModal: React.FC<MapModalProps> = ({
+  deviceLayout,
   playerPos,
   discoveredLandmarks,
   activeErrandLandmarkId,
@@ -40,6 +43,7 @@ export const MapModal: React.FC<MapModalProps> = ({
   const [selectedCommunity, setSelectedCommunity] = useState<CommunityZone | null>(null);
   const [selectedNpc, setSelectedNpc] = useState<NpcProfile | null>(null);
   const [showCommunities, setShowCommunities] = useState(true);
+  const isPhone = deviceLayout?.isPhoneLayout ?? false;
 
   // Map expanded metropolitan world coordinates (-235..235) uniformly into SVG viewBox (0..460)
   const WORLD_SPAN = 470;
@@ -48,46 +52,51 @@ export const MapModal: React.FC<MapModalProps> = ({
   const toSize = (units: number) => (units / WORLD_SPAN) * 460;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-5xl bg-[#171411] border border-white/15 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-        <div className="px-6 py-4 border-b border-white/10 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="font-display text-lg font-bold text-[#f8f5ef]">
-              Tamale Metropolitan Map &amp; 17 Communities Guide
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-2 sm:p-4">
+      <div className="w-full max-w-5xl bg-[#171411] border border-white/15 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh]">
+        <div className="px-4 sm:px-6 py-3.5 border-b border-white/10 flex flex-wrap items-center justify-between gap-2.5">
+          <div className="min-w-0">
+            <h2 className="font-display text-base sm:text-lg font-bold text-[#f8f5ef] truncate">
+              Tamale Metropolitan Map
             </h2>
-            <div className="text-xs text-[#b5ada0]">
-              Anchored on {TAMALE_SCALE_DISCLOSURE.anchorName} ({TAMALE_SCALE_DISCLOSURE.anchorCoords}) · {TAMALE_SCALE_DISCLOSURE.scaleLabel}
-            </div>
+            {!isPhone && (
+              <div className="text-xs text-[#b5ada0] truncate">
+                Anchored on {TAMALE_SCALE_DISCLOSURE.anchorName} ({TAMALE_SCALE_DISCLOSURE.anchorCoords})
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setShowCommunities((v) => !v)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors cursor-pointer ${
+              className={`min-h-[40px] flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl border transition-colors cursor-pointer ${
                 showCommunities
                   ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
                   : "bg-[#221d18] border-white/10 text-[#cfc8bc]"
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
-              <span>{showCommunities ? "Communities On" : "Communities Off"}</span>
+              <span>{showCommunities ? "Zones On" : "Zones Off"}</span>
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 text-[#bfb7aa] hover:text-white rounded-md hover:bg-white/10 cursor-pointer"
+              aria-label="Close map"
+              className="min-h-[42px] min-w-[42px] flex items-center justify-center text-[#bfb7aa] hover:text-white rounded-xl hover:bg-white/10 cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-12 flex-1 overflow-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-12 flex-1 overflow-y-auto md:overflow-hidden">
           {/* Interactive SVG Map */}
-          <div className="md:col-span-7 bg-[#261e17] p-4 flex items-center justify-center border-b md:border-b-0 md:border-r border-white/10">
+          <div className="md:col-span-7 bg-[#261e17] p-3 sm:p-4 flex items-center justify-center border-b md:border-b-0 md:border-r border-white/10">
             <svg
               viewBox="0 0 460 460"
-              className="w-full max-w-[440px] aspect-square rounded-lg bg-[#3a2a1e] border border-white/10"
+              className={`w-full ${
+                isPhone ? "max-w-[330px]" : "max-w-[440px]"
+              } aspect-square rounded-lg bg-[#3a2a1e] border border-white/10`}
             >
               {/* Community Regions Overlay */}
               {showCommunities &&

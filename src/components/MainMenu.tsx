@@ -11,8 +11,10 @@ import {
   User,
 } from "lucide-react";
 import { LanguageMode } from "../types/game";
+import { DeviceLayoutConfig } from "../utils/deviceProfile";
 
 interface MainMenuProps {
+  deviceLayout?: DeviceLayoutConfig;
   hasSavedGame: boolean;
   languageMode: LanguageMode;
   activeCharacterName?: string;
@@ -34,6 +36,7 @@ interface MainMenuProps {
 }
 
 export const MainMenu: React.FC<MainMenuProps> = ({
+  deviceLayout,
   hasSavedGame,
   languageMode,
   activeCharacterName = "Yakubu Alhassan",
@@ -53,13 +56,25 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   onOpenEvents,
   onOpenContributions,
 }) => {
+  const isPhone = deviceLayout?.isPhoneLayout ?? false;
+  const isTablet = deviceLayout?.isTabletLayout ?? false;
+  const isLandscapePhone = isPhone && deviceLayout?.orientation === "landscape";
+
   return (
-    <div className="fixed inset-0 z-30 flex items-center justify-center bg-[#12100e]/78 p-3 sm:p-6">
-      <div className="w-full max-w-2xl max-h-[94dvh] overflow-y-auto border border-white/15 bg-[#171411]/95 p-5 sm:p-8 shadow-2xl rounded-2xl">
-        <div className="text-[11px] sm:text-xs font-medium tracking-wider text-amber-400/90 mb-1.5">
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-[#12100e]/78 p-2.5 sm:p-6">
+      <div
+        className={`w-full ${
+          isTablet ? "max-w-3xl p-6 sm:p-8" : isPhone ? "max-w-xl p-4 sm:p-6" : "max-w-2xl p-6 sm:p-8"
+        } max-h-[94dvh] overflow-y-auto border border-white/15 bg-[#171411]/95 shadow-2xl rounded-2xl`}
+      >
+        <div className="text-[11px] sm:text-xs font-medium tracking-wider text-amber-400/90 mb-1">
           Northern Region, Ghana · Cultural Life Simulation
         </div>
-        <h1 className="font-display text-3xl sm:text-5xl font-bold tracking-tight text-[#f8f5ef] mb-2">
+        <h1
+          className={`font-display font-bold tracking-tight text-[#f8f5ef] mb-2 ${
+            isPhone ? "text-2xl sm:text-4xl" : "text-4xl sm:text-5xl"
+          }`}
+        >
           Tamale 3D
         </h1>
         <p className="text-xs sm:text-sm text-[#cfc8bc] leading-relaxed mb-4 max-w-xl">
@@ -71,7 +86,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         {/* Active Resident Strip */}
         <div className="mb-4 px-3.5 py-2.5 rounded-xl bg-[#120f0d] border border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs">
           <div className="text-[#e8e2d7]">
-            <span className="text-[#9c9487]">Active Resident: </span>
+            <span className="text-[#9c9487]">Resident: </span>
             <span className="font-semibold text-amber-300">{activeCharacterName}</span>
             <span className="text-[#9c9487]"> · {activeCharacterOccupation}</span>
           </div>
@@ -79,7 +94,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         </div>
 
         {/* Primary Play Actions */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-5">
+        <div
+          className={`grid gap-2.5 mb-4 ${
+            isLandscapePhone ? "grid-cols-3" : "grid-cols-1 sm:grid-cols-3"
+          }`}
+        >
           <button
             type="button"
             onClick={onPlay}
@@ -112,12 +131,16 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           </button>
         </div>
 
-        {/* Core Menu Actions Grid (All Required Buttons) */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-2.5 mb-5">
+        {/* Core Menu Actions Grid */}
+        <div
+          className={`grid gap-2 sm:gap-2.5 mb-4 ${
+            isLandscapePhone ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-3"
+          }`}
+        >
           <button
             type="button"
             onClick={onOpenCustomize}
-            className="min-h-[44px] px-3 py-2.5 bg-[#211d18] hover:bg-[#2b2620] text-[#e8e2d7] border border-white/10 text-xs sm:text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors whitespace-nowrap cursor-pointer"
+            className="min-h-[46px] px-3 py-2.5 bg-[#211d18] hover:bg-[#2b2620] text-[#e8e2d7] border border-white/10 text-xs sm:text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors whitespace-nowrap cursor-pointer"
           >
             <User className="w-4 h-4 text-amber-400 shrink-0" />
             <span>SELECT CHARACTER</span>
@@ -126,7 +149,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <button
             type="button"
             onClick={onOpenSettings}
-            className="min-h-[44px] px-3 py-2.5 bg-[#211d18] hover:bg-[#2b2620] text-[#e8e2d7] border border-white/10 text-xs sm:text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors whitespace-nowrap cursor-pointer"
+            className="min-h-[46px] px-3 py-2.5 bg-[#211d18] hover:bg-[#2b2620] text-[#e8e2d7] border border-white/10 text-xs sm:text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors whitespace-nowrap cursor-pointer"
           >
             <Settings className="w-4 h-4 text-amber-400 shrink-0" />
             <span>SETTINGS</span>
@@ -135,7 +158,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <button
             type="button"
             onClick={onOpenLanguageGuide}
-            className="min-h-[44px] px-3 py-2.5 bg-[#211d18] hover:bg-[#2b2620] text-[#e8e2d7] border border-white/10 text-xs sm:text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors whitespace-nowrap cursor-pointer"
+            className="min-h-[46px] px-3 py-2.5 bg-[#211d18] hover:bg-[#2b2620] text-[#e8e2d7] border border-white/10 text-xs sm:text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors whitespace-nowrap cursor-pointer"
           >
             <BookOpen className="w-4 h-4 text-amber-400 shrink-0" />
             <span>LANGUAGE</span>
@@ -144,7 +167,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <button
             type="button"
             onClick={onOpenControls}
-            className="min-h-[44px] px-3 py-2.5 bg-[#211d18] hover:bg-[#2b2620] text-[#e8e2d7] border border-white/10 text-xs sm:text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors whitespace-nowrap cursor-pointer"
+            className="min-h-[46px] px-3 py-2.5 bg-[#211d18] hover:bg-[#2b2620] text-[#e8e2d7] border border-white/10 text-xs sm:text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors whitespace-nowrap cursor-pointer"
           >
             <Gamepad2 className="w-4 h-4 text-amber-400 shrink-0" />
             <span>CONTROLS</span>
@@ -153,7 +176,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <button
             type="button"
             onClick={onOpenAbout}
-            className="min-h-[44px] px-3 py-2.5 bg-[#211d18] hover:bg-[#2b2620] text-[#e8e2d7] border border-white/10 text-xs sm:text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors whitespace-nowrap cursor-pointer"
+            className="min-h-[46px] px-3 py-2.5 bg-[#211d18] hover:bg-[#2b2620] text-[#e8e2d7] border border-white/10 text-xs sm:text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors whitespace-nowrap cursor-pointer"
           >
             <Info className="w-4 h-4 text-amber-400 shrink-0" />
             <span>ABOUT TAMALE</span>
@@ -162,7 +185,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <button
             type="button"
             onClick={onExit}
-            className="min-h-[44px] px-3 py-2.5 bg-[#211816] hover:bg-red-950/60 text-[#f1d8d4] border border-red-400/20 text-xs sm:text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors whitespace-nowrap cursor-pointer"
+            className="min-h-[46px] px-3 py-2.5 bg-[#211816] hover:bg-red-950/60 text-[#f1d8d4] border border-red-400/20 text-xs sm:text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors whitespace-nowrap cursor-pointer"
           >
             <Power className="w-4 h-4 text-red-400 shrink-0" />
             <span>EXIT</span>
@@ -211,27 +234,29 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             <button
               type="button"
               onClick={onOpenReferences}
-              className="min-h-[38px] px-3 py-1.5 bg-[#1d1915] hover:bg-white/10 border border-white/10 rounded-lg text-[#cfc8bc] hover:text-white whitespace-nowrap cursor-pointer"
+              className="min-h-[40px] px-3 py-1.5 bg-[#1d1915] hover:bg-white/10 border border-white/10 rounded-lg text-[#cfc8bc] hover:text-white whitespace-nowrap cursor-pointer"
             >
               Tamale Photo Archive
             </button>
             <button
               type="button"
               onClick={onOpenEvents}
-              className="min-h-[38px] px-3 py-1.5 bg-[#1d1915] hover:bg-white/10 border border-white/10 rounded-lg text-[#cfc8bc] hover:text-white whitespace-nowrap cursor-pointer"
+              className="min-h-[40px] px-3 py-1.5 bg-[#1d1915] hover:bg-white/10 border border-white/10 rounded-lg text-[#cfc8bc] hover:text-white whitespace-nowrap cursor-pointer"
             >
               Events &amp; History
             </button>
             <button
               type="button"
               onClick={onOpenContributions}
-              className="min-h-[38px] px-3 py-1.5 bg-[#1d1915] hover:bg-white/10 border border-white/10 rounded-lg text-[#cfc8bc] hover:text-white whitespace-nowrap cursor-pointer"
+              className="min-h-[40px] px-3 py-1.5 bg-[#1d1915] hover:bg-white/10 border border-white/10 rounded-lg text-[#cfc8bc] hover:text-white whitespace-nowrap cursor-pointer"
             >
               Community Portal
             </button>
           </div>
           <span className="text-[11px] text-[#8e8679]">
-            Touchscreen &amp; Desktop Keyboard Supported
+            {deviceLayout
+              ? `${deviceLayout.deviceLabel} · ${deviceLayout.orientation}`
+              : "Touchscreen & Desktop Supported"}
           </span>
         </div>
       </div>
