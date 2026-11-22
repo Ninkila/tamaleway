@@ -1,0 +1,257 @@
+[
+  {
+    "Name": "dagbandabo_fong",
+    "DistrictId": "dagbandabo_fong",
+    "DisplayName": "Dagbandabo Fong (Central Tamale)",
+    "DagbaniName": "Tamale Sunsuuni",
+    "OsmCoords": "9.40379° N, 0.84202° W",
+    "BearingFromInterchange": "Origin (0, 0)",
+    "CenterLocationCm": {
+      "X": 0,
+      "Y": 0,
+      "Z": 0
+    },
+    "RadiusCm": 5600,
+    "CharacterSummary": "Commercial & civic heart anchored by the Naa Gbewaa Interchange, Central Market, Central Mosque, and Dakpema Palace."
+  },
+  {
+    "Name": "aboabo",
+    "DistrictId": "aboabo",
+    "DisplayName": "Aboabo",
+    "DagbaniName": "Aboabo",
+    "OsmCoords": "9.40132° N, 0.84911° W",
+    "BearingFromInterchange": "West-Southwest",
+    "CenterLocationCm": {
+      "X": -12400,
+      "Y": 2800,
+      "Z": 0
+    },
+    "RadiusCm": 3600,
+    "CharacterSummary": "Vibrant inner-city market quarter famed for Aboabo Market, grain depots, fabric stalls, and close-knit compound streets."
+  },
+  {
+    "Name": "tishigu",
+    "DistrictId": "tishigu",
+    "DisplayName": "Tishigu",
+    "DagbaniName": "Tishigu",
+    "OsmCoords": "9.40975° N, 0.83871° W",
+    "BearingFromInterchange": "North-Northeast",
+    "CenterLocationCm": {
+      "X": 3400,
+      "Y": -6800,
+      "Z": 0
+    },
+    "RadiusCm": 3200,
+    "CharacterSummary": "Historic residential-commercial community between Central Market, Jubilee Park, and Kalpohin."
+  },
+  {
+    "Name": "kalpohin",
+    "DistrictId": "kalpohin",
+    "DisplayName": "Kalpohin & Kalpohin Estates",
+    "DagbaniName": "Kalpohin",
+    "OsmCoords": "9.41654° N, 0.83060° W",
+    "BearingFromInterchange": "Northeast",
+    "CenterLocationCm": {
+      "X": 8200,
+      "Y": -12200,
+      "Z": 0
+    },
+    "RadiusCm": 3800,
+    "CharacterSummary": "Mixed modern estate and established residential district hosting Kalpohin SHS and self-contained walled homes."
+  },
+  {
+    "Name": "gumani",
+    "DistrictId": "gumani",
+    "DisplayName": "Gumani",
+    "DagbaniName": "Gumani",
+    "OsmCoords": "9.45076° N, 0.76474° W",
+    "BearingFromInterchange": "Far Northeast",
+    "CenterLocationCm": {
+      "X": 15800,
+      "Y": -13600,
+      "Z": 0
+    },
+    "RadiusCm": 3800,
+    "CharacterSummary": "Fast-growing residential expansion zone on Tamale's northeastern edge with active concrete construction."
+  },
+  {
+    "Name": "jakarayili",
+    "DistrictId": "jakarayili",
+    "DisplayName": "Jakarayili",
+    "DagbaniName": "Jakarayili",
+    "OsmCoords": "9.40531° N, 0.82763° W",
+    "BearingFromInterchange": "East",
+    "CenterLocationCm": {
+      "X": 9600,
+      "Y": 2400,
+      "Z": 0
+    },
+    "RadiusCm": 3400,
+    "CharacterSummary": "Lively eastern residential-commercial pocket flanking Jubilee Park and Tamale High Street."
+  },
+  {
+    "Name": "kukuo",
+    "DistrictId": "kukuo",
+    "DisplayName": "Kukuo",
+    "DagbaniName": "Kukuo",
+    "OsmCoords": "9.39992° N, 0.82020° W",
+    "BearingFromInterchange": "East-Southeast",
+    "CenterLocationCm": {
+      "X": 15600,
+      "Y": 3200,
+      "Z": 0
+    },
+    "RadiusCm": 3600,
+    "CharacterSummary": "Well-known eastern suburb famed for Kukuo Market and traditional earthen pottery craftsmanship."
+  },
+  {
+    "Name": "vittin",
+    "DistrictId": "vittin",
+    "DisplayName": "Vittin",
+    "DagbaniName": "Vittin",
+    "OsmCoords": "9.39015° N, 0.79326° W",
+    "BearingFromInterchange": "East-Southeast (Outer Ring)",
+    "CenterLocationCm": {
+      "X": 20400,
+      "Y": 5800,
+      "Z": 0
+    },
+    "RadiusCm": 3600,
+    "CharacterSummary": "Eastern ring-road community connecting Tamale toward Yendi Road and contemporary art spaces (SCCA / Red Clay)."
+  },
+  {
+    "Name": "dabokpaa",
+    "DistrictId": "dabokpaa",
+    "DisplayName": "Dabokpaa",
+    "DagbaniName": "Dabokpaa",
+    "OsmCoords": "9.38843° N, 0.81988° W",
+    "BearingFromInterchange": "Southeast",
+    "CenterLocationCm": {
+      "X": 15800,
+      "Y": 14600,
+      "Z": 0
+    },
+    "RadiusCm": 3600,
+    "CharacterSummary": "Southeastern community near Tamale Teaching Hospital and Technical University corridors."
+  },
+  {
+    "Name": "lamashegu",
+    "DistrictId": "lamashegu",
+    "DisplayName": "Lamashegu",
+    "DagbaniName": "Lamashegu",
+    "OsmCoords": "9.38790° N, 0.85460° W",
+    "BearingFromInterchange": "South-Southwest",
+    "CenterLocationCm": {
+      "X": -7400,
+      "Y": 14600,
+      "Z": 0
+    },
+    "RadiusCm": 4000,
+    "CharacterSummary": "Major commercial, market, and transport-repair hub south of Central Tamale along Salaga Road."
+  },
+  {
+    "Name": "kakpagyili",
+    "DistrictId": "kakpagyili",
+    "DisplayName": "Kakpagyili",
+    "DagbaniName": "Kakpagyili",
+    "OsmCoords": "9.3810° N, 0.8420° W (Approx. South Corridor)",
+    "BearingFromInterchange": "South",
+    "CenterLocationCm": {
+      "X": 2800,
+      "Y": 15600,
+      "Z": 0
+    },
+    "RadiusCm": 3400,
+    "CharacterSummary": "Southern neighbourhood anchored by Kakpagyili Market, family compounds, and local mosques."
+  },
+  {
+    "Name": "nyohini",
+    "DistrictId": "nyohini",
+    "DisplayName": "Nyohini",
+    "DagbaniName": "Nyohini",
+    "OsmCoords": "9.40441° N, 0.86621° W",
+    "BearingFromInterchange": "West",
+    "CenterLocationCm": {
+      "X": -15800,
+      "Y": -3200,
+      "Z": 0
+    },
+    "RadiusCm": 3600,
+    "CharacterSummary": "Western neighbourhood stretching along Sagnarigu Road with dense residential compounds and stadium approaches."
+  },
+  {
+    "Name": "sagnarigu",
+    "DistrictId": "sagnarigu",
+    "DisplayName": "Sagnarigu",
+    "DagbaniName": "Sagnarigu",
+    "OsmCoords": "9.40608° N, 0.86058° W",
+    "BearingFromInterchange": "West-Northwest",
+    "CenterLocationCm": {
+      "X": -15600,
+      "Y": -10200,
+      "Z": 0
+    },
+    "RadiusCm": 4000,
+    "CharacterSummary": "Sister municipal centre hosting Aliu Mahama Sports Stadium, Sagnarigu Palace avenues, and residential estates."
+  },
+  {
+    "Name": "choggu",
+    "DistrictId": "choggu",
+    "DisplayName": "Choggu",
+    "DagbaniName": "Choggu",
+    "OsmCoords": "9.42504° N, 0.84804° W",
+    "BearingFromInterchange": "North-Northwest",
+    "CenterLocationCm": {
+      "X": -6400,
+      "Y": -13600,
+      "Z": 0
+    },
+    "RadiusCm": 3600,
+    "CharacterSummary": "Established northern residential district with leafy neem streets, churches, mosques, and family compounds."
+  },
+  {
+    "Name": "gumbihini",
+    "DistrictId": "gumbihini",
+    "DisplayName": "Gumbihini",
+    "DagbaniName": "Gumbihini",
+    "OsmCoords": "9.42294° N, 0.84477° W",
+    "BearingFromInterchange": "North",
+    "CenterLocationCm": {
+      "X": -2400,
+      "Y": -13200,
+      "Z": 0
+    },
+    "RadiusCm": 3200,
+    "CharacterSummary": "Inner-northern neighbourhood known for its waterworks heritage, market gardens, and residential lanes."
+  },
+  {
+    "Name": "kanvilli",
+    "DistrictId": "kanvilli",
+    "DisplayName": "Kanvilli",
+    "DagbaniName": "Kanvilli",
+    "OsmCoords": "9.4380° N, 0.8440° W (Bolgatanga Rd North)",
+    "BearingFromInterchange": "North (Bolgatanga Road Corridor)",
+    "CenterLocationCm": {
+      "X": 3400,
+      "Y": -14800,
+      "Z": 0
+    },
+    "RadiusCm": 3400,
+    "CharacterSummary": "Northern highway suburb along N10 leading toward Tamale International Airport."
+  },
+  {
+    "Name": "dungu",
+    "DistrictId": "dungu",
+    "DisplayName": "Dungu",
+    "DagbaniName": "Dungu",
+    "OsmCoords": "9.37701° N, 0.87818° W",
+    "BearingFromInterchange": "Southwest",
+    "CenterLocationCm": {
+      "X": -16200,
+      "Y": 14800,
+      "Z": 0
+    },
+    "RadiusCm": 3800,
+    "CharacterSummary": "Southwestern academic & residential community home to the University for Development Studies (UDS) Tamale campus corridor."
+  }
+]

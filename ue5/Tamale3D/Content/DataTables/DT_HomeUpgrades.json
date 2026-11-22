@@ -1,0 +1,68 @@
+[
+  {
+    "Name": "bed_tier",
+    "UpgradeId": "bed_tier",
+    "DisplayName": "Bedroom Comfort & Orthopedic Mattress",
+    "DagbaniName": "Gɔbu Shee",
+    "Category": "Bedroom",
+    "MaxLevel": 3,
+    "Level2CostCedis": 180,
+    "Level2Title": "Orthopedic Queen Bed & Mosquito Net",
+    "Level2Effect": "Restores 100% Energy + +15% Comfort"
+  },
+  {
+    "Name": "solar_power",
+    "UpgradeId": "solar_power",
+    "DisplayName": "Rooftop Solar Panel & Inverter Backup",
+    "DagbaniName": "Wuntaŋa Laati",
+    "Category": "Utilities",
+    "MaxLevel": 2,
+    "Level2CostCedis": 260,
+    "Level2Title": "2kW Solar Array & Inverter",
+    "Level2Effect": "Cuts daily electricity bill by 65%"
+  },
+  {
+    "Name": "polytank_plumbing",
+    "UpgradeId": "polytank_plumbing",
+    "DisplayName": "Polytank Pressure Pump & Filtered Shower",
+    "DagbaniName": "Kom Tanki",
+    "Category": "Plumbing",
+    "MaxLevel": 2,
+    "Level2CostCedis": 210,
+    "Level2Title": "Pressurized 2500L Polytank & Heater",
+    "Level2Effect": "+25% Hygiene bonus & cuts laundry wash time"
+  },
+  {
+    "Name": "kitchen_appliance",
+    "UpgradeId": "kitchen_appliance",
+    "DisplayName": "4-Burner Gas Cooker & Frost-Free Fridge",
+    "DagbaniName": "Duɣibu Nɛma",
+    "Category": "Kitchen",
+    "MaxLevel": 2,
+    "Level2CostCedis": 240,
+    "Level2Title": "Double-Door Fridge & 4-Burner Oven",
+    "Level2Effect": "40% faster cooking + +10% Comfort bonus"
+  },
+  {
+    "Name": "tv_entertainment",
+    "UpgradeId": "tv_entertainment",
+    "DisplayName": "Living Room Smart TV & Carved Sofa Set",
+    "DagbaniName": "Teebuli ni TV",
+    "Category": "Living Room",
+    "MaxLevel": 2,
+    "Level2CostCedis": 290,
+    "Level2Title": "55\" Smart TV, Soundbar & Plush Sofa",
+    "Level2Effect": "+35% Comfort & +15% Social when relaxing indoors"
+  },
+  {
+    "Name": "security_gate",
+    "UpgradeId": "security_gate",
+    "DisplayName": "Compound Security Floodlights & Lock Gate",
+    "DagbaniName": "Duɣu Gubu",
+    "Category": "Compound",
+    "MaxLevel": 2,
+    "Level2CostCedis": 170,
+    "Level2Title": "Solar Security Floodlights & Reinforced Gate",
+    "Level2Effect": "Nighttime courtyard security & +10% overnight Comfort"
+  }
+]

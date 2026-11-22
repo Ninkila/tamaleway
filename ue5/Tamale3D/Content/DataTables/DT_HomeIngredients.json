@@ -1,0 +1,92 @@
+[
+  {
+    "Name": "cornmeal_millet",
+    "IngredientId": "cornmeal_millet",
+    "DisplayName": "Maize & Millet Flour Pack",
+    "DagbaniName": "Kawana / Zaɣim Zom",
+    "UnitLabel": "bag",
+    "RetailPriceCedis": 14,
+    "Description": "Stone-milled northern maize and millet flour for Tuo Zaafi & Hausa Koko."
+  },
+  {
+    "Name": "rice_beans",
+    "IngredientId": "rice_beans",
+    "DisplayName": "Perfumed Rice & Black-Eyed Peas",
+    "DagbaniName": "Shinkaafa ni Tuya",
+    "UnitLabel": "pack",
+    "RetailPriceCedis": 18,
+    "Description": "Local northern rice & beans pack for Waakye and Tamale Jollof."
+  },
+  {
+    "Name": "yam_tubers",
+    "IngredientId": "yam_tubers",
+    "DisplayName": "Pona Yam Tubers (2 pcs)",
+    "DagbaniName": "Nyuli",
+    "UnitLabel": "pair",
+    "RetailPriceCedis": 20,
+    "Description": "Sweet Northern Pona yam tubers for boiling, ampesi, or fufu pounding."
+  },
+  {
+    "Name": "groundnut_paste",
+    "IngredientId": "groundnut_paste",
+    "DisplayName": "Roasted Groundnut Paste Jar",
+    "DagbaniName": "Simli Dɛɛm",
+    "UnitLabel": "jar",
+    "RetailPriceCedis": 15,
+    "Description": "Rich stone-ground Tamale peanut butter for groundnut soup & stews."
+  },
+  {
+    "Name": "fresh_greens",
+    "IngredientId": "fresh_greens",
+    "DisplayName": "Ayoyo, Okro & Fresh Tomatoes",
+    "DagbaniName": "Ayoyo ni Maana",
+    "UnitLabel": "basket",
+    "RetailPriceCedis": 12,
+    "Description": "Fresh jute leaves, garden eggs, onions, pepper, and tomatoes."
+  },
+  {
+    "Name": "meat_fish",
+    "IngredientId": "meat_fish",
+    "DisplayName": "Smoked Guinea Fowl / Tilapia / Beef",
+    "DagbaniName": "Kpamli / Zom / Naɣi Nimdi",
+    "UnitLabel": "cut",
+    "RetailPriceCedis": 28,
+    "Description": "Savannah protein cut ready for steaming soups or charcoal grilling."
+  },
+  {
+    "Name": "eggs_bread",
+    "IngredientId": "eggs_bread",
+    "DisplayName": "Farm Eggs & Sugar Bread",
+    "DagbaniName": "Noorim ni Paano",
+    "UnitLabel": "set",
+    "RetailPriceCedis": 14,
+    "Description": "Half-dozen farm eggs with warm Tamale bakery sugar loaf."
+  },
+  {
+    "Name": "tea_sugar",
+    "IngredientId": "tea_sugar",
+    "DisplayName": "Spiced Tea, Ginger & Sugar",
+    "DagbaniName": "Tiɛ ni Sikaari",
+    "UnitLabel": "tin",
+    "RetailPriceCedis": 10,
+    "Description": "Quick morning beverage blend with cloves and northern ginger."
+  },
+  {
+    "Name": "cooking_oil",
+    "IngredientId": "cooking_oil",
+    "DisplayName": "Shea & Vegetable Cooking Oil",
+    "DagbaniName": "Kpaam",
+    "UnitLabel": "bottle",
+    "RetailPriceCedis": 16,
+    "Description": "Traditional refined shea oil and palm cooking oil for stews."
+  },
+  {
+    "Name": "clean_water",
+    "IngredientId": "clean_water",
+    "DisplayName": "Sealed Water Sachet Bag / Dispenser Bottle",
+    "DagbaniName": "Kom Maasim",
+    "UnitLabel": "pack",
+    "RetailPriceCedis": 8,
+    "Description": "Purified drinking water refills hydration cleanly at home."
+  }
+]

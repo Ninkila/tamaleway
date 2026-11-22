@@ -1,0 +1,167 @@
+[
+  {
+    "Name": "evt_damba",
+    "EventId": "evt_damba",
+    "DisplayName": "Damba Festival",
+    "DagbaniName": "Damba Chugu",
+    "Category": "traditional",
+    "Location": "Dakpema Palace, Jubilee Park & Chiefly Courtyards",
+    "LandmarkId": "dakpema_palace",
+    "VerificationStatus": "lunar-dependent-no-fixed-date",
+    "CityEffectSummary": "Traditional batakari dress, drumming circles, and durbar gatherings at Dakpema Palace & Jubilee Park."
+  },
+  {
+    "Name": "evt_bugum_chugu",
+    "EventId": "evt_bugum_chugu",
+    "DisplayName": "Bugum Chugu (Fire Festival)",
+    "DagbaniName": "Bugum Chugu",
+    "Category": "traditional",
+    "Location": "Central Tamale, Dakpema Road & Community Compounds",
+    "LandmarkId": "dakpema_palace",
+    "VerificationStatus": "lunar-dependent-no-fixed-date",
+    "CityEffectSummary": "Dusk-to-night illumination, respectful torchlight clusters at palace & cultural courtyards, evening pedestrian crowds."
+  },
+  {
+    "Name": "evt_chiefly_durbar",
+    "EventId": "evt_chiefly_durbar",
+    "DisplayName": "Dakpema & Regional Chiefs Durbar",
+    "DagbaniName": "Naa Yili Laɣingu",
+    "Category": "traditional",
+    "Location": "Dakpema Chief's Palace & Regional House of Chiefs",
+    "LandmarkId": "dakpema_palace",
+    "VerificationStatus": "annual-recurring",
+    "CityEffectSummary": "Ceremonial banners and cultural gatherings around Dakpema Palace."
+  },
+  {
+    "Name": "evt_eid_fitr",
+    "EventId": "evt_eid_fitr",
+    "DisplayName": "Eid-ul-Fitr Morning Prayers & Family Visits",
+    "DagbaniName": "Kpini Chugu / Sallah",
+    "Category": "religious",
+    "Location": "Tamale Central Mosque & Jubilee Park",
+    "LandmarkId": "central_mosque",
+    "VerificationStatus": "lunar-dependent-no-fixed-date",
+    "CityEffectSummary": "Calm morning reverence around Central Mosque & Jubilee Park plus neighbourhood family visits."
+  },
+  {
+    "Name": "evt_ramadan_iftar",
+    "EventId": "evt_ramadan_iftar",
+    "DisplayName": "Ramadan Evenings & Iftar Food Stalls",
+    "DagbaniName": "Nolori Zaawuni",
+    "Category": "religious",
+    "Location": "Gukpegu Rd, Aboabo & Neighbourhood Mosques",
+    "LandmarkId": "central_mosque",
+    "VerificationStatus": "lunar-dependent-no-fixed-date",
+    "CityEffectSummary": "Sunset Iftar gathering warmth, glowing evening food stalls, and calm daytime prayer atmosphere."
+  },
+  {
+    "Name": "evt_eid_adha",
+    "EventId": "evt_eid_adha",
+    "DisplayName": "Eid-ul-Adha (Chimsi)",
+    "DagbaniName": "Chimsi Chugu",
+    "Category": "religious",
+    "Location": "Tamale Central Mosque, Jubilee Park & Gunayili Market",
+    "LandmarkId": "central_mosque",
+    "VerificationStatus": "lunar-dependent-no-fixed-date",
+    "CityEffectSummary": "Increased respectful worshipper presence near Central Mosque and heightened Gunayili livestock trade beforehand."
+  },
+  {
+    "Name": "evt_christian_celebrations",
+    "EventId": "evt_christian_celebrations",
+    "DisplayName": "Sunday Services, Christmas & Easter Outreach",
+    "DagbaniName": "Chɔɔchi Laɣingu",
+    "Category": "religious",
+    "Location": "Choggu, Kalpohin & Jubilee Park Conventions",
+    "LandmarkId": "jubilee_park",
+    "VerificationStatus": "annual-recurring",
+    "CityEffectSummary": "Respectful church fellowship in Choggu & Kalpohin and festive family greetings."
+  },
+  {
+    "Name": "evt_cleanup_exercise",
+    "EventId": "evt_cleanup_exercise",
+    "DisplayName": "Metropolitan Clean-Up & Drain Desilting Day",
+    "DagbaniName": "Tiŋa Malibu Dabisili",
+    "Category": "social",
+    "Location": "Gbewaa High St, Aboabo & Lamashegu",
+    "LandmarkId": "tamale_interchange",
+    "VerificationStatus": "annual-recurring",
+    "CityEffectSummary": "Active early-morning residents along avenues and compound lanes."
+  },
+  {
+    "Name": "evt_naming_wedding",
+    "EventId": "evt_naming_wedding",
+    "DisplayName": "Compound Naming Ceremonies & Traditional Weddings",
+    "DagbaniName": "Yuli Bɔlibu ni Amariya",
+    "Category": "social",
+    "Location": "Kalpohin, Choggu & Aboabo Compounds",
+    "LandmarkId": "kalpohin_compounds",
+    "VerificationStatus": "fictional-simulation",
+    "CityEffectSummary": "Lively compound courtyards with visitors and celebratory dress."
+  },
+  {
+    "Name": "evt_uds_congregation",
+    "EventId": "evt_uds_congregation",
+    "DisplayName": "UDS Dungu Matriculation & Congregation",
+    "DagbaniName": "Karimbu Kpeŋ Dabisili",
+    "Category": "educational",
+    "Location": "Dungu Campus Quarter (SW)",
+    "LandmarkId": "dungu_campus",
+    "VerificationStatus": "annual-recurring",
+    "CityEffectSummary": "Increased student commuters and academic Pride along Dungu & Salaga Rd."
+  },
+  {
+    "Name": "evt_tech_hackathon",
+    "EventId": "evt_tech_hackathon",
+    "DisplayName": "Northern Ghana Youth Tech & Wikimedia Workshops",
+    "DagbaniName": "Tɛknɔlɔji Laɣingu",
+    "Category": "educational",
+    "Location": "SCCA Tamale & Community Tech Hubs",
+    "LandmarkId": "scca_red_clay",
+    "VerificationStatus": "verified-historical",
+    "CityEffectSummary": "Youth learners and cultural archivists gathering around SCCA Tamale."
+  },
+  {
+    "Name": "evt_market_peak",
+    "EventId": "evt_market_peak",
+    "DisplayName": "Tamale 6-Day Market Peak Cycle",
+    "DagbaniName": "Daa Dabisili",
+    "Category": "business",
+    "Location": "Central Market, Aboabo, Lamashegu & Gunayili Markets",
+    "LandmarkId": "central_market",
+    "VerificationStatus": "annual-recurring",
+    "CityEffectSummary": "Heightened market energy, extra Pragya & Motor King cargo traffic, and bustling stalls."
+  },
+  {
+    "Name": "evt_shea_trade_fair",
+    "EventId": "evt_shea_trade_fair",
+    "DisplayName": "Northern Trade, Shea & Agribusiness Exhibition",
+    "DagbaniName": "Kpakpili ni Daabiligu",
+    "Category": "business",
+    "Location": "Jubilee Park & High Street Precinct",
+    "LandmarkId": "jubilee_park",
+    "VerificationStatus": "annual-recurring",
+    "CityEffectSummary": "Exhibition activity across Jubilee Park lawn."
+  },
+  {
+    "Name": "evt_stadium_match",
+    "EventId": "evt_stadium_match",
+    "DisplayName": "Aliu Mahama Sports Stadium Football Matchday",
+    "DagbaniName": "Bɔɔli Ŋmɛbu",
+    "Category": "sports_entertainment",
+    "Location": "Aliu Mahama Sports Stadium, Sagnarigu Rd (NW)",
+    "LandmarkId": "aliu_mahama_stadium",
+    "VerificationStatus": "verified-historical",
+    "CityEffectSummary": "Floodlights glowing over Sagnarigu Rd, cheering stadium crowds, and busy Pragya traffic."
+  },
+  {
+    "Name": "evt_scca_exhibition",
+    "EventId": "evt_scca_exhibition",
+    "DisplayName": "SCCA & Red Clay Contemporary Art Exhibitions",
+    "DagbaniName": "SCCA Baŋsim",
+    "Category": "sports_entertainment",
+    "Location": "SCCA Tamale & Red Clay Studio (Vittin / Janna Kpeŋ)",
+    "LandmarkId": "scca_red_clay",
+    "VerificationStatus": "verified-historical",
+    "CityEffectSummary": "Visitors exploring the red-brick SCCA gallery and Red Clay compound."
+  }
+]

@@ -1,0 +1,268 @@
+[
+  {
+    "Name": "gbewaa_high_st",
+    "RoadId": "gbewaa_high_st",
+    "DisplayName": "Gbewaa High Street / Tamale High Street",
+    "Orientation": "EastWest",
+    "CenterLocationCm": {
+      "X": 0,
+      "Y": 0,
+      "Z": 0
+    },
+    "WidthCm": 45000,
+    "LengthCm": 1400,
+    "SurfaceType": "Asphalt"
+  },
+  {
+    "Name": "market_north_rd",
+    "RoadId": "market_north_rd",
+    "DisplayName": "Dakpema & Central Market North Road",
+    "Orientation": "EastWest",
+    "CenterLocationCm": {
+      "X": -1700,
+      "Y": -4800,
+      "Z": 0
+    },
+    "WidthCm": 30000,
+    "LengthCm": 900,
+    "SurfaceType": "Asphalt"
+  },
+  {
+    "Name": "sagnarigu_hospital_nw_rd",
+    "RoadId": "sagnarigu_hospital_nw_rd",
+    "DisplayName": "Sagnarigu / Hospital North Arterial",
+    "Orientation": "EastWest",
+    "CenterLocationCm": {
+      "X": -2000,
+      "Y": -9200,
+      "Z": 0
+    },
+    "WidthCm": 39000,
+    "LengthCm": 1000,
+    "SurfaceType": "Asphalt"
+  },
+  {
+    "Name": "kalpohin_choggu_rd",
+    "RoadId": "kalpohin_choggu_rd",
+    "DisplayName": "Choggu – Kanvilli – Kalpohin Road",
+    "Orientation": "EastWest",
+    "CenterLocationCm": {
+      "X": 1200,
+      "Y": -15800,
+      "Z": 0
+    },
+    "WidthCm": 35600,
+    "LengthCm": 900,
+    "SurfaceType": "Asphalt"
+  },
+  {
+    "Name": "south_mosque_ln",
+    "RoadId": "south_mosque_ln",
+    "DisplayName": "Gukpegu Mosque South Crossway",
+    "Orientation": "EastWest",
+    "CenterLocationCm": {
+      "X": 1300,
+      "Y": 6600,
+      "Z": 0
+    },
+    "WidthCm": 24000,
+    "LengthCm": 900,
+    "SurfaceType": "Asphalt"
+  },
+  {
+    "Name": "salaga_hospital_se_rd",
+    "RoadId": "salaga_hospital_se_rd",
+    "DisplayName": "Salaga Road – Lamashegu – Teaching Hospital Corridor",
+    "Orientation": "EastWest",
+    "CenterLocationCm": {
+      "X": 0,
+      "Y": 12800,
+      "Z": 0
+    },
+    "WidthCm": 41000,
+    "LengthCm": 1000,
+    "SurfaceType": "Asphalt"
+  },
+  {
+    "Name": "gukpegu_bolga_rd",
+    "RoadId": "gukpegu_bolga_rd",
+    "DisplayName": "Gukpegu Road / Bolgatanga N10 Spine",
+    "Orientation": "NorthSouth",
+    "CenterLocationCm": {
+      "X": 0,
+      "Y": 200,
+      "Z": 0
+    },
+    "WidthCm": 1200,
+    "LengthCm": 37600,
+    "SurfaceType": "Asphalt"
+  },
+  {
+    "Name": "market_west_st",
+    "RoadId": "market_west_st",
+    "DisplayName": "Central Market West / Lamashegu Link",
+    "Orientation": "NorthSouth",
+    "CenterLocationCm": {
+      "X": -6600,
+      "Y": -600,
+      "Z": 0
+    },
+    "WidthCm": 900,
+    "LengthCm": 31400,
+    "SurfaceType": "Asphalt"
+  },
+  {
+    "Name": "aboabo_lamashegu_rd",
+    "RoadId": "aboabo_lamashegu_rd",
+    "DisplayName": "Aboabo – Choggu – Lamashegu Road",
+    "Orientation": "NorthSouth",
+    "CenterLocationCm": {
+      "X": -10200,
+      "Y": 800,
+      "Z": 0
+    },
+    "WidthCm": 1000,
+    "LengthCm": 34400,
+    "SurfaceType": "Asphalt"
+  },
+  {
+    "Name": "sagnarigu_dungu_west_rd",
+    "RoadId": "sagnarigu_dungu_west_rd",
+    "DisplayName": "Nyohini – Sagnarigu – Dungu West Ring",
+    "Orientation": "NorthSouth",
+    "CenterLocationCm": {
+      "X": -16200,
+      "Y": 800,
+      "Z": 0
+    },
+    "WidthCm": 900,
+    "LengthCm": 34400,
+    "SurfaceType": "Asphalt"
+  },
+  {
+    "Name": "high_st_east",
+    "RoadId": "high_st_east",
+    "DisplayName": "Jubilee Civic Avenue",
+    "Orientation": "NorthSouth",
+    "CenterLocationCm": {
+      "X": 6600,
+      "Y": 800,
+      "Z": 0
+    },
+    "WidthCm": 900,
+    "LengthCm": 34400,
+    "SurfaceType": "Asphalt"
+  },
+  {
+    "Name": "hospital_kukuo_rd",
+    "RoadId": "hospital_kukuo_rd",
+    "DisplayName": "Kalpohin – Kukuo – Dabokpaa Avenue",
+    "Orientation": "NorthSouth",
+    "CenterLocationCm": {
+      "X": 12800,
+      "Y": 0,
+      "Z": 0
+    },
+    "WidthCm": 1000,
+    "LengthCm": 32500,
+    "SurfaceType": "Asphalt"
+  },
+  {
+    "Name": "vittin_ring_rd",
+    "RoadId": "vittin_ring_rd",
+    "DisplayName": "Vittin – Gumani Eastern Ring Road",
+    "Orientation": "NorthSouth",
+    "CenterLocationCm": {
+      "X": 18600,
+      "Y": 0,
+      "Z": 0
+    },
+    "WidthCm": 900,
+    "LengthCm": 33200,
+    "SurfaceType": "Asphalt"
+  },
+  {
+    "Name": "nyohini_aboabo_cross",
+    "RoadId": "nyohini_aboabo_cross",
+    "DisplayName": "Nyohini – Aboabo Connecting Lane",
+    "Orientation": "EastWest",
+    "CenterLocationCm": {
+      "X": -13200,
+      "Y": 4200,
+      "Z": 0
+    },
+    "WidthCm": 6800,
+    "LengthCm": 700,
+    "SurfaceType": "Asphalt"
+  },
+  {
+    "Name": "dungu_kakpagyili_ln",
+    "RoadId": "dungu_kakpagyili_ln",
+    "DisplayName": "Dungu – Kakpagyili South Link Road",
+    "Orientation": "EastWest",
+    "CenterLocationCm": {
+      "X": -4800,
+      "Y": 17200,
+      "Z": 0
+    },
+    "WidthCm": 23600,
+    "LengthCm": 700,
+    "SurfaceType": "Asphalt"
+  },
+  {
+    "Name": "dabokpaa_hospital_ln",
+    "RoadId": "dabokpaa_hospital_ln",
+    "DisplayName": "Dabokpaa – Teaching Hospital Side Street",
+    "Orientation": "EastWest",
+    "CenterLocationCm": {
+      "X": 12600,
+      "Y": 14800,
+      "Z": 0
+    },
+    "WidthCm": 12800,
+    "LengthCm": 700,
+    "SurfaceType": "Asphalt"
+  },
+  {
+    "Name": "kalpohin_estates_connector",
+    "RoadId": "kalpohin_estates_connector",
+    "DisplayName": "Kalpohin Estates North-South Street",
+    "Orientation": "NorthSouth",
+    "CenterLocationCm": {
+      "X": 9600,
+      "Y": -12500,
+      "Z": 0
+    },
+    "WidthCm": 700,
+    "LengthCm": 7400,
+    "SurfaceType": "Asphalt"
+  },
+  {
+    "Name": "residential_estate_ave",
+    "RoadId": "residential_estate_ave",
+    "DisplayName": "Changli – Jakarayili Residential Avenue",
+    "Orientation": "EastWest",
+    "CenterLocationCm": {
+      "X": 3300,
+      "Y": 9600,
+      "Z": 0
+    },
+    "WidthCm": 6600,
+    "LengthCm": 750,
+    "SurfaceType": "PavedLateriteShoulder"
+  },
+  {
+    "Name": "residential_mosque_ln",
+    "RoadId": "residential_mosque_ln",
+    "DisplayName": "Jakarayili – Tishigu Compound Lane",
+    "Orientation": "NorthSouth",
+    "CenterLocationCm": {
+      "X": 3600,
+      "Y": 9700,
+      "Z": 0
+    },
+    "WidthCm": 650,
+    "LengthCm": 6200,
+    "SurfaceType": "PavedLateriteShoulder"
+  }
+]

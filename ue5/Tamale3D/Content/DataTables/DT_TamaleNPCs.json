@@ -1,0 +1,155 @@
+[
+  {
+    "Name": "mama_fati",
+    "NpcId": "mama_fati",
+    "DisplayName": "Mama Fati",
+    "Role": "Market Trader & Shea Vendor",
+    "District": "Tamale Central Market",
+    "HomeLocationCm": {
+      "X": -3200,
+      "Y": -1400,
+      "Z": 92
+    },
+    "ShopId": "market_provisions",
+    "MorningGreetingDagbani": "Dasuba, n zɔri! A beela? Tamale Daa nyɛla kpakpili ni nyuli zuŋɔ.",
+    "MorningGreetingEnglish": "Good morning, my friend! How are you? Tamale Central Market has fresh shea butter and yam today.",
+    "EveningGreetingDagbani": "Zaawuni! Daa maa ti kpaai. M'paɣiya ni a kana.",
+    "EveningGreetingEnglish": "Good evening! The market is winding down now. Thank you for coming by."
+  },
+  {
+    "Name": "alhassan_weaver",
+    "NpcId": "alhassan_weaver",
+    "DisplayName": "Master Alhassan",
+    "Role": "Batakari Smock Weaver",
+    "District": "Cultural Quarter",
+    "HomeLocationCm": {
+      "X": -7400,
+      "Y": 2900,
+      "Z": 92
+    },
+    "ShopId": "cultural_crafts",
+    "MorningGreetingDagbani": "Dasuba, n zɔri. Antire! Naawuni ni ti ti alaafee.",
+    "MorningGreetingEnglish": "Good morning, my friend. Peace be with you and your household today.",
+    "EveningGreetingDagbani": "Zaawuni! Wuntaŋa maa kpe. Zɔri suŋ gari laɣiri.",
+    "EveningGreetingEnglish": "Good evening! The sun is setting. Remember, a good friend is better than money."
+  },
+  {
+    "Name": "yakubu_rider",
+    "NpcId": "yakubu_rider",
+    "DisplayName": "Yakubu",
+    "Role": "Yellow-Yellow (Pragya) Rider",
+    "District": "Tamale Interchange",
+    "HomeLocationCm": {
+      "X": 1400,
+      "Y": 1200,
+      "Z": 92
+    },
+    "ShopId": "",
+    "MorningGreetingDagbani": "Dasuba, zɔri! A chani ya zuŋɔ — Daa bee Jiŋli?",
+    "MorningGreetingEnglish": "Good morning, friend! Where are you heading today — Central Market, Aboabo, or Teaching Hospital?",
+    "EveningGreetingDagbani": "Zaawuni! Lɔɔri nima zaa nyɛla fitila pali zuɣu.",
+    "EveningGreetingEnglish": "Good evening! Vehicles are turning on their headlights along Gbewaa High Street now."
+  },
+  {
+    "Name": "mariama_teacher",
+    "NpcId": "mariama_teacher",
+    "DisplayName": "Teacher Mariama",
+    "Role": "Community Educator",
+    "District": "Tishigu · North",
+    "HomeLocationCm": {
+      "X": 3400,
+      "Y": -5700,
+      "Z": 92
+    },
+    "ShopId": "",
+    "MorningGreetingDagbani": "Dasuba! Karimbu nyɛla niŋsim suŋ. A beela?",
+    "MorningGreetingEnglish": "Good morning! Learning is a noble journey. How are you?",
+    "EveningGreetingDagbani": "Zaawuni! Biɛɣuni ti ni lahi chaŋ karimbu.",
+    "EveningGreetingEnglish": "Good evening! Tomorrow we return to class."
+  },
+  {
+    "Name": "imam_salifu",
+    "NpcId": "imam_salifu",
+    "DisplayName": "Elder Salifu",
+    "Role": "Community Elder",
+    "District": "Gukpegu Rd · Central Mosque",
+    "HomeLocationCm": {
+      "X": 1600,
+      "Y": 4600,
+      "Z": 92
+    },
+    "ShopId": "",
+    "MorningGreetingDagbani": "Dasuba, n bia. Antire! Alaafee beni?",
+    "MorningGreetingEnglish": "Good morning, my child. Peace upon you. Are you well?",
+    "EveningGreetingDagbani": "Zaawuni! Jiŋli maa nyɛla suhudoo shee.",
+    "EveningGreetingEnglish": "Good evening! The mosque forecourt is a place of peace and reflection."
+  },
+  {
+    "Name": "asana_potter",
+    "NpcId": "asana_potter",
+    "DisplayName": "Asana",
+    "Role": "Kukuo Clay Potter",
+    "District": "Kukuo Pottery Centre",
+    "HomeLocationCm": {
+      "X": 14200,
+      "Y": 3400,
+      "Z": 92
+    },
+    "ShopId": "kukuo_pottery",
+    "MorningGreetingDagbani": "Dasuba! Welcome to Kukuo. Alaafee beni?",
+    "MorningGreetingEnglish": "Good morning! Welcome to Kukuo Pottery Centre. Is all well?",
+    "EveningGreetingDagbani": "Zaawuni! M'paɣiya ni a kana Kukuo.",
+    "EveningGreetingEnglish": "Good evening! Thank you for visiting Kukuo."
+  },
+  {
+    "Name": "fuseini_mechanic",
+    "NpcId": "fuseini_mechanic",
+    "DisplayName": "Fuseini",
+    "Role": "Pragya & Moto Mechanic",
+    "District": "Lamashegu Mechanic Hub",
+    "HomeLocationCm": {
+      "X": -9400,
+      "Y": 11200,
+      "Z": 92
+    },
+    "ShopId": "lamashegu_parts",
+    "MorningGreetingDagbani": "Dasuba, zɔri! Lamashegu pali zuɣu tuma piɛla.",
+    "MorningGreetingEnglish": "Good morning, friend! Work is already humming on Lamashegu Road.",
+    "EveningGreetingDagbani": "Zaawuni! Tuma kpaai zuŋɔ.",
+    "EveningGreetingEnglish": "Good evening! Wrapping up repairs for the day."
+  },
+  {
+    "Name": "nurse_amina",
+    "NpcId": "nurse_amina",
+    "DisplayName": "Nurse Amina",
+    "Role": "Public Health Nurse",
+    "District": "Tamale Teaching Hospital",
+    "HomeLocationCm": {
+      "X": 7600,
+      "Y": 11200,
+      "Z": 92
+    },
+    "ShopId": "",
+    "MorningGreetingDagbani": "Dasuba! Alaafee beni? Welcome to Tamale Teaching Hospital.",
+    "MorningGreetingEnglish": "Good morning! Are you well? Welcome to Tamale Teaching Hospital.",
+    "EveningGreetingDagbani": "Zaawuni! Naawuni ni ti ti alaafee.",
+    "EveningGreetingEnglish": "Good evening! Wishing peace and good health to you."
+  },
+  {
+    "Name": "ibrahim_curator",
+    "NpcId": "ibrahim_curator",
+    "DisplayName": "Ibrahim",
+    "Role": "Art Archivist & Guide",
+    "District": "SCCA & Red Clay · Vittin",
+    "HomeLocationCm": {
+      "X": 19400,
+      "Y": 4200,
+      "Z": 92
+    },
+    "ShopId": "cultural_crafts",
+    "MorningGreetingDagbani": "Dasuba! Antire, welcome to SCCA Tamale & Red Clay precinct.",
+    "MorningGreetingEnglish": "Good morning! Welcome to the Savannah Centre for Contemporary Art gallery.",
+    "EveningGreetingDagbani": "Zaawuni! M'paɣiya ni a kana.",
+    "EveningGreetingEnglish": "Good evening! Thank you for visiting."
+  }
+]

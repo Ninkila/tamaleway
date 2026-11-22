@@ -1,0 +1,134 @@
+[
+  {
+    "Name": "yakubu_pragya",
+    "CharacterId": "yakubu_pragya",
+    "DisplayName": "Yakubu Alhassan",
+    "Nickname": "Yellow",
+    "Occupation": "Pragya Tricycle Operator",
+    "DagbaniTitle": "Pragya Baŋda",
+    "HomeDistrict": "Dagbandabo Fong · Naa Gbewaa Interchange",
+    "HomeLandmarkId": "tamale_interchange",
+    "SpawnLocationCm": {
+      "X": 1400,
+      "Y": 1400,
+      "Z": 92
+    },
+    "StartingMoneyCedis": 220,
+    "StartingEnergy": 94,
+    "DefaultOutfitStyle": "polo",
+    "PrimaryColorHex": "#0284c7",
+    "SecondaryColorHex": "#eab308",
+    "CareerTrack": "Tamale Passenger & Transport Operator",
+    "DailyRoutineSummary": "Morning Interchange rank fares · Midday Hospital & Market loops · Evening High Street rides."
+  },
+  {
+    "Name": "sulemana_moto",
+    "CharacterId": "sulemana_moto",
+    "DisplayName": "Sulemana Fuseini",
+    "Nickname": "Express",
+    "Occupation": "Motorcycle Courier & City Explorer",
+    "DagbaniTitle": "Moto Tumtuma",
+    "HomeDistrict": "Tishigu · North Central",
+    "HomeLandmarkId": "tamale_school",
+    "SpawnLocationCm": {
+      "X": 2400,
+      "Y": -4200,
+      "Z": 92
+    },
+    "StartingMoneyCedis": 165,
+    "StartingEnergy": 96,
+    "DefaultOutfitStyle": "batakari",
+    "PrimaryColorHex": "#1e3a5f",
+    "SecondaryColorHex": "#b45309",
+    "CareerTrack": "Express Logistics & Street Rider",
+    "DailyRoutineSummary": "N10 Airport express dispatches · Tishigu & Kalpohin food drops · Evening stadium runs."
+  },
+  {
+    "Name": "mariama_trader",
+    "CharacterId": "mariama_trader",
+    "DisplayName": "Mariama Ziblim",
+    "Nickname": "Hajia Shea",
+    "Occupation": "Market Provisions & Shea Cooperative Trader",
+    "DagbaniTitle": "Kpakpili Daabiya",
+    "HomeDistrict": "Dagbandabo Fong · Tamale Central Market",
+    "HomeLandmarkId": "central_market",
+    "SpawnLocationCm": {
+      "X": -3600,
+      "Y": -1500,
+      "Z": 92
+    },
+    "StartingMoneyCedis": 480,
+    "StartingEnergy": 88,
+    "DefaultOutfitStyle": "kaba",
+    "PrimaryColorHex": "#166534",
+    "SecondaryColorHex": "#b45309",
+    "CareerTrack": "Tamale Merchant & Business Owner",
+    "DailyRoutineSummary": "Morning stall setup · Midday Kukuo & Aboabo sourcing · Afternoon business ledger."
+  },
+  {
+    "Name": "karim_student",
+    "CharacterId": "karim_student",
+    "DisplayName": "Abdul-Karim Iddrisu",
+    "Nickname": "Lens",
+    "Occupation": "UDS Dungu Student & Freelance Photographer",
+    "DagbaniTitle": "Karimba ni Anfooni Baŋda",
+    "HomeDistrict": "Dungu · University Avenue",
+    "HomeLandmarkId": "dungu_campus",
+    "SpawnLocationCm": {
+      "X": -13600,
+      "Y": 14500,
+      "Z": 92
+    },
+    "StartingMoneyCedis": 110,
+    "StartingEnergy": 95,
+    "DefaultOutfitStyle": "polo",
+    "PrimaryColorHex": "#1d4ed8",
+    "SecondaryColorHex": "#e7e5e4",
+    "CareerTrack": "Scholar, Archivist & Photojournalist",
+    "DailyRoutineSummary": "Morning Dungu lectures · Afternoon SCCA & landmark photography · Evening campus café."
+  },
+  {
+    "Name": "fuseini_artisan",
+    "CharacterId": "fuseini_artisan",
+    "DisplayName": "Fuseini Bawa",
+    "Nickname": "Master",
+    "Occupation": "Lamashegu Mechanic & Roadside Specialist",
+    "DagbaniTitle": "Maani Baŋda",
+    "HomeDistrict": "Lamashegu · Mechanic & Timber Hub",
+    "HomeLandmarkId": "lamashegu_market",
+    "SpawnLocationCm": {
+      "X": -8800,
+      "Y": 12000,
+      "Z": 92
+    },
+    "StartingMoneyCedis": 340,
+    "StartingEnergy": 92,
+    "DefaultOutfitStyle": "casual",
+    "PrimaryColorHex": "#991b1b",
+    "SecondaryColorHex": "#1e3a5f",
+    "CareerTrack": "Master Mechanic & Workshop Owner",
+    "DailyRoutineSummary": "Morning engine diagnostics · Midday roadside Pragya dispatches · Evening spare-parts inventory."
+  },
+  {
+    "Name": "adiza_chef",
+    "CharacterId": "adiza_chef",
+    "DisplayName": "Adiza Salifu",
+    "Nickname": "Sis Adiza",
+    "Occupation": "Waakye, TZ & Grill Chop Bar Chef",
+    "DagbaniTitle": "Duɣira",
+    "HomeDistrict": "Aboabo / Gbewaa High St East",
+    "HomeLandmarkId": "jubilee_night_spot",
+    "SpawnLocationCm": {
+      "X": 3400,
+      "Y": -950,
+      "Z": 92
+    },
+    "StartingMoneyCedis": 295,
+    "StartingEnergy": 90,
+    "DefaultOutfitStyle": "kaba",
+    "PrimaryColorHex": "#b45309",
+    "SecondaryColorHex": "#166534",
+    "CareerTrack": "Culinary Chef & Restaurant Proprietor",
+    "DailyRoutineSummary": "Early morning market sourcing · Midday chop bar prep · Sunset chichinga & guinea fowl rush."
+  }
+]

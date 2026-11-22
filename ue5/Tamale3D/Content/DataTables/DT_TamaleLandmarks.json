@@ -1,0 +1,838 @@
+[
+  {
+    "Name": "tamale_interchange",
+    "LandmarkId": "tamale_interchange",
+    "DisplayName": "Tamale Interchange (Naa Gbewaa)",
+    "DagbaniLabel": "Naa Gbewaa Flyover",
+    "District": "Dagbandabo Fong · Central Tamale",
+    "LandmarkType": "transport",
+    "LocationCm": {
+      "X": 0,
+      "Y": 0,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1800,
+    "bEnterable": false,
+    "ShopId": "",
+    "OsmCoords": "9.40379° N, 0.84202° W",
+    "bIsRepresentativeFictional": false,
+    "AuthenticityNote": "OSM: 9.40379° N, 0.84202° W. Reconstructed from CC BY-SA 4.0 photography showing the concrete box-girder overpass, tapered piers, guardrails, and central roundabout."
+  },
+  {
+    "Name": "central_market",
+    "LandmarkId": "central_market",
+    "DisplayName": "Tamale Central Market",
+    "DagbaniLabel": "Tamale Daa",
+    "District": "Dagbandabo Fong · NW of Interchange",
+    "LandmarkType": "market",
+    "LocationCm": {
+      "X": -4400,
+      "Y": -3000,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 2200,
+    "bEnterable": true,
+    "ShopId": "market_provisions",
+    "OsmCoords": "9.40458° N, 0.84287° W",
+    "bIsRepresentativeFictional": false,
+    "AuthenticityNote": "OSM: 9.40458° N, 0.84287° W. Corrugated zinc sheds, multi-colored market umbrellas, wooden produce tables on stone blocks, and lock-up perimeter shops."
+  },
+  {
+    "Name": "central_mosque",
+    "LandmarkId": "central_mosque",
+    "DisplayName": "Tamale Central Mosque",
+    "DagbaniLabel": "Tamale Jiŋli Titali",
+    "District": "Gukpegu Road · SSE of Interchange",
+    "LandmarkType": "mosque",
+    "LocationCm": {
+      "X": 3400,
+      "Y": 4600,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1800,
+    "bEnterable": true,
+    "ShopId": "",
+    "OsmCoords": "9.40180° N, 0.84110° W",
+    "bIsRepresentativeFictional": false,
+    "AuthenticityNote": "OSM: 9.40180° N, 0.84110° W. Broad circular cream prayer hall, green-tinted arched windows, emerald dome, and twin 3-tier louvered minarets."
+  },
+  {
+    "Name": "jubilee_park",
+    "LandmarkId": "jubilee_park",
+    "DisplayName": "Jubilee Park & High Street Precinct",
+    "DagbaniLabel": "Jubilee Park",
+    "District": "Tishigu / Jakarayili · East High St",
+    "LandmarkType": "park",
+    "LocationCm": {
+      "X": 8600,
+      "Y": 2200,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 2000,
+    "bEnterable": false,
+    "ShopId": "",
+    "OsmCoords": "9.40361° N, 0.83822° W",
+    "bIsRepresentativeFictional": false,
+    "AuthenticityNote": "OSM: 9.40361° N, 0.83822° W. Civic parade ground paired with a white-and-sky-blue multi-story concrete office building modeled from Tamale High Street photography."
+  },
+  {
+    "Name": "dakpema_palace",
+    "LandmarkId": "dakpema_palace",
+    "DisplayName": "Dakpema Chief's Palace & Regional Chiefs Hall",
+    "DagbaniLabel": "Dakpema Yili",
+    "District": "Dakpema Rd · Dagbandabo Fong",
+    "LandmarkType": "palace",
+    "LocationCm": {
+      "X": -3400,
+      "Y": -7000,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1800,
+    "bEnterable": true,
+    "ShopId": "",
+    "OsmCoords": "9.4049° N, 0.8425° W (Central Tamale)",
+    "bIsRepresentativeFictional": false,
+    "AuthenticityNote": "Reconstructed using Northern Regional House of Chiefs reference photography: charcoal cylindrical colonnade, burgundy pitched metal roofs, clerestory pediment, and paved durbar courtyard."
+  },
+  {
+    "Name": "aboabo_market",
+    "LandmarkId": "aboabo_market",
+    "DisplayName": "Aboabo Market",
+    "DagbaniLabel": "Aboabo Daa",
+    "District": "Aboabo · WSW",
+    "LandmarkType": "market",
+    "LocationCm": {
+      "X": -13200,
+      "Y": 2700,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 2000,
+    "bEnterable": true,
+    "ShopId": "aboabo_electronics_cloth",
+    "OsmCoords": "9.40132° N, 0.84911° W",
+    "bIsRepresentativeFictional": false,
+    "AuthenticityNote": "OSM: 9.40132° N, 0.84911° W. Bustling community grain, cloth, and fresh produce market anchored by zinc bays, umbrellas, and roadside stalls."
+  },
+  {
+    "Name": "lamashegu_market_hub",
+    "LandmarkId": "lamashegu_market_hub",
+    "DisplayName": "Lamashegu Market & Mechanic Hub",
+    "DagbaniLabel": "Lamashegu Daa",
+    "District": "Lamashegu · Salaga Rd (SSW)",
+    "LandmarkType": "market",
+    "LocationCm": {
+      "X": -8400,
+      "Y": 10000,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 2000,
+    "bEnterable": true,
+    "ShopId": "lamashegu_parts",
+    "OsmCoords": "9.38790° N, 0.85460° W",
+    "bIsRepresentativeFictional": false,
+    "AuthenticityNote": "OSM: 9.38790° N, 0.85460° W. Major southern commercial hub combining open market sheds, Pragya & motorcycle mechanic bays, spare-parts shops, and timber stacks."
+  },
+  {
+    "Name": "kukuo_market_pottery",
+    "LandmarkId": "kukuo_market_pottery",
+    "DisplayName": "Kukuo Market & Pottery Centre",
+    "DagbaniLabel": "Kukuo Daa ni Duɣu",
+    "District": "Kukuo · ESE",
+    "LandmarkType": "cultural",
+    "LocationCm": {
+      "X": 15800,
+      "Y": 3400,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1900,
+    "bEnterable": true,
+    "ShopId": "kukuo_pottery",
+    "OsmCoords": "9.39992° N, 0.82020° W",
+    "bIsRepresentativeFictional": false,
+    "AuthenticityNote": "OSM: 9.39992° N, 0.82020° W. Celebrated eastern suburb combining Kukuo daily market tables with open-air earthenware clay pot shaping and firing yards."
+  },
+  {
+    "Name": "kakpagyili_market",
+    "LandmarkId": "kakpagyili_market",
+    "DisplayName": "Kakpagyili Market & Compounds",
+    "DagbaniLabel": "Kakpagyili Daa",
+    "District": "Kakpagyili · South",
+    "LandmarkType": "market",
+    "LocationCm": {
+      "X": 3200,
+      "Y": 15800,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1800,
+    "bEnterable": false,
+    "ShopId": "",
+    "OsmCoords": "9.3810° N, 0.8420° W (Approx. South)",
+    "bIsRepresentativeFictional": false,
+    "AuthenticityNote": "Southern community market plaza surrounded by traditional compound walls, neem shade, and local provision kiosks."
+  },
+  {
+    "Name": "gunayili_cattle_timber",
+    "LandmarkId": "gunayili_cattle_timber",
+    "DisplayName": "Gunayili Cattle & Timber Market Yard",
+    "DagbaniLabel": "Gunayili Niɣi Daa",
+    "District": "East Ring Corridor",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": 15800,
+      "Y": -6800,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 2000,
+    "bEnterable": false,
+    "ShopId": "",
+    "OsmCoords": "9.406° N, 0.805° W (Eastern Livestock/Timber Zone)",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative livestock pens, timber-milling planks, and firewood stacks reflecting Tamale's regional cattle and woodworking trade."
+  },
+  {
+    "Name": "tamale_teaching_hospital",
+    "LandmarkId": "tamale_teaching_hospital",
+    "DisplayName": "Tamale Teaching Hospital",
+    "DagbaniLabel": "Tamale Asibiti Titali",
+    "District": "Changli / Dabokpaa · Central High St (SE)",
+    "LandmarkType": "hospital",
+    "LocationCm": {
+      "X": 9600,
+      "Y": 10200,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 2200,
+    "bEnterable": true,
+    "ShopId": "",
+    "OsmCoords": "9.39140° N, 0.82458° W",
+    "bIsRepresentativeFictional": false,
+    "AuthenticityNote": "OSM: 9.39140° N, 0.82458° W. Reconstructed from field photography: multi-storey peach-terracotta block with horizontal window louvers, low outpatient wing, and iconic steel exterior staircase tower."
+  },
+  {
+    "Name": "aliu_mahama_stadium",
+    "LandmarkId": "aliu_mahama_stadium",
+    "DisplayName": "Aliu Mahama Sports Stadium",
+    "DagbaniLabel": "Tamale Bɔɔli Paaki",
+    "District": "Sagnarigu / Nyohini · NW",
+    "LandmarkType": "stadium",
+    "LocationCm": {
+      "X": -13400,
+      "Y": -12400,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 2600,
+    "bEnterable": true,
+    "ShopId": "",
+    "OsmCoords": "9.41066° N, 0.86126° W",
+    "bIsRepresentativeFictional": false,
+    "AuthenticityNote": "OSM: 9.41066° N, 0.86126° W. Reconstructed from stadium photography: circular white precast concrete buttresses, exposed white steel truss canopy ring, and gatehouse walls."
+  },
+  {
+    "Name": "tamale_airport",
+    "LandmarkId": "tamale_airport",
+    "DisplayName": "Tamale International Airport",
+    "DagbaniLabel": "Tamale Alopile Paaki",
+    "District": "Airport Rd / Bolgatanga N10 (North)",
+    "LandmarkType": "airport",
+    "LocationCm": {
+      "X": 0,
+      "Y": -19600,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 2500,
+    "bEnterable": false,
+    "ShopId": "",
+    "OsmCoords": "9.55663° N, 0.86312° W (Scaled North Gateway)",
+    "bIsRepresentativeFictional": false,
+    "AuthenticityNote": "OSM: 9.55663° N, 0.86312° W (distance compressed along true N10 North bearing for playable commute). Modeled from Tamale Airport Terminal photo."
+  },
+  {
+    "Name": "scca_red_clay",
+    "LandmarkId": "scca_red_clay",
+    "DisplayName": "SCCA Tamale & Red Clay Studio Precinct",
+    "DagbaniLabel": "SCCA ni Red Clay",
+    "District": "Vittin / Janna Kpeŋ Corridor (East)",
+    "LandmarkType": "art_centre",
+    "LocationCm": {
+      "X": 20800,
+      "Y": 4200,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 2200,
+    "bEnterable": true,
+    "ShopId": "cultural_crafts",
+    "OsmCoords": "9.394° N, 0.793° W (Vittin / Janna Kpeŋ)",
+    "bIsRepresentativeFictional": false,
+    "AuthenticityNote": "Modeled from SCCA Tamale & Red Clay photography: red-brick warehouse gallery with burgundy roof, shimmering aluminum relief facade panels, and outdoor Red Clay sculpture lawn."
+  },
+  {
+    "Name": "cultural_centre",
+    "LandmarkId": "cultural_centre",
+    "DisplayName": "Centre for National Culture & Weavers Guild",
+    "DagbaniLabel": "Batakari & Dondo Yiŋa",
+    "District": "Cultural Quarter (West Market)",
+    "LandmarkType": "cultural",
+    "LocationCm": {
+      "X": -8400,
+      "Y": 2000,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1600,
+    "bEnterable": true,
+    "ShopId": "cultural_crafts",
+    "OsmCoords": "Central Tamale Cultural Zone",
+    "bIsRepresentativeFictional": false,
+    "AuthenticityNote": "Culturally grounded artisan courtyard west of Central Market celebrating handloom batakari weavers and dondo talking drummers."
+  },
+  {
+    "Name": "kalpohin_compounds",
+    "LandmarkId": "kalpohin_compounds",
+    "DisplayName": "Traditional Dagomba Compound Houses",
+    "DagbaniLabel": "Tiŋa Yiŋa",
+    "District": "Residential Quarter (SW)",
+    "LandmarkType": "compound",
+    "LocationCm": {
+      "X": -8400,
+      "Y": 4800,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1600,
+    "bEnterable": true,
+    "ShopId": "",
+    "OsmCoords": "Representative Northern Compound Cluster",
+    "bIsRepresentativeFictional": false,
+    "AuthenticityNote": "Reconstructed from Northern Region compound photography: circular earth huts with conical thatch, outdoor cooking pots, firewood stacks, and zinc extension room."
+  },
+  {
+    "Name": "tamale_school",
+    "LandmarkId": "tamale_school",
+    "DisplayName": "Tishigu & Kalpohin School Precinct",
+    "DagbaniLabel": "Karimbu Yiŋa",
+    "District": "Tishigu · North Central",
+    "LandmarkType": "school",
+    "LocationCm": {
+      "X": 3400,
+      "Y": -7000,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1600,
+    "bEnterable": false,
+    "ShopId": "",
+    "OsmCoords": "9.40975° N, 0.83871° W",
+    "bIsRepresentativeFictional": false,
+    "AuthenticityNote": "Northern Ghanaian concrete-and-zinc classroom block with shaded veranda columns and Ghanaian flag."
+  },
+  {
+    "Name": "dungu_campus",
+    "LandmarkId": "dungu_campus",
+    "DisplayName": "Dungu Academic & Residential Quarter",
+    "DagbaniLabel": "Dungu Karimbu",
+    "District": "Dungu · Southwest",
+    "LandmarkType": "school",
+    "LocationCm": {
+      "X": -13400,
+      "Y": 15800,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 2000,
+    "bEnterable": false,
+    "ShopId": "",
+    "OsmCoords": "9.37701° N, 0.87818° W",
+    "bIsRepresentativeFictional": false,
+    "AuthenticityNote": "OSM: 9.37701° N, 0.87818° W. Representative academic lecture blocks, student apartments, and traditional compounds on Tamale's southwestern campus road."
+  },
+  {
+    "Name": "gbewaa_commercial_arcade",
+    "LandmarkId": "gbewaa_commercial_arcade",
+    "DisplayName": "Gbewaa High St Shops & Mobile Money Row",
+    "DagbaniLabel": "Gbewaa Pali Daabilim",
+    "District": "Dagbandabo Fong · Gbewaa High St",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": 2000,
+      "Y": -1300,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1500,
+    "bEnterable": true,
+    "ShopId": "gbewaa_provisions_telecom",
+    "OsmCoords": "9.4038° N, 0.8408° W (High Street Corridor)",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative Gbewaa High Street commercial row featuring mobile-money kiosks, Savannah Telecom accessories, Northern Star Pharmacy, and Tishigu Bakery."
+  },
+  {
+    "Name": "jubilee_night_spot",
+    "LandmarkId": "jubilee_night_spot",
+    "DisplayName": "Jubilee Afrobeats Club & Night Lounge",
+    "DagbaniLabel": "Jubilee Waa & Chichinga Club",
+    "District": "Gbewaa High St East · Jakarayili",
+    "LandmarkType": "nightclub",
+    "LocationCm": {
+      "X": 3400,
+      "Y": -1300,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1500,
+    "bEnterable": true,
+    "ShopId": "nightlife_grill_lounge",
+    "OsmCoords": "9.4037° N, 0.8395° W (High Street Nightlife Hub)",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative Tamale High Street nightclub, Afrobeats dance lounge, and late-night chichinga grill terrace coming alive after dusk."
+  },
+  {
+    "Name": "nyohini_barber_salon",
+    "LandmarkId": "nyohini_barber_salon",
+    "DisplayName": "Nyohini Fade & Braids Studio",
+    "DagbaniLabel": "Zuɣu Pɔnibu Shee",
+    "District": "Nyohini · West High St",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": -14600,
+      "Y": -1300,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1400,
+    "bEnterable": true,
+    "ShopId": "nyohini_barber_salon",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative neighbourhood barbering shop and hair braiding salon serving Nyohini and Aboabo commuters along the western avenue."
+  },
+  {
+    "Name": "jakarayili_guesthouse",
+    "LandmarkId": "jakarayili_guesthouse",
+    "DisplayName": "Jubilee Rest Guest House",
+    "DagbaniLabel": "Saamba Doɣu",
+    "District": "Jakarayili · Central East",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": 5600,
+      "Y": 3200,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1400,
+    "bEnterable": true,
+    "ShopId": "jakarayili_guesthouse",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative Tamale guest house inspired by local hospitality compounds (such as GRNMA and city guest lodges), open 24 hours for resting travelers."
+  },
+  {
+    "Name": "dabokpaa_fitness_cafe",
+    "LandmarkId": "dabokpaa_fitness_cafe",
+    "DisplayName": "Savannah Fitness Gym & Print Hub",
+    "DagbaniLabel": "Paŋ Tuma ni Karimbu",
+    "District": "Dabokpaa · Salaga East",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": 15000,
+      "Y": 11400,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1400,
+    "bEnterable": true,
+    "ShopId": "dabokpaa_fitness_cafe",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative Tamale neighbourhood gym, printing press, and photocopying shop serving Teaching Hospital staff and Dabokpaa residents."
+  },
+  {
+    "Name": "tishigu_pharmacy_bakery",
+    "LandmarkId": "tishigu_pharmacy_bakery",
+    "DisplayName": "Tishigu Pharmacy & Sugar Bakery",
+    "DagbaniLabel": "Tiim ni Paano Shee",
+    "District": "Tishigu · North Central",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": 1800,
+      "Y": -3200,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1400,
+    "bEnterable": true,
+    "ShopId": "tishigu_pharmacy_bakery",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative community chemist and hot wood-oven sugar-bread bakery situated in bustling Tishigu."
+  },
+  {
+    "Name": "kalpohin_hardware_carpentry",
+    "LandmarkId": "kalpohin_hardware_carpentry",
+    "DisplayName": "Kalpohin Building Supplies & Welding",
+    "DagbaniLabel": "Mɛbu Nɛma Shee",
+    "District": "Kalpohin · North East",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": 8600,
+      "Y": -7800,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1500,
+    "bEnterable": true,
+    "ShopId": "kalpohin_hardware_carpentry",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative building materials depot, carpentry joinery, and metal gate welding workshop serving developing residential suburbs."
+  },
+  {
+    "Name": "dungu_student_hub",
+    "LandmarkId": "dungu_student_hub",
+    "DisplayName": "Dungu Campus Café & Bookshop",
+    "DagbaniLabel": "Dungu Karimbu ni Bindirigu",
+    "District": "Dungu · University Avenue",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": -14400,
+      "Y": 14400,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1400,
+    "bEnterable": true,
+    "ShopId": "dungu_student_hub",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative student internet café, photocopy stand, and affordable rice-and-beans chop bar near Dungu Academic Quarter."
+  },
+  {
+    "Name": "choggu_night_spot",
+    "LandmarkId": "choggu_night_spot",
+    "DisplayName": "Choggu Night Spot & Rhythm Lounge",
+    "DagbaniLabel": "Choggu Zaawuni Club",
+    "District": "Choggu · North West",
+    "LandmarkType": "nightclub",
+    "LocationCm": {
+      "X": -8400,
+      "Y": -14400,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1400,
+    "bEnterable": true,
+    "ShopId": "choggu_night_spot",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative Choggu neighbourhood open-air evening nightclub, DJ terrace, and tilapia grill glowing after sunset."
+  },
+  {
+    "Name": "savannah_fast_food",
+    "LandmarkId": "savannah_fast_food",
+    "DisplayName": "Savannah Fried Chicken & Burgers",
+    "DagbaniLabel": "Noo ni Shinkaafa Shee",
+    "District": "Jakarayili · Gbewaa High St East",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": 7550,
+      "Y": -1300,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1400,
+    "bEnterable": true,
+    "ShopId": "savannah_fast_food",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative modern Tamale fast-food restaurant serving fried chicken & jollof boxes, burgers, yam fries, and iced sobolo."
+  },
+  {
+    "Name": "tamale_supermarket",
+    "LandmarkId": "tamale_supermarket",
+    "DisplayName": "Tamale Central Mart & Supermarket",
+    "DagbaniLabel": "Tamale Supermarket",
+    "District": "Dagbandabo Fong · High St West",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": -5400,
+      "Y": -1300,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1500,
+    "bEnterable": true,
+    "ShopId": "tamale_supermarket",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative air-conditioned Tamale neighbourhood supermarket and cold-store stocking beverages, packaged staples, snacks, and household supplies."
+  },
+  {
+    "Name": "aboabo_tz_kitchen",
+    "LandmarkId": "aboabo_tz_kitchen",
+    "DisplayName": "Hajia Memuna's Tuo Zaafi & Fufu Kitchen",
+    "DagbaniLabel": "Saɣim Duɣibu Shee",
+    "District": "Aboabo · North Market Approach",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": -11600,
+      "Y": 3200,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1400,
+    "bEnterable": true,
+    "ShopId": "aboabo_tz_kitchen",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative Aboabo neighbourhood dining room specializing in steaming Tuo Zaafi (Saɣim), pounded fufu with light goat soup, and ginger sobolo."
+  },
+  {
+    "Name": "kalpohin_juice_bakery",
+    "LandmarkId": "kalpohin_juice_bakery",
+    "DisplayName": "Kalpohin Fresh Juice & Pastry Café",
+    "DagbaniLabel": "Paano ni Mango Kom",
+    "District": "Kalpohin Estates Road",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": 5200,
+      "Y": -10200,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1400,
+    "bEnterable": true,
+    "ShopId": "kalpohin_juice_bakery",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative Northern Ghana juice bar and breakfast pastry café blending local mangoes, baobab, hibiscus, and warm butter bread."
+  },
+  {
+    "Name": "vittin_pizza_grill",
+    "LandmarkId": "vittin_pizza_grill",
+    "DisplayName": "Vittin Smash Burger, Pizza & Suya Bar",
+    "DagbaniLabel": "Vittin Bindirigu Shee",
+    "District": "Vittin · East Ring",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": 17200,
+      "Y": 1400,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1400,
+    "bEnterable": true,
+    "ShopId": "vittin_pizza_grill",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative eastern corridor burger, stone-baked pizza, and spiced suya grill terrace popular with Vittin & Teaching Hospital residents."
+  },
+  {
+    "Name": "weavers_tailor_row",
+    "LandmarkId": "weavers_tailor_row",
+    "DisplayName": "Northern Tailors, Sandals & Craft Row",
+    "DagbaniLabel": "Batakari Sɛbu Shee",
+    "District": "Cultural Quarter · SW",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": -5500,
+      "Y": 1400,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1400,
+    "bEnterable": true,
+    "ShopId": "weavers_tailor_row",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative Tamale tailoring, embroidery, and leather sandal row bridging Central Market and the Weavers Guild."
+  },
+  {
+    "Name": "tamale_enterprise_bank",
+    "LandmarkId": "tamale_enterprise_bank",
+    "DisplayName": "Tamale Enterprise Bank & MoMo Center",
+    "DagbaniLabel": "Liɣiri Duɣu ni MoMo",
+    "District": "Jakarayili · Gbewaa High St East",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": 8800,
+      "Y": -1400,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1500,
+    "bEnterable": true,
+    "ShopId": "tamale_enterprise_bank",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative Tamale High Street commercial bank branch, ATM vestibule, and merchant MoMo agency counter."
+  },
+  {
+    "Name": "gbewaa_electronics_hub",
+    "LandmarkId": "gbewaa_electronics_hub",
+    "DisplayName": "Gbewaa Phones, Solar & Electronics Hub",
+    "DagbaniLabel": "Wayaa ni Solar Shee",
+    "District": "Gbewaa High St East",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": 10200,
+      "Y": -1300,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1400,
+    "bEnterable": true,
+    "ShopId": "gbewaa_electronics_hub",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative High Street smartphone repair desk, solar panel shop, and computer/electronics showroom."
+  },
+  {
+    "Name": "tamale_ice_cream_bar",
+    "LandmarkId": "tamale_ice_cream_bar",
+    "DisplayName": "Tamale Cool Scoop · Ice Cream & Smoothie Bar",
+    "DagbaniLabel": "Kom Maasim ni Ice Cream",
+    "District": "Gbewaa High St East",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": 11600,
+      "Y": -1300,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1400,
+    "bEnterable": true,
+    "ShopId": "tamale_ice_cream_bar",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative family-friendly ice cream parlour, frozen yoghurt bar, and fresh baobab-mango smoothie spot."
+  },
+  {
+    "Name": "savannah_fashion_boutique",
+    "LandmarkId": "savannah_fashion_boutique",
+    "DisplayName": "Savannah Glamour Boutique, Cosmetics & Perfume",
+    "DagbaniLabel": "Nɛma ni Turi Viɛlli Shee",
+    "District": "Central High St South · Jubilee",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": 5200,
+      "Y": 1400,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1400,
+    "bEnterable": true,
+    "ShopId": "savannah_fashion_boutique",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative Tamale boutique featuring contemporary northern fashion, shea skincare cosmetics, perfumes, and handbags."
+  },
+  {
+    "Name": "tamale_footwear_leather",
+    "LandmarkId": "tamale_footwear_leather",
+    "DisplayName": "Northern Footwear, Bags & Leather Boutique",
+    "DagbaniLabel": "Kpahi ni Gbaŋ Nɛma Shee",
+    "District": "Dagbandabo Fong · West High St",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": -8200,
+      "Y": -1300,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1400,
+    "bEnterable": true,
+    "ShopId": "tamale_footwear_leather",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative western High Street footwear store selling stitched leather sandals, durable walking shoes, and market satchels."
+  },
+  {
+    "Name": "gukpegu_jollof_tilapia",
+    "LandmarkId": "gukpegu_jollof_tilapia",
+    "DisplayName": "Gukpegu Jollof, Banku & Grilled Tilapia Spot",
+    "DagbaniLabel": "Shinkaafa ni Zom Nimdi Shee",
+    "District": "Gukpegu Road · Central Mosque Corridor",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": -1600,
+      "Y": 4200,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1400,
+    "bEnterable": true,
+    "ShopId": "gukpegu_jollof_tilapia",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative Gukpegu roadside restaurant grilling spicy whole tilapia with hot banku, party jollof rice, and iced sobolo."
+  },
+  {
+    "Name": "dabokpaa_household_mart",
+    "LandmarkId": "dabokpaa_household_mart",
+    "DisplayName": "Dabokpaa Household Plastics, Kitchenware & Mini-Mart",
+    "DagbaniLabel": "Yiŋa Nɛma ni Mini-Mart",
+    "District": "Dabokpaa · Hospital Corridor",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": 11200,
+      "Y": 13800,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1400,
+    "bEnterable": true,
+    "ShopId": "dabokpaa_household_mart",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative neighbourhood mini-mart & household goods store carrying insulated flasks, plastic basins, rice sacks, and chilled drinks."
+  },
+  {
+    "Name": "tamale_police_hq",
+    "LandmarkId": "tamale_police_hq",
+    "DisplayName": "Tamale Police Divisional HQ (MTTD)",
+    "DagbaniLabel": "Polisi Duɣu Titali",
+    "District": "Jubilee Civic Avenue · Central Tamale",
+    "LandmarkType": "police",
+    "LocationCm": {
+      "X": 5400,
+      "Y": -3200,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1600,
+    "bEnterable": true,
+    "ShopId": "",
+    "OsmCoords": "Central Civic Corridor",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative Ghana Police Service Northern Regional & MTTD traffic desk along Jubilee Civic Avenue, dispatching street patrols and resolving citations or vehicle releases."
+  },
+  {
+    "Name": "savannah_beats_club",
+    "LandmarkId": "savannah_beats_club",
+    "DisplayName": "Savannah Beats Nightclub & Rooftop Lounge",
+    "DagbaniLabel": "Savannah Waa Club",
+    "District": "High Street East · Jakarayili",
+    "LandmarkType": "nightclub",
+    "LocationCm": {
+      "X": 11200,
+      "Y": 1400,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1500,
+    "bEnterable": true,
+    "ShopId": "savannah_beats_club",
+    "OsmCoords": "",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Representative contemporary Tamale nightclub with indoor dance floor, DJ booth, Oware/Ludo lounge tables, and late-night grill."
+  },
+  {
+    "Name": "player_home",
+    "LandmarkId": "player_home",
+    "DisplayName": "My Changli Compound Home",
+    "DagbaniLabel": "N'Yiŋa (My Home)",
+    "District": "Changli – Jakarayili Residential Quarter",
+    "LandmarkType": "residential_home",
+    "LocationCm": {
+      "X": 2000,
+      "Y": 8100,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1500,
+    "bEnterable": true,
+    "ShopId": "",
+    "OsmCoords": "Residential Quarter · South of Central Mosque",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Personal Northern Ghanaian residential compound connected directly to Changli – Jakarayili Residential Avenue, featuring courtyard washing area, clothesline, Polytank, living room, kitchen, bedroom, and bathroom."
+  },
+  {
+    "Name": "changli_provisions_mart",
+    "LandmarkId": "changli_provisions_mart",
+    "DisplayName": "Changli Provisions & Foodstuff Store",
+    "DagbaniLabel": "Changli Daabilim",
+    "District": "Changli – Jakarayili Residential Quarter",
+    "LandmarkType": "commercial",
+    "LocationCm": {
+      "X": 5000,
+      "Y": 8100,
+      "Z": 0
+    },
+    "TriggerRadiusCm": 1100,
+    "bEnterable": true,
+    "ShopId": "changli_provisions_mart",
+    "OsmCoords": "Changli Residential Avenue",
+    "bIsRepresentativeFictional": true,
+    "AuthenticityNote": "Neighbourhood family provision store stocking cooking grains, yam, groundnut paste, proteins, sealed drinking water, and daily household essentials."
+  }
+]
