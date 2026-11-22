@@ -12,7 +12,7 @@ import {
   WeatherType,
 } from "../types/game";
 
-export const CURRENT_SAVE_VERSION = 5;
+export const CURRENT_SAVE_VERSION = 7;
 
 const VALID_WEATHERS: ReadonlySet<WeatherType> = new Set([
   "clear",
@@ -95,6 +95,39 @@ export function normalizeCharacterState(
         ? partial.phoneMessages
         : base.phoneMessages,
     playerPos: partial.playerPos ?? base.playerPos,
+    policeFinesOwedCedis: partial.policeFinesOwedCedis ?? base.policeFinesOwedCedis ?? 0,
+    trafficViolationsCount: partial.trafficViolationsCount ?? base.trafficViolationsCount ?? 0,
+    cleanDrivingStreak: partial.cleanDrivingStreak ?? base.cleanDrivingStreak ?? 0,
+    cargoDeliveriesCount: partial.cargoDeliveriesCount ?? base.cargoDeliveriesCount ?? 0,
+    dayCount: typeof partial.dayCount === "number" && partial.dayCount >= 1 ? partial.dayCount : (base.dayCount ?? 1),
+    needs: {
+      ...(base.needs ?? { hygiene: 88, hunger: 82, thirst: 80, social: 76, comfort: 82 }),
+      ...(partial.needs ?? {}),
+    },
+    homeState: partial.homeState && base.homeState
+      ? {
+          ...base.homeState,
+          ...partial.homeState,
+          roomDirt: { ...base.homeState.roomDirt, ...(partial.homeState.roomDirt ?? {}) },
+          upgrades: { ...base.homeState.upgrades, ...(partial.homeState.upgrades ?? {}) },
+          fridgeIngredients: {
+            ...base.homeState.fridgeIngredients,
+            ...(partial.homeState.fridgeIngredients ?? {}),
+          },
+          cookedMealsReady: Array.isArray(partial.homeState.cookedMealsReady)
+            ? partial.homeState.cookedMealsReady
+            : base.homeState.cookedMealsReady,
+          dailyRoutineIdsDone: Array.isArray(partial.homeState.dailyRoutineIdsDone)
+            ? partial.homeState.dailyRoutineIdsDone
+            : base.homeState.dailyRoutineIdsDone,
+        }
+      : base.homeState,
+    laundryState: partial.laundryState && base.laundryState
+      ? { ...base.laundryState, ...partial.laundryState }
+      : base.laundryState,
+    ownedOutfits: Array.isArray(partial.ownedOutfits) && partial.ownedOutfits.length > 0
+      ? partial.ownedOutfits
+      : base.ownedOutfits,
   };
 }
 

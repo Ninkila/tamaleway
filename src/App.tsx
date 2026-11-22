@@ -12,12 +12,15 @@ import { DagbaniGuideModal } from "./components/DagbaniGuideModal";
 import { DialogueModal } from "./components/DialogueModal";
 import { DiscoveryCardOverlay } from "./components/DiscoveryCardOverlay";
 import { GameHud } from "./components/GameHud";
+import { HomeStationKind, HomeStationModal } from "./components/HomeStationModal";
 import { BuildingInteriorModal, PauseModal } from "./components/InteriorAndPauseModals";
+import { ClubEntertainmentModal } from "./components/ClubEntertainmentModal";
 import { InteriorServiceOverlay } from "./components/InteriorServiceOverlay";
 import { InventoryJournalModal } from "./components/InventoryJournalModal";
 import { MainMenu } from "./components/MainMenu";
 import { MapModal } from "./components/MapModal";
 import { MobileTouchControls } from "./components/MobileTouchControls";
+import { PoliceStopModal } from "./components/PoliceStopModal";
 import { ReferenceArchiveModal } from "./components/ReferenceArchiveModal";
 import { SettingsAndControlsModal } from "./components/SettingsAndControlsModal";
 import { ShopModal } from "./components/ShopAndErrandsModal";
@@ -31,6 +34,15 @@ import {
 } from "./data/playableCharacters";
 import { TAMALE_ECONOMY_CONFIG } from "./data/tamaleEconomy";
 import { INITIAL_CITY_EVENT_DESCRIPTIONS } from "./data/tamaleExpansionData";
+import {
+  computeDailyHomeBillCedis,
+  computeHomeCleanlinessFromRooms,
+  createDefaultHomeStateForCharacter,
+  createDefaultLaundryState,
+  createDefaultNeedsForCharacter,
+  HOME_COOKING_RECIPES,
+  HOME_UPGRADES_CATALOG,
+} from "./data/tamaleHomeData";
 import {
   calculateServiceFare,
   generateJobsForCharacter,
@@ -57,17 +69,28 @@ import {
   CityGigTask,
   CityTaskJob,
   DEFAULT_KEY_BINDINGS,
+  DrivableVehicleKind,
   ErrandQuest,
   GameSettings,
+  HomeIngredientId,
+  HomeLaundryState,
+  HomeRoomKey,
+  HomeState,
+  HomeUpgradeId,
   InteriorRoomSpec,
   InteriorStationKind,
   InventoryItem,
   LandmarkData,
+  NavRouteSnapshot,
   NearbyChatter,
   NearbyInteractable,
+  NearbySignalSnapshot,
   NpcRuntimeSnapshot,
+  OutfitStyle,
   PhoneMessageRecord,
   PlayerCustomization,
+  PlayerNeedsState,
+  PoliceStopNotice,
   RadioStation,
   SavedGameState,
   ServiceRequestKind,
@@ -100,6 +123,28 @@ import {
 
 const SAVE_STORAGE_KEY = "tamale3d_save_v1";
 const MUSIC_STORAGE_KEY = "tamale3d_music_library_v1";
+
+const ALWAYS_HOME_STATION_KINDS: ReadonlySet<InteriorStationKind> = new Set([
+  "home_shower",
+  "home_sink_hygiene",
+  "home_toilet",
+  "home_mirror",
+  "home_kitchen_fridge",
+  "home_kitchen_stove",
+  "home_kitchen_sink",
+  "home_clean_sweep",
+  "home_clean_mop",
+  "home_rubbish_bin",
+  "home_laundry_wash",
+  "home_clothesline",
+  "home_sofa_tv",
+  "home_upgrade_desk",
+  "home_charger",
+]);
+
+function clampNeed(val: number): number {
+  return Math.max(0, Math.min(100, val));
+}
 
 function buildDefaultCharacterStates(): Record<string, CharacterRuntimeState> {
   return buildAllDefaultCharacterStates();
@@ -207,6 +252,19 @@ export default function App() {
     initialCharState.phoneMessages ?? []
   );
   const [energy, setEnergy] = useState(initialCharState.energy);
+  const [dayCount, setDayCount] = useState<number>(initialCharState.dayCount ?? 1);
+  const [needs, setNeeds] = useState<PlayerNeedsState>(
+    () => initialCharState.needs ?? createDefaultNeedsForCharacter()
+  );
+  const [homeState, setHomeState] = useState<HomeState>(
+    () => initialCharState.homeState ?? createDefaultHomeStateForCharacter(initialProfile)
+  );
+  const [laundryState, setLaundryState] = useState<HomeLaundryState>(
+    () => initialCharState.laundryState ?? createDefaultLaundryState()
+  );
+  const [ownedOutfits, setOwnedOutfits] = useState<OutfitStyle[]>(
+    () => initialCharState.ownedOutfits ?? ["batakari", "kaba", "casual", "polo"]
+  );
   const [cultureXp, setCultureXp] = useState(initialCharState.cultureXp);
   const [skills, setSkills] = useState<CharacterSkills>(initialCharState.skills);
   const [gameMinutes, setGameMinutes] = useState(9 * 60 + 15);
@@ -272,10 +330,34 @@ export default function App() {
   const [isDriving, setIsDriving] = useState(false);
   const [isRidingService, setIsRidingService] = useState(false);
   const [drivingLabel, setDrivingLabel] = useState<string | null>(null);
-  const [drivingKind, setDrivingKind] = useState<"pragya" | "motorcycle" | null>(null);
+  const [drivingKind, setDrivingKind] = useState<DrivableVehicleKind | null>(null);
+  const [drivingMaxCargoKg, setDrivingMaxCargoKg] = useState(0);
+  const [vehicleHealthPct, setVehicleHealthPct] = useState(100);
   const [nearby, setNearby] = useState<NearbyInteractable | null>(null);
   const [nearbyVehicle, setNearbyVehicle] = useState<NearbyInteractable | null>(null);
   const [nearbyChatter, setNearbyChatter] = useState<NearbyChatter | null>(null);
+  const [nearbySignal, setNearbySignal] = useState<NearbySignalSnapshot | null>(null);
+  const [policePursuitActive, setPolicePursuitActive] = useState(false);
+  const [impoundedVehicleId, setImpoundedVehicleId] = useState<string | null>(null);
+  const [navSnapshot, setNavSnapshot] = useState<NavRouteSnapshot | null>(null);
+  const [cargoIntegrityPct, setCargoIntegrityPct] = useState<number | null>(null);
+  const [cargoLoadProgressPct, setCargoLoadProgressPct] = useState<number | null>(null);
+  const [policeCruiserPositions, setPoliceCruiserPositions] = useState<Array<{ x: number; z: number }>>([]);
+  const [roadIncidentPositions, setRoadIncidentPositions] = useState<
+    Array<{ id: string; title: string; x: number; z: number }>
+  >([]);
+  const [policeFinesOwedCedis, setPoliceFinesOwedCedis] = useState(
+    initialCharState.policeFinesOwedCedis ?? 0
+  );
+  const [trafficViolationsCount, setTrafficViolationsCount] = useState(
+    initialCharState.trafficViolationsCount ?? 0
+  );
+  const [cleanDrivingStreak, setCleanDrivingStreak] = useState(
+    initialCharState.cleanDrivingStreak ?? 0
+  );
+  const [cargoDeliveriesCount, setCargoDeliveriesCount] = useState(
+    initialCharState.cargoDeliveriesCount ?? 0
+  );
   const [nearestGuidance, setNearestGuidance] = useState<{
     id: string;
     name: string;
@@ -285,6 +367,7 @@ export default function App() {
     isErrandTarget: boolean;
   } | null>(null);
   const [showLabels, setShowLabels] = useState(true);
+  const [debugWireframe, setDebugWireframe] = useState(false);
   const [playerPos, setPlayerPos] = useState(initialCharState.playerPos);
   const [servicePos, setServicePos] = useState<{ x: number; z: number } | null>(null);
   const [npcStates, setNpcStates] = useState<NpcRuntimeSnapshot[]>([]);
@@ -293,6 +376,8 @@ export default function App() {
   const [activeNpcId, setActiveNpcId] = useState<string | null>(null);
   const [activeShopId, setActiveShopId] = useState<string | null>(null);
   const [activeInteriorLandmarkId, setActiveInteriorLandmarkId] = useState<string | null>(null);
+  const [activePoliceStop, setActivePoliceStop] = useState<PoliceStopNotice | null>(null);
+  const [showClubGames, setShowClubGames] = useState(false);
   const [showMap, setShowMap] = useState(false);
   const [showDagbaniGuide, setShowDagbaniGuide] = useState(false);
   const [showCustomize, setShowCustomize] = useState(false);
@@ -316,6 +401,10 @@ export default function App() {
   activeGigRef.current = activeGig;
   const activeTaskRef = useRef(activeTask);
   activeTaskRef.current = activeTask;
+  const cargoIntegrityPctRef = useRef(cargoIntegrityPct);
+  cargoIntegrityPctRef.current = cargoIntegrityPct;
+  const drivingMaxCargoKgRef = useRef(drivingMaxCargoKg);
+  drivingMaxCargoKgRef.current = drivingMaxCargoKg;
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const settledServiceIdRef = useRef<string | null>(null);
@@ -337,6 +426,23 @@ export default function App() {
   const hasOpenedPhoneRef = useRef(false);
   const inMenuOrPauseRef = useRef(true);
   inMenuOrPauseRef.current = inMainMenu || exitedScreen;
+  const dayCountRef = useRef(dayCount);
+  dayCountRef.current = dayCount;
+  const homeStateRef = useRef(homeState);
+  homeStateRef.current = homeState;
+  const laundryStateRef = useRef(laundryState);
+  laundryStateRef.current = laundryState;
+  const needsRef = useRef(needs);
+  needsRef.current = needs;
+  const activeInteriorSpecRef = useRef<InteriorRoomSpec | null>(activeInteriorSpec);
+  activeInteriorSpecRef.current = activeInteriorSpec;
+  const policePursuitActiveRef = useRef(policePursuitActive);
+  policePursuitActiveRef.current = policePursuitActive;
+  const isDrivingRef = useRef(isDriving);
+  isDrivingRef.current = isDriving;
+  const energyRef = useRef(energy);
+  energyRef.current = energy;
+  const lastLaundryToastRef = useRef<string | null>(null);
 
   const deviceLayout = useMemo(
     () => computeDeviceLayoutConfig(deviceSignals, settings),
@@ -369,6 +475,11 @@ export default function App() {
   useEffect(() => {
     engineRef.current?.setPlayerEnergyRatio(energy / 100);
   }, [energy]);
+
+  // Sync Home cleanliness, sink dishes, rubbish, upgrades, and clothesline visuals into TamaleEngine
+  useEffect(() => {
+    engineRef.current?.setHomeVisualState(homeState, laundryState);
+  }, [homeState, laundryState]);
 
   // Declarative achievement tracker
   useEffect(() => {
@@ -454,6 +565,97 @@ export default function App() {
     }));
   }, []);
 
+  const markHomeRoutineDone = useCallback((routineId: string) => {
+    setHomeState((prev) =>
+      prev.dailyRoutineIdsDone.includes(routineId)
+        ? prev
+        : {
+            ...prev,
+            dailyRoutineIdsDone: [...prev.dailyRoutineIdsDone, routineId],
+          }
+    );
+  }, []);
+
+  const settleNewDayAndMidnight = useCallback(
+    (daysElapsed = 1, refreshWeatherFromSleep = false) => {
+      const safeDays = Math.max(1, daysElapsed);
+      const nextDay = dayCountRef.current + safeDays;
+      setDayCount(nextDay);
+      dayCountRef.current = nextDay;
+
+      let summaryParts: string[] = [];
+      if (ownedBusinessIdsRef.current.length > 0) {
+        const dividend =
+          ownedBusinessIdsRef.current.reduce(
+            (sum, id) => sum + (SHOP_METADATA[id]?.dailyRevenueCedis ?? 35),
+            0
+          ) * safeDays;
+        if (dividend > 0) {
+          setMoneyCedis((m) => m + dividend);
+          setTotalEarnedCedis((t) => t + dividend);
+          summaryParts.push(`Business Dividend +GH₵ ${dividend}`);
+        }
+      }
+      if (savingsBalanceRef.current >= 20) {
+        const yieldAmt =
+          Math.max(
+            1,
+            Math.round(
+              savingsBalanceRef.current * TAMALE_ECONOMY_CONFIG.banking.savingsInterestDailyRate
+            )
+          ) * safeDays;
+        setSavingsBalanceCedis((s) => s + yieldAmt);
+        summaryParts.push(`Savings Interest +GH₵ ${yieldAmt}`);
+      }
+
+      const curHome = homeStateRef.current;
+      const dailyBill = computeDailyHomeBillCedis(curHome) * safeDays;
+      setHomeState((prev) => {
+        const nextDirt: Record<HomeRoomKey, number> = {
+          courtyard: Math.min(95, prev.roomDirt.courtyard + 4 * safeDays),
+          livingRoom: Math.min(95, prev.roomDirt.livingRoom + 3 * safeDays),
+          kitchen: Math.min(95, prev.roomDirt.kitchen + 3 * safeDays),
+          bedroom: Math.min(95, prev.roomDirt.bedroom + 3 * safeDays),
+          bathroom: Math.min(95, prev.roomDirt.bathroom + 3 * safeDays),
+        };
+        return {
+          ...prev,
+          roomDirt: nextDirt,
+          cleanliness: computeHomeCleanlinessFromRooms(
+            nextDirt,
+            prev.dirtyDishesCount,
+            prev.rubbishCount
+          ),
+          dailyBillsOwed: prev.dailyBillsOwed + dailyBill,
+          dailyRoutineIdsDone: [],
+        };
+      });
+      summaryParts.push(`Home Utilities +GH₵ ${dailyBill}`);
+
+      setLaundryState((prev) => {
+        if (prev.dryingOnLineCount <= 0) return prev;
+        return {
+          ...prev,
+          cleanOutfitsStored: prev.cleanOutfitsStored + prev.dryingOnLineCount,
+          dryingOnLineCount: 0,
+          dryReadyAtMinutes: null,
+          dryReadyDay: null,
+        };
+      });
+
+      if (refreshWeatherFromSleep) {
+        const pool: WeatherType[] = ["clear", "clear", "cloudy", "heat", "harmattan", "light_rain"];
+        const nextWeather = pool[(nextDay + Math.floor(Math.random() * 2)) % pool.length];
+        setWeather(nextWeather);
+        engineRef.current?.setWeather(nextWeather);
+      }
+
+      audioRef.current?.playChime("coin");
+      showToast(`Day ${nextDay} · ${summaryParts.join(" · ")}`);
+    },
+    [showToast]
+  );
+
   const handleCompleteActiveErrand = useCallback(
     (landmarkId: string) => {
       const active = errandsRef.current.find(
@@ -468,13 +670,15 @@ export default function App() {
       setTotalEarnedCedis((t) => t + active.rewardCedis);
       setCultureXp((xp) => xp + active.rewardCultureXp);
       setCompletedJobsCount((c) => c + 1);
+      markHomeRoutineDone("city_hustle");
       engineRef.current?.setActiveErrandLandmark(null);
+      engineRef.current?.clearNavigationDestination();
       audioRef.current?.playChime("success");
       showToast(
         `Errand completed! Earned GH₵ ${active.rewardCedis} & +${active.rewardCultureXp} Culture XP`
       );
     },
-    [showToast]
+    [markHomeRoutineDone, showToast]
   );
 
   const handleCompleteActiveGig = useCallback(
@@ -488,28 +692,33 @@ export default function App() {
       setTotalEarnedCedis((t) => t + currentGig.rewardCedis);
       setMoneyCedis((m) => m + currentGig.rewardCedis);
       setCultureXp((xp) => xp + currentGig.rewardCultureXp);
+      markHomeRoutineDone("city_hustle");
       engineRef.current?.setActiveGigLandmark(null);
+      engineRef.current?.clearNavigationDestination();
       audioRef.current?.playChime("success");
       showToast(
         `Gig completed! Earned GH₵ ${currentGig.rewardCedis} & +${currentGig.rewardCultureXp} Culture XP`
       );
     },
-    [showToast]
+    [markHomeRoutineDone, showToast]
   );
 
   const handleCompleteActiveTask = useCallback(
     (bonusCedis = 0, photoRecord?: CapturedPhotoRecord) => {
       const currentTask = activeTaskRef.current;
       if (!currentTask) return;
-      const totalPay = currentTask.job.rewardCedis + bonusCedis;
+      const totalPay = Math.max(10, currentTask.job.rewardCedis + bonusCedis);
       setActiveTask(null);
       engineRef.current?.setActiveTaskState(null);
+      engineRef.current?.clearAttachedCargo();
+      engineRef.current?.clearNavigationDestination();
       setCompletedJobsCount((c) => c + 1);
       setCompletedGigsCount((c) => c + 1);
       setMoneyCedis((m) => m + totalPay);
       setTotalEarnedCedis((t) => t + totalPay);
       setCultureXp((xp) => xp + currentTask.job.rewardCultureXp);
       setEnergy((e) => Math.max(8, e - currentTask.job.energyCost));
+      markHomeRoutineDone("city_hustle");
       awardSkillPoint(currentTask.job.skillReward.skill, currentTask.job.skillReward.points);
       if (photoRecord) {
         setCapturedPhotos((prev) => [photoRecord, ...prev]);
@@ -519,7 +728,7 @@ export default function App() {
         `Job completed! +GH₵ ${totalPay}, +${currentTask.job.rewardCultureXp} XP & +${currentTask.job.skillReward.points} ${currentTask.job.skillReward.skill}`
       );
     },
-    [awardSkillPoint, showToast]
+    [awardSkillPoint, markHomeRoutineDone, showToast]
   );
 
   // Initialize Northern Ghana Music & 7-Station FM Radio Engine
@@ -565,9 +774,19 @@ export default function App() {
         setIsRidingService(data.isRidingService);
         setDrivingLabel(data.drivingLabel);
         setDrivingKind(data.drivingKind);
+        setDrivingMaxCargoKg(data.drivingMaxCargoKg);
+        setVehicleHealthPct(data.vehicleHealthPct);
         setNearby(data.nearby);
         setNearbyVehicle(data.nearbyVehicle);
         setNearbyChatter(data.nearbyChatter);
+        setNearbySignal(data.nearbySignal);
+        setPolicePursuitActive(data.policePursuitActive);
+        setImpoundedVehicleId(data.impoundedVehicleId);
+        setNavSnapshot(data.navSnapshot);
+        setCargoIntegrityPct(data.cargoIntegrityPct);
+        setCargoLoadProgressPct(data.cargoLoadProgressPct);
+        setPoliceCruiserPositions(data.policeCruiserPositions);
+        setRoadIncidentPositions(data.roadIncidentPositions);
         setNearestGuidance(data.nearestGuidance);
         setPlayerPos(data.playerPos);
         setServicePos(data.servicePos);
@@ -593,6 +812,45 @@ export default function App() {
                   hasOpenedPhone: hasOpenedPhoneRef.current,
                 })
           );
+
+          // Gentle daily-life needs progression during free-roam
+          const activeWeather = weatherRef.current;
+          const thirstDrain =
+            activeWeather === "heat" ? 0.032 : activeWeather === "harmattan" ? 0.025 : 0.018;
+          const hungerDrain = data.isRunning ? 0.022 : 0.012;
+          const hygieneDrain =
+            (data.isRunning ? 0.019 : 0.008) *
+            (activeWeather === "rain" || activeWeather === "harmattan" ? 1.35 : 1);
+          const homeCleanVal = homeStateRef.current.cleanliness;
+          const outfitCleanVal = laundryStateRef.current.outfitCleanliness;
+
+          setNeeds((prev) => {
+            const nextHygiene = clampNeed(prev.hygiene - hygieneDrain);
+            const nextHunger = clampNeed(prev.hunger - hungerDrain);
+            const nextThirst = clampNeed(prev.thirst - thirstDrain);
+            const nextSocial = clampNeed(prev.social - 0.004);
+            const comfortTarget =
+              homeCleanVal * 0.4 + outfitCleanVal * 0.3 + nextHygiene * 0.3;
+            const comfortDelta = (comfortTarget - prev.comfort) * 0.003;
+            const nextComfort = clampNeed(prev.comfort + comfortDelta);
+            return {
+              hygiene: nextHygiene,
+              hunger: nextHunger,
+              thirst: nextThirst,
+              social: nextSocial,
+              comfort: nextComfort,
+            };
+          });
+
+          if (data.isMoving || activeWeather === "rain" || activeWeather === "harmattan") {
+            const clothWear =
+              (data.isRunning ? 0.011 : 0.004) *
+              (activeWeather === "rain" || activeWeather === "harmattan" ? 1.5 : 1);
+            setLaundryState((prev) => {
+              const nextClean = Math.max(10, prev.outfitCleanliness - clothWear);
+              return { ...prev, outfitCleanliness: nextClean };
+            });
+          }
         }
         if (engineRef.current) {
           const nextMins = engineRef.current.getGameMinutes();
@@ -601,31 +859,36 @@ export default function App() {
           setGameMinutes(nextMins);
 
           if (prevMins >= 23 * 60 && nextMins < 2 * 60) {
-            let midnightNote = "";
-            if (ownedBusinessIdsRef.current.length > 0) {
-              const dividend = ownedBusinessIdsRef.current.reduce(
-                (sum, id) => sum + (SHOP_METADATA[id]?.dailyRevenueCedis ?? 35),
-                0
-              );
-              if (dividend > 0) {
-                setMoneyCedis((m) => m + dividend);
-                setTotalEarnedCedis((t) => t + dividend);
-                midnightNote += `Business Dividend +GH₵ ${dividend}`;
+            settleNewDayAndMidnight(1, false);
+          }
+
+          // Check clothesline drying completion in real-time
+          const curLaundry = laundryStateRef.current;
+          if (
+            curLaundry.dryingOnLineCount > 0 &&
+            curLaundry.dryReadyDay !== null &&
+            curLaundry.dryReadyAtMinutes !== null
+          ) {
+            const curDay = dayCountRef.current;
+            const ready =
+              curDay > curLaundry.dryReadyDay ||
+              (curDay === curLaundry.dryReadyDay && nextMins >= curLaundry.dryReadyAtMinutes);
+            if (ready) {
+              const driedCount = curLaundry.dryingOnLineCount;
+              setLaundryState((prev) => ({
+                ...prev,
+                cleanOutfitsStored: prev.cleanOutfitsStored + prev.dryingOnLineCount,
+                dryingOnLineCount: 0,
+                dryReadyAtMinutes: null,
+                dryReadyDay: null,
+              }));
+              const notifyKey = `${curDay}_${curLaundry.dryReadyAtMinutes}`;
+              if (lastLaundryToastRef.current !== notifyKey) {
+                lastLaundryToastRef.current = notifyKey;
+                showToast(
+                  `${driedCount} outfit(s) on your Changli clothesline finished drying!`
+                );
               }
-            }
-            if (savingsBalanceRef.current >= 20) {
-              const yieldAmt = Math.max(
-                1,
-                Math.round(
-                  savingsBalanceRef.current * TAMALE_ECONOMY_CONFIG.banking.savingsInterestDailyRate
-                )
-              );
-              setSavingsBalanceCedis((s) => s + yieldAmt);
-              midnightNote += `${midnightNote ? " · " : ""}Savings Interest +GH₵ ${yieldAmt}`;
-            }
-            if (midnightNote) {
-              audioRef.current?.playChime("coin");
-              showToast(`Midnight Settlement: ${midnightNote}!`);
             }
           }
         }
@@ -648,6 +911,12 @@ export default function App() {
         if (!spec) {
           setActiveInteriorStation(null);
         } else {
+          if (spec.landmarkId === "player_home") {
+            engineRef.current?.setHomeVisualState(
+              homeStateRef.current,
+              laundryStateRef.current
+            );
+          }
           showToast(`Entered ${spec.title} (${spec.dagbaniTitle}). Walk to any station or door.`);
         }
       },
@@ -663,16 +932,40 @@ export default function App() {
           if (!entered) {
             setActiveInteriorLandmarkId(item.id);
           }
+        } else if (item.kind === "police_officer") {
+          const lawState = engineRef.current?.getLawEnforcementState();
+          showToast(
+            `${item.label}: ${lawState?.offensesCount ?? 0} citation(s) on record${
+              lawState?.impoundedVehicleId
+                ? ` · Impounded: ${lawState.impoundedVehicleId} (Release at Police HQ)`
+                : " · Drive safe on Tamale avenues!"
+            }`
+          );
+        } else if (item.kind === "accident_scene") {
+          const cleared = engineRef.current?.assistRoadIncident(item.id);
+          if (cleared) {
+            setMoneyCedis((m) => m + 25);
+            setTotalEarnedCedis((t) => t + 25);
+            setCultureXp((xp) => xp + 15);
+            setCleanDrivingStreak((s) => s + 1);
+            awardSkillPoint("craft", 1);
+            showToast(
+              `Assisted stranded driver (${cleared.title})! Earned GH₵ 25 & +15 Culture XP.`
+            );
+          }
         } else if (item.kind === "interior_exit") {
           engineRef.current?.exitInterior();
         } else if (item.kind === "interior_station") {
-          if (item.stationKind === "wardrobe") {
+          const inPlayerHome = activeInteriorSpecRef.current?.landmarkId === "player_home";
+          if (item.stationKind === "wardrobe" && !inPlayerHome) {
             setCustomizeTargetCharId(activeCharacterIdRef.current);
             setShowCustomize(true);
           } else if (item.stationKind === "room_radio") {
             setPhoneInitialTab("radio");
             setShowMiniRadioBar(true);
             setShowPhone(true);
+          } else if (item.stationKind === "club_game_table") {
+            setShowClubGames(true);
           } else if (item.stationKind && item.stationKind !== "exit_door") {
             setActiveInteriorStation({
               kind: item.stationKind,
@@ -691,7 +984,48 @@ export default function App() {
         } else if (item.kind === "job_action") {
           const task = activeTaskRef.current;
           if (!task) return;
-          if (
+          if (item.jobActionMode === "load_cargo" && task.stage === "go_to_pickup") {
+            const attached = engineRef.current?.attachCargoToVehicle(
+              task.job.cargoKind ?? "mixed_parcels"
+            );
+            if (!attached) {
+              showToast("Enter a compatible freight vehicle before loading cargo.");
+              return;
+            }
+            const updated: ActiveTaskRuntime = {
+              ...task,
+              stage: "go_to_destination",
+              cargoLoaded: true,
+              cargoDamagePct: 0,
+            };
+            setActiveTask(updated);
+            engineRef.current?.setActiveTaskState(updated);
+            const destLm = TAMALE_LANDMARKS.find((l) => l.id === task.job.targetLandmarkId);
+            if (destLm) {
+              engineRef.current?.setNavigationDestination({
+                landmarkId: destLm.id,
+                label: destLm.name,
+                x: destLm.x,
+                z: destLm.z,
+              });
+            }
+            showToast(
+              `Loaded ${task.job.cargoTitle ?? "Cargo"} (${task.job.cargoWeightKg ?? 100} kg)! Drive smoothly to ${task.job.targetLandmarkName}.`
+            );
+          } else if (item.jobActionMode === "unload_cargo" && task.stage === "go_to_destination") {
+            const integrity = cargoIntegrityPctRef.current ?? 100;
+            const bonusCedis =
+              integrity >= 95
+                ? 15
+                : Math.round(task.job.rewardCedis * (Math.max(0.45, integrity / 100) - 1));
+            setCargoDeliveriesCount((c) => c + 1);
+            handleCompleteActiveTask(bonusCedis);
+          } else if (item.interactionVerb === "load_cargo" && !item.jobActionMode) {
+            const reqClasses = task.job.requiredVehicleClasses?.join(", ") || "Pickup / Cargo Trike / Truck";
+            showToast(
+              `Park a compatible freight vehicle (${reqClasses}) with >=${task.job.cargoWeightKg ?? 100} kg capacity to load cargo.`
+            );
+          } else if (
             item.jobActionMode === "pickup_passenger" &&
             task.stage === "go_to_pickup"
           ) {
@@ -702,6 +1036,15 @@ export default function App() {
             };
             setActiveTask(updated);
             engineRef.current?.setActiveTaskState(updated);
+            const destLm = TAMALE_LANDMARKS.find((l) => l.id === task.job.targetLandmarkId);
+            if (destLm) {
+              engineRef.current?.setNavigationDestination({
+                landmarkId: destLm.id,
+                label: destLm.name,
+                x: destLm.x,
+                z: destLm.z,
+              });
+            }
             audioRef.current?.playChime("success");
             showToast(
               `${
@@ -773,6 +1116,15 @@ export default function App() {
       onEnergyDrain: (delta) => {
         setEnergy((e) => Math.max(5, e - delta));
       },
+      onPoliceStop: (notice) => {
+        setActivePoliceStop(notice);
+      },
+      onLawEventToast: (msg) => {
+        showToast(msg);
+      },
+      onCargoDamaged: (nextPct, reason) => {
+        showToast(`${reason} · Cargo integrity ${Math.round(nextPct)}%`);
+      },
       onWebGLContextChange: (lost) => setWebglLost(lost),
     });
 
@@ -790,12 +1142,14 @@ export default function App() {
     };
   }, [
     applySettingsToEngines,
+    awardSkillPoint,
     handleCompleteActiveErrand,
     handleCompleteActiveGig,
     handleCompleteActiveTask,
     initialCharState.energy,
     initialProfile.customization,
     initialProfile.id,
+    settleNewDayAndMidnight,
     showToast,
   ]);
 
@@ -830,6 +1184,15 @@ export default function App() {
       capturedPhotos,
       phoneMessages,
       playerPos,
+      policeFinesOwedCedis,
+      trafficViolationsCount,
+      cleanDrivingStreak,
+      cargoDeliveriesCount,
+      dayCount,
+      needs,
+      homeState,
+      laundryState,
+      ownedOutfits,
     };
   }, [
     activeCharacterId,
@@ -858,6 +1221,15 @@ export default function App() {
     capturedPhotos,
     phoneMessages,
     playerPos,
+    policeFinesOwedCedis,
+    trafficViolationsCount,
+    cleanDrivingStreak,
+    cargoDeliveriesCount,
+    dayCount,
+    needs,
+    homeState,
+    laundryState,
+    ownedOutfits,
   ]);
 
   const allCharacterStatesLive = useMemo(() => {
@@ -882,6 +1254,13 @@ export default function App() {
       setVehicleCondition(state.vehicleCondition ?? 92);
       setPhoneMessages(state.phoneMessages ?? createInitialCharacterState(profile).phoneMessages ?? []);
       setEnergy(state.energy);
+      setDayCount(state.dayCount ?? 1);
+      setNeeds(state.needs ?? createDefaultNeedsForCharacter());
+      setHomeState(state.homeState ?? createDefaultHomeStateForCharacter(profile));
+      setLaundryState(state.laundryState ?? createDefaultLaundryState());
+      setOwnedOutfits(
+        state.ownedOutfits ?? ["batakari", "kaba", "casual", "polo"]
+      );
       setCultureXp(state.cultureXp);
       setSkills(state.skills);
       setCustomization(state.customization);
@@ -905,6 +1284,10 @@ export default function App() {
       setAchievements(state.achievements);
       setCapturedPhotos(state.capturedPhotos);
       setPlayerPos(state.playerPos);
+      setPoliceFinesOwedCedis(state.policeFinesOwedCedis ?? 0);
+      setTrafficViolationsCount(state.trafficViolationsCount ?? 0);
+      setCleanDrivingStreak(state.cleanDrivingStreak ?? 0);
+      setCargoDeliveriesCount(state.cargoDeliveriesCount ?? 0);
       setAvailableJobs(
         generateJobsForCharacter(
           profile.recommendedJobCategories,
@@ -924,7 +1307,15 @@ export default function App() {
         engineRef.current.setActivePlayableCharacter(charId);
         engineRef.current.updatePlayerCustomization(state.customization);
         engineRef.current.setPlayerEnergyRatio(state.energy / 100);
+        engineRef.current.setHomeVisualState(
+          state.homeState ?? createDefaultHomeStateForCharacter(profile),
+          state.laundryState ?? createDefaultLaundryState()
+        );
         engineRef.current.setActiveTaskState(state.activeTask);
+        engineRef.current.setLawEnforcementState({
+          offensesCount: state.trafficViolationsCount ?? 0,
+          impoundedVehicleId: null,
+        });
         engineRef.current.setActiveGigLandmark(
           state.activeGig ? state.activeGig.targetLandmarkId : null
         );
@@ -992,6 +1383,8 @@ export default function App() {
     Boolean(activeShopId) ||
     Boolean(activeInteriorLandmarkId) ||
     Boolean(activeInteriorStation) ||
+    Boolean(activePoliceStop) ||
+    showClubGames ||
     showMap ||
     showDagbaniGuide ||
     showCustomize ||
@@ -1032,7 +1425,14 @@ export default function App() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || inMainMenu || exitedScreen || showSettings) {
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        inMainMenu ||
+        exitedScreen ||
+        showSettings ||
+        Boolean(activePoliceStop)
+      ) {
         return;
       }
 
@@ -1043,6 +1443,7 @@ export default function App() {
           activeShopId ||
           activeInteriorLandmarkId ||
           activeInteriorStation ||
+          showClubGames ||
           showMap ||
           showDagbaniGuide ||
           showCustomize ||
@@ -1059,6 +1460,7 @@ export default function App() {
           setActiveShopId(null);
           setActiveInteriorLandmarkId(null);
           setActiveInteriorStation(null);
+          setShowClubGames(false);
           setShowMap(false);
           setShowDagbaniGuide(false);
           setShowCustomize(false);
@@ -1094,12 +1496,14 @@ export default function App() {
     inMainMenu,
     exitedScreen,
     showSettings,
+    activePoliceStop,
     settings.keyBindings,
     anyModalOpen,
     activeNpcId,
     activeShopId,
     activeInteriorLandmarkId,
     activeInteriorStation,
+    showClubGames,
     showMap,
     showDagbaniGuide,
     showCustomize,
@@ -1127,6 +1531,7 @@ export default function App() {
       energy,
       cultureXp,
       gameMinutes,
+      dayCount,
       weather,
       activeCityEvent,
       customization,
@@ -1147,7 +1552,7 @@ export default function App() {
       localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(saveObj));
       setHasSavedGame(true);
       audioRef.current?.playChime("success");
-      showToast("All Tamale characters, wallets & progress saved.");
+      showToast("All Tamale characters, homes & progress saved.");
     } catch {
       showToast("Unable to write save data in this browser session.");
     }
@@ -1162,6 +1567,7 @@ export default function App() {
     energy,
     cultureXp,
     gameMinutes,
+    dayCount,
     weather,
     activeCityEvent,
     customization,
@@ -1233,6 +1639,11 @@ export default function App() {
     engineRef.current?.setActiveCityEvent("ordinary_day");
     engineRef.current?.setGameMinutes(9 * 60 + 15);
     engineRef.current?.setActiveGigLandmark(null);
+    engineRef.current?.clearNavigationDestination();
+    engineRef.current?.clearAttachedCargo();
+    engineRef.current?.setLawEnforcementState({ offensesCount: 0, impoundedVehicleId: null });
+    setActivePoliceStop(null);
+    setImpoundedVehicleId(null);
     setExitedScreen(false);
     setShowPause(false);
     setInMainMenu(false);
@@ -1371,6 +1782,7 @@ export default function App() {
       }
       setMoneyCedis((m) => m - costCedis);
       setVehicleCondition(Math.min(100, Math.max(0, newCondition)));
+      engineRef.current?.repairDrivingVehicle();
       awardSkillPoint("craft", 1);
       audioRef.current?.playChime("success");
       showToast(`${label} complete! Vehicle condition is now ${Math.round(newCondition)}%.`);
@@ -1462,13 +1874,41 @@ export default function App() {
     if (item.unlockOutfit) {
       const updated = { ...customization, outfit: item.unlockOutfit };
       setCustomization(updated);
+      setOwnedOutfits((prev) =>
+        prev.includes(item.unlockOutfit!) ? prev : [...prev, item.unlockOutfit!]
+      );
+      setLaundryState((prev) => ({ ...prev, outfitCleanliness: 100 }));
       engineRef.current?.updatePlayerCustomization(updated);
       setCultureXp((xp) => xp + 20);
       showToast(`Equipped ${item.name} (${item.dagbaniName})!`);
-    } else if (consumeImmediately && item.energyRestore) {
-      setEnergy((e) => Math.min(100, e + item.energyRestore!));
+    } else if (item.ingredientKey) {
+      const units = item.ingredientUnits ?? 1;
+      setHomeState((prev) => ({
+        ...prev,
+        fridgeIngredients: {
+          ...prev.fridgeIngredients,
+          [item.ingredientKey!]: (prev.fridgeIngredients[item.ingredientKey!] ?? 0) + units,
+        },
+      }));
       audioRef.current?.playChime("success");
-      showToast(`Ate ${item.name} fresh (+${item.energyRestore}% Energy)!`);
+      showToast(`Stocked ${item.name} (+${units} to Home Pantry)!`);
+    } else if (consumeImmediately) {
+      if (item.energyRestore) {
+        setEnergy((e) => Math.min(100, e + item.energyRestore!));
+      }
+      const hungerBoost = item.hungerRestore ?? (item.category === "food" ? 26 : 0);
+      const thirstBoost = item.thirstRestore ?? 0;
+      const hygieneBoost = item.hygieneRestore ?? 0;
+      if (hungerBoost > 0 || thirstBoost > 0 || hygieneBoost > 0) {
+        setNeeds((prev) => ({
+          ...prev,
+          hunger: clampNeed(prev.hunger + hungerBoost),
+          thirst: clampNeed(prev.thirst + thirstBoost),
+          hygiene: clampNeed(prev.hygiene + hygieneBoost),
+        }));
+      }
+      audioRef.current?.playChime("success");
+      showToast(`Enjoyed ${item.name} fresh!`);
     } else {
       setInventory((prev) => {
         const existing = prev.find((i) => i.id === item.id);
@@ -1484,6 +1924,10 @@ export default function App() {
             category: item.category,
             quantity: 1,
             energyRestore: item.energyRestore,
+            hungerRestore: item.hungerRestore,
+            thirstRestore: item.thirstRestore,
+            hygieneRestore: item.hygieneRestore,
+            ingredientKey: item.ingredientKey,
             description: item.description,
           },
         ];
@@ -1536,8 +1980,21 @@ export default function App() {
 
   const handleConsumeItem = (itemId: string) => {
     const item = inventory.find((i) => i.id === itemId);
-    if (!item || !item.energyRestore) return;
-    setEnergy((e) => Math.min(100, e + item.energyRestore!));
+    if (!item) return;
+    if (item.energyRestore) {
+      setEnergy((e) => Math.min(100, e + item.energyRestore!));
+    }
+    const hungerBoost = item.hungerRestore ?? (item.category === "food" ? 24 : 0);
+    const thirstBoost = item.thirstRestore ?? 0;
+    const hygieneBoost = item.hygieneRestore ?? 0;
+    if (hungerBoost > 0 || thirstBoost > 0 || hygieneBoost > 0) {
+      setNeeds((prev) => ({
+        ...prev,
+        hunger: clampNeed(prev.hunger + hungerBoost),
+        thirst: clampNeed(prev.thirst + thirstBoost),
+        hygiene: clampNeed(prev.hygiene + hygieneBoost),
+      }));
+    }
     setInventory((prev) =>
       prev
         .map((i) => (i.id === itemId ? { ...i, quantity: i.quantity - 1 } : i))
@@ -1557,6 +2014,15 @@ export default function App() {
       }))
     );
     engineRef.current?.setActiveErrandLandmark(err.targetLandmarkId);
+    const lm = TAMALE_LANDMARKS.find((l) => l.id === err.targetLandmarkId);
+    if (lm) {
+      engineRef.current?.setNavigationDestination({
+        landmarkId: lm.id,
+        label: lm.name,
+        x: lm.x,
+        z: lm.z,
+      });
+    }
     setActiveNpcId(null);
     audioRef.current?.playChime("success");
     showToast(`Errand started: Head to ${err.targetLandmarkName} (amber beacon).`);
@@ -1565,6 +2031,15 @@ export default function App() {
   const handleAcceptGig = (gig: CityGigTask) => {
     setActiveGig(gig);
     engineRef.current?.setActiveGigLandmark(gig.targetLandmarkId);
+    const lm = TAMALE_LANDMARKS.find((l) => l.id === gig.targetLandmarkId);
+    if (lm) {
+      engineRef.current?.setNavigationDestination({
+        landmarkId: lm.id,
+        label: lm.name,
+        x: lm.x,
+        z: lm.z,
+      });
+    }
     setShowInventory(false);
     audioRef.current?.playChime("success");
     showToast(`Gig accepted: Head to ${gig.targetLandmarkName} (green beacon).`);
@@ -1573,6 +2048,7 @@ export default function App() {
   const handleAbandonGig = () => {
     setActiveGig(null);
     engineRef.current?.setActiveGigLandmark(null);
+    engineRef.current?.clearNavigationDestination();
     showToast("Active gig cancelled.");
   };
 
@@ -1591,14 +2067,27 @@ export default function App() {
     (job: CityTaskJob) => {
       const needsPickup =
         Boolean(job.pickupLandmarkId) &&
-        (job.executionMode === "transport_passenger" || job.executionMode === "pickup_and_deliver");
+        (job.executionMode === "transport_passenger" ||
+          job.executionMode === "pickup_and_deliver" ||
+          job.executionMode === "cargo_haul");
       const task: ActiveTaskRuntime = {
         job,
         stage: needsPickup ? "go_to_pickup" : "ready_for_activity",
         startedAtMinutes: gameMinutes,
       };
       setActiveTask(task);
+      engineRef.current?.clearAttachedCargo();
       engineRef.current?.setActiveTaskState(task);
+      const navLmId = needsPickup ? job.pickupLandmarkId : job.targetLandmarkId;
+      const navLm = navLmId ? TAMALE_LANDMARKS.find((l) => l.id === navLmId) : undefined;
+      if (navLm) {
+        engineRef.current?.setNavigationDestination({
+          landmarkId: navLm.id,
+          label: navLm.name,
+          x: navLm.x,
+          z: navLm.z,
+        });
+      }
       setShowPhone(false);
       audioRef.current?.playChime("success");
       showToast(
@@ -1613,6 +2102,8 @@ export default function App() {
   const handleAbandonTask = useCallback(() => {
     setActiveTask(null);
     engineRef.current?.setActiveTaskState(null);
+    engineRef.current?.clearAttachedCargo();
+    engineRef.current?.clearNavigationDestination();
     showToast("Active city job cancelled.");
   }, [showToast]);
 
@@ -1671,6 +2162,12 @@ export default function App() {
       if (lm.id === "tamale_interchange") {
         tx = 14;
         tz = 14;
+      } else if (lm.id === "player_home") {
+        tx = 20;
+        tz = 89;
+      } else if (lm.id === "changli_provisions_mart") {
+        tx = 50;
+        tz = 89;
       } else if (lm.id === "central_mosque") {
         tx = 18;
         tz = lm.z;
@@ -1709,7 +2206,599 @@ export default function App() {
       ...prev,
       [npcId]: (prev[npcId] ?? 1) + 1,
     }));
+    setNeeds((prev) => ({
+      ...prev,
+      social: clampNeed(prev.social + 14),
+    }));
   }, []);
+
+  // --- PERSONAL HOME & DAILY LIFE ACTION HANDLERS ---
+  const advanceClockMinutes = useCallback((deltaMins: number) => {
+    const cur = lastClockMinsRef.current;
+    const total = cur + deltaMins;
+    const nextMins = ((Math.floor(total) % 1440) + 1440) % 1440;
+    const daysCrossed = Math.floor(total / 1440);
+    setGameMinutes(nextMins);
+    lastClockMinsRef.current = nextMins;
+    engineRef.current?.setGameMinutes(nextMins);
+    if (daysCrossed > 0) {
+      settleNewDayAndMidnight(daysCrossed, false);
+    }
+  }, [settleNewDayAndMidnight]);
+
+  const handleSleepUntil = useCallback(
+    (mode: "nap" | "wake_6" | "wake_7" | "wake_8" | "wake_9" | "sleep_8h"): { ok: boolean; message: string } => {
+      if (policePursuitActiveRef.current) {
+        return {
+          ok: false,
+          message: "Cannot sleep while actively pursued by Tamale MTTD Patrol!",
+        };
+      }
+      if (isDrivingRef.current) {
+        return {
+          ok: false,
+          message: "Park and exit your vehicle before resting in your bedroom.",
+        };
+      }
+      const curMins = lastClockMinsRef.current;
+      let deltaMins = 480;
+      if (mode === "nap") {
+        deltaMins = 90;
+      } else if (mode === "sleep_8h") {
+        deltaMins = 480;
+      } else {
+        const targetMap: Record<"wake_6" | "wake_7" | "wake_8" | "wake_9", number> = {
+          wake_6: 6 * 60,
+          wake_7: 7 * 60,
+          wake_8: 8 * 60,
+          wake_9: 9 * 60,
+        };
+        const target = targetMap[mode];
+        deltaMins = (target - curMins + 1440) % 1440;
+        if (deltaMins < 90) deltaMins += 1440;
+      }
+
+      const total = curMins + deltaMins;
+      const daysCrossed = Math.floor(total / 1440);
+      const nextMins = ((Math.floor(total) % 1440) + 1440) % 1440;
+      const bedTier = homeStateRef.current.upgrades.bed_tier ?? 1;
+      const secGateBonus = (homeStateRef.current.upgrades.security_gate ?? 1) >= 2 ? 10 : 0;
+      const cleanPenalty = homeStateRef.current.cleanliness < 45 ? -10 : 0;
+
+      if (mode === "nap") {
+        setEnergy((e) => Math.min(100, Math.max(e, Math.min(100, e + 35 + bedTier * 5))));
+        setNeeds((prev) => ({
+          ...prev,
+          comfort: clampNeed(prev.comfort + 14 + bedTier * 4),
+        }));
+      } else {
+        const targetEnergy = Math.max(50, Math.min(100, (bedTier === 1 ? 88 : 100) + cleanPenalty));
+        setEnergy(targetEnergy);
+        setNeeds((prev) => ({
+          ...prev,
+          comfort: clampNeed(prev.comfort + 24 + bedTier * 8 + secGateBonus + cleanPenalty),
+          hunger: clampNeed(prev.hunger - 12),
+          thirst: clampNeed(prev.thirst - 14),
+        }));
+      }
+
+      setGameMinutes(nextMins);
+      lastClockMinsRef.current = nextMins;
+      engineRef.current?.setGameMinutes(nextMins);
+
+      if (daysCrossed > 0) {
+        settleNewDayAndMidnight(daysCrossed, mode !== "nap");
+      } else {
+        markHomeRoutineDone("evening_rest");
+      }
+      audioRef.current?.playChime("success");
+      const msg =
+        mode === "nap"
+          ? `Power nap complete · Clock now ${formatClock(nextMins)}`
+          : `Good morning! Woke up refreshed at ${formatClock(nextMins)}.`;
+      showToast(msg);
+      return { ok: true, message: msg };
+    },
+    [markHomeRoutineDone, settleNewDayAndMidnight, showToast]
+  );
+
+  const handleHygieneAction = useCallback(
+    (kind: "shower" | "sink" | "toilet" | "mirror"): string => {
+      const polytankBonus = homeStateRef.current.upgrades.polytank_plumbing >= 2 ? 20 : 0;
+      if (kind === "shower") {
+        setNeeds((prev) => ({
+          ...prev,
+          hygiene: clampNeed(prev.hygiene + 58 + polytankBonus),
+          comfort: clampNeed(prev.comfort + 18),
+        }));
+        setEnergy((e) => Math.min(100, e + 8));
+        advanceClockMinutes(20);
+        setHomeState((prev) => {
+          const roomDirt = { ...prev.roomDirt, bathroom: Math.min(95, prev.roomDirt.bathroom + 3) };
+          return {
+            ...prev,
+            roomDirt,
+            cleanliness: computeHomeCleanlinessFromRooms(roomDirt, prev.dirtyDishesCount, prev.rubbishCount),
+          };
+        });
+        markHomeRoutineDone("morning_hygiene");
+        audioRef.current?.playChime("success");
+        return polytankBonus > 0
+          ? "Enjoyed a hot pressurized Polytank shower! Hygiene refreshed."
+          : "Took a refreshing shower! Hygiene restored.";
+      }
+      if (kind === "sink") {
+        setNeeds((prev) => ({
+          ...prev,
+          hygiene: clampNeed(prev.hygiene + 28),
+          thirst: clampNeed(prev.thirst + 10),
+        }));
+        advanceClockMinutes(8);
+        markHomeRoutineDone("morning_hygiene");
+        audioRef.current?.playChime("interact");
+        return "Washed face & brushed teeth at the bathroom basin.";
+      }
+      if (kind === "toilet") {
+        setNeeds((prev) => ({
+          ...prev,
+          hygiene: clampNeed(prev.hygiene + 14),
+          comfort: clampNeed(prev.comfort + 14),
+        }));
+        advanceClockMinutes(6);
+        setHomeState((prev) => {
+          const roomDirt = { ...prev.roomDirt, bathroom: Math.min(95, prev.roomDirt.bathroom + 4) };
+          return {
+            ...prev,
+            roomDirt,
+            cleanliness: computeHomeCleanlinessFromRooms(roomDirt, prev.dirtyDishesCount, prev.rubbishCount),
+          };
+        });
+        audioRef.current?.playChime("interact");
+        return "Used the bathroom & washed hands thoroughly.";
+      }
+      setNeeds((prev) => ({
+        ...prev,
+        comfort: clampNeed(prev.comfort + 12),
+        social: clampNeed(prev.social + 10),
+      }));
+      advanceClockMinutes(5);
+      audioRef.current?.playChime("interact");
+      return `Looking sharp in your ${customization.outfit} (Outfit cleanliness ${Math.round(
+        laundryStateRef.current.outfitCleanliness
+      )}%).`;
+    },
+    [advanceClockMinutes, customization.outfit, markHomeRoutineDone]
+  );
+
+  const handleCookRecipe = useCallback(
+    (recipeId: string): { ok: boolean; message: string } => {
+      const recipe = HOME_COOKING_RECIPES.find((r) => r.id === recipeId);
+      if (!recipe) return { ok: false, message: "Recipe not found." };
+      const curFridge = homeStateRef.current.fridgeIngredients;
+      for (const [k, req] of Object.entries(recipe.ingredients)) {
+        if ((curFridge[k as HomeIngredientId] ?? 0) < (req ?? 0)) {
+          return {
+            ok: false,
+            message: "Missing ingredients! Stock up at Changli Provisions or Central Market.",
+          };
+        }
+      }
+      const upgradedStove = homeStateRef.current.upgrades.kitchen_appliance >= 2;
+      const cookMins = upgradedStove
+        ? Math.max(2, Math.round(recipe.cookMinutes * 0.6))
+        : recipe.cookMinutes;
+
+      setHomeState((prev) => {
+        const nextFridge = { ...prev.fridgeIngredients };
+        for (const [k, req] of Object.entries(recipe.ingredients)) {
+          const key = k as HomeIngredientId;
+          nextFridge[key] = Math.max(0, (nextFridge[key] ?? 0) - (req ?? 0));
+        }
+        const nextDishes = prev.dirtyDishesCount + 1;
+        const nextDirt = {
+          ...prev.roomDirt,
+          kitchen: Math.min(95, prev.roomDirt.kitchen + 5),
+        };
+        const preparedMeal = {
+          id: `meal_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+          recipeId: recipe.id,
+          name: recipe.name,
+          dagbaniName: recipe.dagbaniName,
+          hungerRestore: recipe.hungerRestore,
+          energyRestore: recipe.energyRestore,
+          thirstRestore: recipe.thirstRestore,
+          comfortRestore: recipe.comfortRestore + (upgradedStove ? 8 : 0),
+          preparedDay: dayCountRef.current,
+        };
+        return {
+          ...prev,
+          fridgeIngredients: nextFridge,
+          cookedMealsReady: [preparedMeal, ...prev.cookedMealsReady],
+          dirtyDishesCount: nextDishes,
+          roomDirt: nextDirt,
+          cleanliness: computeHomeCleanlinessFromRooms(nextDirt, nextDishes, prev.rubbishCount),
+        };
+      });
+
+      if (recipe.cultureXp > 0) setCultureXp((xp) => xp + recipe.cultureXp);
+      advanceClockMinutes(cookMins);
+      markHomeRoutineDone("home_meal");
+      audioRef.current?.playChime("success");
+      const msg = `Prepared ${recipe.name} (${cookMins}m)! Ready to eat now or save in pantry.`;
+      showToast(msg);
+      return { ok: true, message: msg };
+    },
+    [advanceClockMinutes, markHomeRoutineDone, showToast]
+  );
+
+  const handleEatCookedMeal = useCallback(
+    (mealId: string): string => {
+      const meal = homeStateRef.current.cookedMealsReady.find((m) => m.id === mealId);
+      if (!meal) return "Meal is no longer on the counter.";
+
+      setHomeState((prev) => {
+        const nextDishes = prev.dirtyDishesCount + 1;
+        return {
+          ...prev,
+          cookedMealsReady: prev.cookedMealsReady.filter((m) => m.id !== mealId),
+          dirtyDishesCount: nextDishes,
+          cleanliness: computeHomeCleanlinessFromRooms(
+            prev.roomDirt,
+            nextDishes,
+            prev.rubbishCount
+          ),
+        };
+      });
+
+      setEnergy((e) => Math.min(100, e + meal.energyRestore));
+      setNeeds((prev) => ({
+        ...prev,
+        hunger: clampNeed(prev.hunger + meal.hungerRestore),
+        thirst: clampNeed(prev.thirst + meal.thirstRestore),
+        comfort: clampNeed(prev.comfort + meal.comfortRestore),
+      }));
+      markHomeRoutineDone("home_meal");
+      audioRef.current?.playChime("success");
+      const msg = `Enjoyed homemade ${meal.name}! (+${meal.hungerRestore}% Hunger, +${meal.energyRestore}% Energy)`;
+      showToast(msg);
+      return msg;
+    },
+    [markHomeRoutineDone, showToast]
+  );
+
+  const handleDrinkHomeWater = useCallback((): { ok: boolean; message: string } => {
+    const count = homeStateRef.current.fridgeIngredients.clean_water ?? 0;
+    if (count < 1) {
+      return {
+        ok: false,
+        message: "Out of home drinking water! Buy water packs at Changli Provisions Mart.",
+      };
+    }
+    setHomeState((prev) => ({
+      ...prev,
+      fridgeIngredients: {
+        ...prev.fridgeIngredients,
+        clean_water: Math.max(0, (prev.fridgeIngredients.clean_water ?? 0) - 1),
+      },
+    }));
+    setEnergy((e) => Math.min(100, e + 6));
+    setNeeds((prev) => ({
+      ...prev,
+      thirst: clampNeed(prev.thirst + 42),
+      comfort: clampNeed(prev.comfort + 8),
+    }));
+    audioRef.current?.playChime("success");
+    return { ok: true, message: "Drank chilled drinking water (+42% Hydration)." };
+  }, []);
+
+  const handleCleanAction = useCallback(
+    (kind: "sweep" | "mop" | "dishes" | "rubbish"): string => {
+      if (kind === "sweep") {
+        setHomeState((prev) => {
+          const roomDirt = {
+            ...prev.roomDirt,
+            courtyard: 0,
+            livingRoom: Math.max(0, prev.roomDirt.livingRoom - 16),
+          };
+          return {
+            ...prev,
+            roomDirt,
+            cleanliness: computeHomeCleanlinessFromRooms(
+              roomDirt,
+              prev.dirtyDishesCount,
+              prev.rubbishCount
+            ),
+            lastMaintainedDay: dayCountRef.current,
+          };
+        });
+        setEnergy((e) => Math.max(5, e - 4));
+        setNeeds((prev) => ({ ...prev, comfort: clampNeed(prev.comfort + 12) }));
+        advanceClockMinutes(15);
+        markHomeRoutineDone("tidy_home");
+        audioRef.current?.playChime("success");
+        return "Swept the compound courtyard & entrance clean!";
+      }
+      if (kind === "mop") {
+        setHomeState((prev) => {
+          const roomDirt: Record<HomeRoomKey, number> = {
+            courtyard: Math.max(0, prev.roomDirt.courtyard - 10),
+            livingRoom: 0,
+            kitchen: 0,
+            bedroom: 0,
+            bathroom: 0,
+          };
+          return {
+            ...prev,
+            roomDirt,
+            cleanliness: computeHomeCleanlinessFromRooms(
+              roomDirt,
+              prev.dirtyDishesCount,
+              prev.rubbishCount
+            ),
+            lastMaintainedDay: dayCountRef.current,
+          };
+        });
+        setEnergy((e) => Math.max(5, e - 6));
+        setNeeds((prev) => ({ ...prev, comfort: clampNeed(prev.comfort + 18) }));
+        advanceClockMinutes(22);
+        markHomeRoutineDone("tidy_home");
+        audioRef.current?.playChime("success");
+        return "Mopped living room, kitchen, bedroom & bathroom floors sparkling clean!";
+      }
+      if (kind === "dishes") {
+        setHomeState((prev) => {
+          const roomDirt = {
+            ...prev.roomDirt,
+            kitchen: Math.max(0, prev.roomDirt.kitchen - 14),
+          };
+          return {
+            ...prev,
+            dirtyDishesCount: 0,
+            roomDirt,
+            cleanliness: computeHomeCleanlinessFromRooms(roomDirt, 0, prev.rubbishCount),
+            lastMaintainedDay: dayCountRef.current,
+          };
+        });
+        advanceClockMinutes(10);
+        markHomeRoutineDone("tidy_home");
+        audioRef.current?.playChime("success");
+        return "Washed & stacked all dirty pots and plates from the kitchen sink.";
+      }
+      setHomeState((prev) => {
+        const roomDirt = {
+          ...prev.roomDirt,
+          courtyard: Math.max(0, prev.roomDirt.courtyard - 10),
+        };
+        return {
+          ...prev,
+          rubbishCount: 0,
+          roomDirt,
+          cleanliness: computeHomeCleanlinessFromRooms(roomDirt, prev.dirtyDishesCount, 0),
+          lastMaintainedDay: dayCountRef.current,
+        };
+      });
+      advanceClockMinutes(8);
+      markHomeRoutineDone("tidy_home");
+      audioRef.current?.playChime("success");
+      return "Cleared household rubbish bags into the covered compound bin!";
+    },
+    [advanceClockMinutes, markHomeRoutineDone]
+  );
+
+  const handleLaundryAction = useCallback(
+    (
+      kind: "wash" | "hang" | "collect" | "instant_wear_clean"
+    ): { ok: boolean; message: string } => {
+      const cur = laundryStateRef.current;
+      if (kind === "wash") {
+        const washQty = cur.dirtyClothesCount > 0 ? cur.dirtyClothesCount : 1;
+        setLaundryState((prev) => ({
+          ...prev,
+          dirtyClothesCount: 0,
+          washedWetCount: prev.washedWetCount + washQty,
+        }));
+        setNeeds((prev) => ({ ...prev, hygiene: clampNeed(prev.hygiene + 8) }));
+        advanceClockMinutes(18);
+        markHomeRoutineDone("laundry_care");
+        audioRef.current?.playChime("interact");
+        return {
+          ok: true,
+          message: `Scrubbed & rinsed ${washQty} laundry load(s). Hang them on the courtyard clothesline to dry!`,
+        };
+      }
+      if (kind === "hang") {
+        if (cur.washedWetCount <= 0) {
+          return { ok: false, message: "No freshly washed wet clothes to hang yet." };
+        }
+        const dryMinsNeeded =
+          homeStateRef.current.upgrades.polytank_plumbing >= 2 ? 45 : 75;
+        const total = lastClockMinsRef.current + dryMinsNeeded;
+        const readyDay = dayCountRef.current + Math.floor(total / 1440);
+        const readyMins = total % 1440;
+        const count = cur.washedWetCount;
+        setLaundryState((prev) => ({
+          ...prev,
+          washedWetCount: 0,
+          dryingOnLineCount: prev.dryingOnLineCount + count,
+          dryReadyAtMinutes: readyMins,
+          dryReadyDay: readyDay,
+        }));
+        markHomeRoutineDone("laundry_care");
+        audioRef.current?.playChime("success");
+        return {
+          ok: true,
+          message: `Hung ${count} garment(s) in the Tamale sun — ready around ${formatClock(readyMins)}!`,
+        };
+      }
+      if (kind === "collect") {
+        if (cur.dryingOnLineCount <= 0) {
+          return { ok: false, message: "Nothing is currently hanging on the clothesline." };
+        }
+        const curDay = dayCountRef.current;
+        const curMins = lastClockMinsRef.current;
+        const isReady =
+          cur.dryReadyDay === null ||
+          cur.dryReadyAtMinutes === null ||
+          curDay > cur.dryReadyDay ||
+          (curDay === cur.dryReadyDay && curMins >= cur.dryReadyAtMinutes);
+        if (!isReady) {
+          return {
+            ok: false,
+            message: `Still drying in the courtyard breeze — ready around ${formatClock(
+              cur.dryReadyAtMinutes ?? curMins
+            )} (or after resting).`,
+          };
+        }
+        const collected = cur.dryingOnLineCount;
+        setLaundryState((prev) => ({
+          ...prev,
+          dryingOnLineCount: 0,
+          dryReadyAtMinutes: null,
+          dryReadyDay: null,
+          cleanOutfitsStored: prev.cleanOutfitsStored + collected,
+        }));
+        audioRef.current?.playChime("success");
+        return {
+          ok: true,
+          message: `Folded & stored ${collected} sun-dried outfit(s) into your bedroom wardrobe!`,
+        };
+      }
+      if (cur.cleanOutfitsStored <= 0) {
+        return {
+          ok: false,
+          message: "No folded clean clothes left in wardrobe — wash & dry laundry first!",
+        };
+      }
+      setLaundryState((prev) => ({
+        ...prev,
+        cleanOutfitsStored: Math.max(0, prev.cleanOutfitsStored - 1),
+        dirtyClothesCount: prev.dirtyClothesCount + (prev.outfitCleanliness < 80 ? 1 : 0),
+        outfitCleanliness: 100,
+      }));
+      setNeeds((prev) => ({
+        ...prev,
+        hygiene: clampNeed(prev.hygiene + 10),
+        comfort: clampNeed(prev.comfort + 14),
+      }));
+      markHomeRoutineDone("laundry_care");
+      audioRef.current?.playChime("success");
+      return { ok: true, message: "Changed into fresh sun-dried clothes (100% Cleanliness)!" };
+    },
+    [advanceClockMinutes, markHomeRoutineDone]
+  );
+
+  const handleRelaxSofaTv = useCallback((): string => {
+    const upgradedTv = homeStateRef.current.upgrades.tv_entertainment >= 2;
+    setEnergy((e) => Math.min(100, e + (upgradedTv ? 18 : 12)));
+    setNeeds((prev) => ({
+      ...prev,
+      comfort: clampNeed(prev.comfort + (upgradedTv ? 32 : 18)),
+      social: clampNeed(prev.social + (upgradedTv ? 14 : 7)),
+    }));
+    advanceClockMinutes(30);
+    markHomeRoutineDone("evening_rest");
+    audioRef.current?.playChime("success");
+    return upgradedTv
+      ? "Watched Northern cultural broadcasts on your Smart TV (+Comfort, +Social, +18% Energy)!"
+      : "Unwound in your living room (+18% Comfort, +12% Energy).";
+  }, [advanceClockMinutes, markHomeRoutineDone]);
+
+  const handlePurchaseHomeUpgrade = useCallback(
+    (upgradeId: HomeUpgradeId, payWith: "cash" | "momo"): { ok: boolean; message: string } => {
+      const def = HOME_UPGRADES_CATALOG.find((u) => u.id === upgradeId);
+      if (!def) return { ok: false, message: "Upgrade definition not found." };
+      const curLv = homeStateRef.current.upgrades[upgradeId] ?? 1;
+      const nextTier = def.levels.find((l) => l.level === curLv + 1);
+      if (!nextTier) return { ok: false, message: "Already at maximum upgrade level." };
+      const wallet = payWith === "momo" ? momoBalanceCedis : moneyCedis;
+      if (wallet < nextTier.costCedis) {
+        return {
+          ok: false,
+          message: `Need GH₵ ${nextTier.costCedis} (${payWith.toUpperCase()}) for ${nextTier.title}.`,
+        };
+      }
+      if (payWith === "momo") setMomoBalanceCedis((m) => m - nextTier.costCedis);
+      else setMoneyCedis((m) => m - nextTier.costCedis);
+
+      setHomeState((prev) => ({
+        ...prev,
+        upgrades: {
+          ...prev.upgrades,
+          [upgradeId]: nextTier.level,
+        },
+      }));
+      setCultureXp((xp) => xp + 25);
+      audioRef.current?.playChime("success");
+      const msg = `Installed ${nextTier.title}! (${nextTier.effectSummary})`;
+      showToast(msg);
+      return { ok: true, message: msg };
+    },
+    [momoBalanceCedis, moneyCedis, showToast]
+  );
+
+  const handlePayHomeBills = useCallback(
+    (payWith: "cash" | "momo"): { ok: boolean; message: string } => {
+      const owed = homeStateRef.current.dailyBillsOwed;
+      if (owed <= 0) return { ok: true, message: "No utility bills currently owed." };
+      const wallet = payWith === "momo" ? momoBalanceCedis : moneyCedis;
+      if (wallet < owed) {
+        return {
+          ok: false,
+          message: `Need GH₵ ${owed} (${payWith.toUpperCase()}) to clear your ECG & Water bill.`,
+        };
+      }
+      if (payWith === "momo") setMomoBalanceCedis((m) => m - owed);
+      else setMoneyCedis((m) => m - owed);
+      setHomeState((prev) => ({ ...prev, dailyBillsOwed: 0 }));
+      audioRef.current?.playChime("coin");
+      const msg = `Cleared GH₵ ${owed} Tamale utility & water rates!`;
+      showToast(msg);
+      return { ok: true, message: msg };
+    },
+    [momoBalanceCedis, moneyCedis, showToast]
+  );
+
+  const handleSelectWardrobeOutfit = useCallback(
+    (outfit: OutfitStyle): { ok: boolean; message: string } => {
+      const updated = { ...customization, outfit };
+      setCustomization(updated);
+      engineRef.current?.updatePlayerCustomization(updated);
+      setLaundryState((prev) => ({ ...prev, outfitCleanliness: 100 }));
+      setNeeds((prev) => ({ ...prev, comfort: clampNeed(prev.comfort + 10) }));
+      markHomeRoutineDone("laundry_care");
+      audioRef.current?.playChime("success");
+      return { ok: true, message: `Changed into ${outfit} outfit (100% Clean).` };
+    },
+    [customization, markHomeRoutineDone]
+  );
+
+  const handleBuyWardrobeOutfit = useCallback(
+    (
+      outfit: OutfitStyle,
+      cost: number,
+      payWith: "cash" | "momo"
+    ): { ok: boolean; message: string } => {
+      const wallet = payWith === "momo" ? momoBalanceCedis : moneyCedis;
+      if (wallet < cost) {
+        return {
+          ok: false,
+          message: `Need GH₵ ${cost} (${payWith.toUpperCase()}) for tailoring.`,
+        };
+      }
+      if (payWith === "momo") setMomoBalanceCedis((m) => m - cost);
+      else setMoneyCedis((m) => m - cost);
+      setOwnedOutfits((prev) => (prev.includes(outfit) ? prev : [...prev, outfit]));
+      const updated = { ...customization, outfit };
+      setCustomization(updated);
+      engineRef.current?.updatePlayerCustomization(updated);
+      setLaundryState((prev) => ({ ...prev, outfitCleanliness: 100 }));
+      setCultureXp((xp) => xp + 15);
+      markHomeRoutineDone("laundry_care");
+      audioRef.current?.playChime("success");
+      return { ok: true, message: `Tailored & equipped ${outfit}!` };
+    },
+    [customization, markHomeRoutineDone, momoBalanceCedis, moneyCedis]
+  );
 
   const activeNpc = activeNpcId ? TAMALE_NPCS.find((n) => n.id === activeNpcId) || null : null;
   const activeInteriorLandmark = activeInteriorLandmarkId
@@ -1875,19 +2964,33 @@ export default function App() {
           onDismissOnboarding={handleDismissOnboarding}
           district={district}
           formattedTime={formatClock(gameMinutes)}
+          dayCount={dayCount}
           timePeriodLabel={timePeriodLabel}
           moneyCedis={moneyCedis}
           energy={energy}
+          needs={needs}
           cultureXp={cultureXp}
           activeCharacterName={customization.name || activeProfile.name}
           activeCareerTitle={activeCareerRank.title}
           isDriving={isDriving}
           isRidingService={isRidingService}
           drivingLabel={drivingLabel}
+          drivingKind={drivingKind}
+          vehicleHealthPct={vehicleHealthPct}
           speedKmh={speedKmh}
           nearby={nearby}
           nearbyVehicle={nearbyVehicle}
           nearbyChatter={nearbyChatter}
+          nearbySignal={nearbySignal}
+          policePursuitActive={policePursuitActive}
+          impoundedVehicleId={impoundedVehicleId}
+          navSnapshot={navSnapshot}
+          cargoIntegrityPct={cargoIntegrityPct}
+          cargoLoadProgressPct={cargoLoadProgressPct}
+          policeCruiserPositions={policeCruiserPositions}
+          roadIncidentPositions={roadIncidentPositions}
+          playerPos={playerPos}
+          servicePos={servicePos}
           nearestGuidance={nearestGuidance}
           activeErrandTitle={activeErrand ? activeErrand.title : null}
           activeGigTitle={activeGig ? activeGig.title : null}
@@ -2158,31 +3261,204 @@ export default function App() {
           }}
           onInvestBusiness={handleInvestBusiness}
           onFastTravelLandmark={handleFastTravelToLandmark}
+          onNavigateHome={() => {
+            const homeLm = TAMALE_LANDMARKS.find((l) => l.id === "player_home");
+            engineRef.current?.setNavigationDestination({
+              landmarkId: "player_home",
+              label: homeState.homeName || (homeLm?.name ?? "Personal Residence"),
+              x: 20,
+              z: 89,
+            });
+            setShowPhone(false);
+            showToast("GPS route plotted to your Changli Compound Home!");
+          }}
+          onTravelHome={() => {
+            const homeLm = TAMALE_LANDMARKS.find((l) => l.id === "player_home");
+            if (homeLm) handleFastTravelToLandmark(homeLm);
+          }}
+          onToggleHomeReminders={() =>
+            setHomeState((prev) => ({ ...prev, remindersEnabled: !prev.remindersEnabled }))
+          }
           onClose={() => setShowPhone(false)}
         />
       )}
 
       {/* Interactive Station Overlay inside Walkable 3D Building Interiors */}
       {activeInteriorSpec && activeInteriorStation && (
-        <InteriorServiceOverlay
-          room={activeInteriorSpec}
-          stationKind={activeInteriorStation.kind}
-          stationLabel={activeInteriorStation.label}
-          shopId={activeInteriorStation.shopId}
+        activeInteriorSpec.landmarkId === "player_home" ||
+        ALWAYS_HOME_STATION_KINDS.has(activeInteriorStation.kind) ? (
+          <HomeStationModal
+            stationKind={activeInteriorStation.kind as HomeStationKind}
+            stationLabel={activeInteriorStation.label}
+            dayCount={dayCount}
+            gameMinutes={gameMinutes}
+            energy={energy}
+            moneyCedis={moneyCedis}
+            momoBalanceCedis={momoBalanceCedis}
+            needs={needs}
+            homeState={homeState}
+            laundryState={laundryState}
+            customization={customization}
+            ownedOutfits={ownedOutfits}
+            policePursuitActive={policePursuitActive}
+            onSleepUntil={handleSleepUntil}
+            onHygieneAction={handleHygieneAction}
+            onCookRecipe={handleCookRecipe}
+            onEatCookedMeal={handleEatCookedMeal}
+            onDrinkHomeWater={handleDrinkHomeWater}
+            onCleanAction={handleCleanAction}
+            onLaundryAction={handleLaundryAction}
+            onRelaxSofaTv={handleRelaxSofaTv}
+            onPurchaseHomeUpgrade={handlePurchaseHomeUpgrade}
+            onPayHomeBills={handlePayHomeBills}
+            onSelectWardrobeOutfit={handleSelectWardrobeOutfit}
+            onBuyWardrobeOutfit={handleBuyWardrobeOutfit}
+            onToggleReminders={() =>
+              setHomeState((prev) => ({ ...prev, remindersEnabled: !prev.remindersEnabled }))
+            }
+            onClose={() => setActiveInteriorStation(null)}
+          />
+        ) : (
+          <InteriorServiceOverlay
+            room={activeInteriorSpec}
+            stationKind={activeInteriorStation.kind}
+            stationLabel={activeInteriorStation.label}
+            shopId={activeInteriorStation.shopId}
+            moneyCedis={moneyCedis}
+            bankBalanceCedis={bankBalanceCedis}
+            momoBalanceCedis={momoBalanceCedis}
+            savingsBalanceCedis={savingsBalanceCedis}
+            energy={energy}
+            vehicleCondition={vehicleCondition}
+            customization={customization}
+            policeFinesOwedCedis={policeFinesOwedCedis}
+            trafficViolationsCount={trafficViolationsCount}
+            cleanDrivingStreak={cleanDrivingStreak}
+            impoundedVehicleId={impoundedVehicleId}
+            onAdjustWallets={handleAdjustWallets}
+            onBuyItem={handleBuyItem}
+            onApplyEnergyAndTime={handleApplyEnergyAndTime}
+            onRepairVehicle={handleRepairVehicle}
+            onApplyCustomization={handleApplyStationCustomization}
+            onPayPoliceFines={(payWith) => {
+              if (policeFinesOwedCedis <= 0) return false;
+              const wallet = payWith === "momo" ? momoBalanceCedis : moneyCedis;
+              if (wallet < policeFinesOwedCedis) {
+                showToast(`Need GH₵ ${policeFinesOwedCedis} (${payWith.toUpperCase()}).`);
+                return false;
+              }
+              if (payWith === "momo") setMomoBalanceCedis((m) => m - policeFinesOwedCedis);
+              else setMoneyCedis((m) => m - policeFinesOwedCedis);
+              setPoliceFinesOwedCedis(0);
+              audioRef.current?.playChime("success");
+              showToast("Cleared all outstanding Tamale MTTD fines!");
+              return true;
+            }}
+            onReleaseImpoundedVehicle={(payWith) => {
+              const fee = 120;
+              const wallet = payWith === "momo" ? momoBalanceCedis : moneyCedis;
+              if (wallet < fee) {
+                showToast(`Need GH₵ ${fee} (${payWith.toUpperCase()}) for impound release.`);
+                return false;
+              }
+              if (payWith === "momo") setMomoBalanceCedis((m) => m - fee);
+              else setMoneyCedis((m) => m - fee);
+              const rel = engineRef.current?.releaseImpoundedVehicle();
+              setImpoundedVehicleId(null);
+              audioRef.current?.playChime("success");
+              showToast(
+                `Released vehicle ${rel?.releasedId ?? ""} from Tamale Police HQ yard!`
+              );
+              return true;
+            }}
+            onOpenClubGames={() => {
+              setActiveInteriorStation(null);
+              setShowClubGames(true);
+            }}
+            onToggleRoomMusic={(action) => {
+              if (action === "next") {
+                musicEngineRef.current?.next();
+              } else {
+                musicEngineRef.current?.togglePlayPause();
+              }
+              setShowMiniRadioBar(true);
+            }}
+            onOpenDagbaniGuide={() => setShowDagbaniGuide(true)}
+            onClose={() => setActiveInteriorStation(null)}
+          />
+        )
+      )}
+
+      {/* Ghana Police Service (MTTD) Traffic Citation & Stop Modal */}
+      {activePoliceStop && (
+        <PoliceStopModal
+          notice={activePoliceStop}
           moneyCedis={moneyCedis}
-          bankBalanceCedis={bankBalanceCedis}
           momoBalanceCedis={momoBalanceCedis}
-          savingsBalanceCedis={savingsBalanceCedis}
-          energy={energy}
-          vehicleCondition={vehicleCondition}
-          customization={customization}
-          onAdjustWallets={handleAdjustWallets}
-          onBuyItem={handleBuyItem}
-          onApplyEnergyAndTime={handleApplyEnergyAndTime}
-          onRepairVehicle={handleRepairVehicle}
-          onApplyCustomization={handleApplyStationCustomization}
-          onOpenDagbaniGuide={() => setShowDagbaniGuide(true)}
-          onClose={() => setActiveInteriorStation(null)}
+          isDriving={isDriving}
+          onResolve={(action) => {
+            const notice = activePoliceStop;
+            if (!notice) return;
+            if (action === "pay_cash") {
+              if (moneyCedis < notice.fineCedis) {
+                showToast(`Need GH₵ ${notice.fineCedis} cash.`);
+                return;
+              }
+              setMoneyCedis((m) => m - notice.fineCedis);
+              setTrafficViolationsCount((c) => c + 1);
+              setCleanDrivingStreak(0);
+              engineRef.current?.resolvePoliceStop("pay_cash");
+              setActivePoliceStop(null);
+              audioRef.current?.playChime("coin");
+              showToast(`Settled GH₵ ${notice.fineCedis} MTTD fine in cash.`);
+            } else if (action === "pay_momo") {
+              if (momoBalanceCedis < notice.fineCedis) {
+                showToast(`Need GH₵ ${notice.fineCedis} MoMo.`);
+                return;
+              }
+              setMomoBalanceCedis((m) => m - notice.fineCedis);
+              setTrafficViolationsCount((c) => c + 1);
+              setCleanDrivingStreak(0);
+              engineRef.current?.resolvePoliceStop("pay_momo");
+              setActivePoliceStop(null);
+              audioRef.current?.playChime("coin");
+              showToast(`Settled GH₵ ${notice.fineCedis} MTTD fine via MoMo.`);
+            } else if (action === "accept_warning") {
+              setTrafficViolationsCount((c) => c + 1);
+              engineRef.current?.resolvePoliceStop("accept_warning");
+              setActivePoliceStop(null);
+              audioRef.current?.playChime("interact");
+              showToast("Official 1st MTTD warning recorded. Drive carefully!");
+            } else {
+              setTrafficViolationsCount((c) => c + 1);
+              setPoliceFinesOwedCedis((f) => f + notice.fineCedis);
+              setCleanDrivingStreak(0);
+              const res = engineRef.current?.resolvePoliceStop("impound");
+              setImpoundedVehicleId(res?.impoundedVehicleId ?? null);
+              setActivePoliceStop(null);
+              showToast(
+                "Vehicle impounded at Tamale Central Police HQ. Visit Police Desk to settle & release."
+              );
+            }
+          }}
+        />
+      )}
+
+      {/* Non-Gambling Club Social Lounge Table (Oware & Ludo) */}
+      {showClubGames && (
+        <ClubEntertainmentModal
+          venueTitle={activeInteriorSpec?.title ?? "Tamale Night Lounge"}
+          onGameComplete={(result) => {
+            setCultureXp((xp) => xp + result.xpEarned);
+            setEnergy((e) => Math.min(100, e + result.energyBoost));
+            audioRef.current?.playChime("success");
+            showToast(
+              `${result.game === "oware" ? "Oware" : "Ludo"} ${
+                result.won ? "victory" : "match"
+              }! +${result.xpEarned} Culture XP & +${result.energyBoost}% Mood Energy.`
+            );
+          }}
+          onClose={() => setShowClubGames(false)}
         />
       )}
 
@@ -2279,6 +3555,18 @@ export default function App() {
           }
           npcStates={npcStates}
           servicePos={servicePos}
+          navRoutePoints={navSnapshot?.routePoints ?? []}
+          navTargetLabel={navSnapshot?.targetLabel ?? null}
+          policeCruiserPositions={policeCruiserPositions}
+          roadIncidentPositions={roadIncidentPositions}
+          onSetNavDestination={(dest) => {
+            engineRef.current?.setNavigationDestination(dest);
+            showToast(`GPS Route plotted to ${dest.label}`);
+          }}
+          onClearNavDestination={() => {
+            engineRef.current?.clearNavigationDestination();
+            showToast("Cleared GPS route.");
+          }}
           onInspectLandmark={(lm) => {
             setShowMap(false);
             setActiveDiscoveryCard(lm);
@@ -2413,6 +3701,12 @@ export default function App() {
             updateSettings({ keyBindings: { ...DEFAULT_KEY_BINDINGS } })
           }
           onResetTutorialHints={handleResetTutorialHints}
+          debugWireframe={debugWireframe}
+          onToggleDebugWireframe={() => {
+            const next = !debugWireframe;
+            setDebugWireframe(next);
+            engineRef.current?.setDebugWireframeVisible(next);
+          }}
           onClose={() => setShowSettings(false)}
         />
       )}

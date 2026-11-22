@@ -1,0 +1,2164 @@
+# TAMALE 3D
+## MASTER UPGRADE: REALISM, GRAPHICS, CITY INFRASTRUCTURE, TRAFFIC, LAW ENFORCEMENT, NIGHTLIFE, MUSIC & IMMERSIVE GAMEPLAY
+
+Act as a senior game development team consisting of:
+
+- Senior game engine developer
+- Three.js specialist
+- React and TypeScript engineer
+- 3D character artist
+- Animation specialist
+- Vehicle simulation engineer
+- AI and NPC behaviour engineer
+- Urban environment designer
+- Traffic simulation engineer
+- Game UI/UX designer
+- Audio engineer
+- Performance optimization engineer
+- Quality assurance engineer
+
+You are working on the EXISTING TAMALE 3D project.
+
+TAMALE 3D is an open-world city life simulator based on Tamale, Northern Ghana.
+
+The project currently uses React, TypeScript, Three.js, and Vite, and already contains a world engine, playable characters, NPC schedules, vehicles, traffic, roads, landmarks, businesses, interiors, jobs, economy, weather, music, and other gameplay systems.
+
+## YOUR MISSION
+
+Transform the existing TAMALE 3D project into a visually impressive, realistic, immersive, functional, and interconnected open-world city simulator.
+
+The game should capture the experience of living, moving, working, socializing, transporting goods, driving, exploring, and enjoying city life in Tamale.
+
+I want the game world to feel alive.
+
+Characters should look like real humans.
+
+Cars should look like real cars.
+
+Motorcycles should look like real motorcycles.
+
+Trucks should transport goods.
+
+Roads should be properly connected.
+
+Buildings must be aligned properly with the urban environment.
+
+Traffic lights must work.
+
+Police must enforce laws.
+
+Players should be able to experience nightlife, enter clubs, listen to Northern Ghanaian music, dance, socialize, transport goods, complete jobs, encounter accidents, and navigate the city.
+
+The city must have meaningful day and night life.
+
+This is an upgrade to the existing project, not a new game.
+
+---
+
+# PHASE 0: AUDIT THE EXISTING GAME BEFORE MODIFYING IT
+
+Before writing code, deeply inspect the existing codebase.
+
+Review:
+
+- Game engine
+- Rendering pipeline
+- Scene architecture
+- World generation
+- Road network
+- Road graph
+- Building placement
+- Landmark placement
+- Terrain
+- Player movement
+- Collision system
+- Character models
+- Animation
+- Vehicle models
+- Vehicle physics
+- Traffic simulation
+- NPC schedules
+- NPC navigation
+- Interior system
+- Job system
+- Economy
+- Save system
+- Music player
+- Audio
+- Weather
+- Time system
+- Map
+- Navigation
+- UI
+- Mobile controls
+- Existing performance optimizations
+
+Identify weaknesses, broken systems, unfinished features, duplicate implementations, disconnected roads, misplaced buildings, visual limitations, and potential regressions.
+
+Do not duplicate systems that already exist.
+
+Extend and improve existing implementations wherever possible.
+
+Preserve existing architecture, player progress, character saves, and save migrations.
+
+Do not destructively rewrite the game.
+
+Create a phased implementation plan and work through it in controlled stages.
+
+---
+
+# PHASE 1: MAJOR GRAPHICAL QUALITY UPGRADE
+
+## 1. Upgrade the overall graphics
+
+The current game must be upgraded from simplistic procedural visuals toward a much more realistic 3D city experience.
+
+Improve the overall visual quality of:
+
+- Human characters
+- Cars
+- Motorcycles
+- Trucks
+- Roads
+- Buildings
+- Houses
+- Markets
+- Shops
+- Interiors
+- Trees
+- Vegetation
+- Furniture
+- Infrastructure
+- Lighting
+- Shadows
+- Sky
+- Weather
+- Environmental effects
+
+Eliminate the appearance of a city assembled from primitive cubes, cylinders, and flat-coloured objects wherever better assets or geometry are appropriate.
+
+Use high-quality models, detailed geometry, realistic materials, proper proportions, and visually coherent environments.
+
+Implement appropriate:
+
+- Physically based rendering
+- Material maps
+- Texture mapping
+- Roughness
+- Metalness
+- Realistic surface properties
+- Environmental lighting
+- Directional lighting
+- Ambient lighting
+- Contact shadows
+- Ambient occlusion where feasible
+- Improved reflections
+- Atmospheric perspective
+- Dust
+- Wind
+- Weather effects
+- Natural sunlight
+- Improved sky
+- Color grading
+
+Avoid overusing post-processing.
+
+The objective is realistic visuals, not excessive visual effects.
+
+## 2. Visual authenticity of Tamale
+
+The city must visibly reflect Tamale and Northern Ghana.
+
+Do not create a generic city and rename buildings.
+
+Research visual references and use them to inform:
+
+- Road layouts
+- Residential architecture
+- Commercial architecture
+- Market structures
+- Houses
+- Compounds
+- Kiosks
+- Shops
+- Mosques
+- Schools
+- Offices
+- Workshops
+- Transport stations
+- Streets
+- Public spaces
+- Vegetation
+- Signage
+- Electrical infrastructure
+- Drainage
+- Street furniture
+
+Include the diversity of Tamale's urban environment.
+
+Examples:
+
+- Traditional Dagomba compound houses
+- Modern concrete homes
+- Mud-brick structures where appropriate
+- Courtyard houses
+- Multi-storey buildings
+- Apartments
+- Rental compounds
+- Commercial properties
+- Uncompleted buildings
+- New developments
+- Market stalls
+- Street kiosks
+- Warehouses
+- Workshops
+- Modern shops
+- Old buildings
+
+Avoid repetitive buildings.
+
+Districts should have distinct identities and architectural variation.
+
+## 3. Asset quality
+
+Use quality assets where available.
+
+Prefer:
+
+- Properly rigged characters
+- Skeletal animation
+- High-quality vehicle models
+- Detailed building assets
+- Realistic textures
+- Optimized materials
+- Appropriate asset formats
+
+Investigate suitable models and asset pipelines.
+
+Respect copyright, asset licences, redistribution permissions, and commercial-use restrictions.
+
+Do not assume online images, models, textures, or music can be freely used.
+
+Maintain a record of asset sources and licence status.
+
+Where high-quality assets are unavailable, improve procedural generation intelligently rather than relying on primitive geometry.
+
+---
+
+# PHASE 2: REALISTIC HUMAN CHARACTERS
+
+## 4. Make characters look like normal human beings
+
+The playable characters and NPCs must look convincingly human.
+
+Improve:
+
+- Body proportions
+- Head proportions
+- Facial structure
+- Eyes
+- Nose
+- Mouth
+- Ears
+- Skin
+- Hands
+- Fingers where feasible
+- Shoulders
+- Arms
+- Legs
+- Feet
+- Neck
+- Hair
+- Facial hair
+
+Eliminate cartoonishly oversized heads, rigid bodies, cylinder-like limbs, unnatural body proportions, and primitive-looking human models.
+
+Use properly rigged human models wherever feasible.
+
+The target is natural-looking human characters that belong in a modern open-world city simulator.
+
+## 5. Population diversity
+
+Create a varied population.
+
+NPCs must not look like repeated copies.
+
+Vary:
+
+- Height
+- Body build
+- Facial features
+- Skin tones
+- Age appearance
+- Hair
+- Facial hair
+- Clothing
+- Accessories
+- Posture
+- Movement
+- Personality
+- Occupation
+
+Represent the diversity of people living in Tamale.
+
+Include:
+
+- Students
+- Traders
+- Workers
+- Drivers
+- Riders
+- Farmers visiting the city
+- Professionals
+- Teachers
+- Shop owners
+- Children in appropriate environments
+- Older people
+- Families
+- Groups of friends
+- Customers
+- Tourists
+- Artisans
+- Religious community members
+
+Ensure clothing is appropriate to the environment and activity.
+
+## 6. Clothing and fashion
+
+Improve clothing variety.
+
+Include:
+
+- Casual shirts
+- T-shirts
+- Trousers
+- Dresses
+- Skirts
+- Jeans
+- Traditional smocks
+- Northern traditional clothing
+- Modern urban fashion
+- Work clothes
+- School uniforms
+- Sportswear
+- Nightlife fashion
+- Religious attire
+- Market clothing
+
+Clothing should be appropriately fitted and visually distinct.
+
+Avoid flat colour textures that make characters look artificial.
+
+## 7. Human animation
+
+Improve movement and animation.
+
+Implement or refine:
+
+- Walking
+- Running
+- Stopping
+- Turning
+- Jumping
+- Sitting
+- Standing
+- Talking
+- Greeting
+- Gesturing
+- Eating
+- Drinking
+- Dancing
+- Shopping
+- Using phones
+- Carrying goods
+- Loading cargo
+- Unloading cargo
+- Working
+- Driving
+- Boarding vehicles
+- Exiting vehicles
+
+Use animation blending.
+
+Avoid:
+
+- Sliding
+- Floating
+- Rigid motion
+- Repetitive identical animation
+- Abrupt turning
+- Unnatural acceleration
+- NPCs walking endlessly into obstacles
+
+NPCs should have behaviours that correspond to their environment and activities.
+
+---
+
+# PHASE 3: REALISTIC VEHICLES, MOTORCYCLES AND TRUCKS
+
+## 8. Improve all vehicle models
+
+Upgrade all cars, motorcycles, and commercial vehicles.
+
+Cars should look like actual vehicles, with proper:
+
+- Body shapes
+- Proportions
+- Tyres
+- Rims
+- Wheels
+- Windows
+- Windshields
+- Headlights
+- Tail lights
+- Mirrors
+- Bumpers
+- Grilles
+- Doors
+- Paint
+- Number plates
+- Interiors where visible
+
+Motorcycles should have proper:
+
+- Frames
+- Seats
+- Wheels
+- Tyres
+- Handlebars
+- Lights
+- Rider positions
+- Proportions
+
+Introduce vehicle diversity.
+
+Include:
+
+- Sedans
+- SUVs
+- Pickup trucks
+- Taxis
+- Older cars
+- Modern cars
+- Minibuses
+- Pragya vehicles
+- Motorcycles
+- Motorbike taxis
+- Delivery vehicles
+- Cargo vehicles
+
+Do not reuse the same vehicle model repeatedly across the entire city.
+
+## 9. Vehicle physics and behaviour
+
+Improve vehicle handling.
+
+Implement appropriate:
+
+- Acceleration
+- Braking
+- Steering
+- Turning
+- Vehicle weight
+- Suspension response
+- Grip
+- Collision response
+- Reverse
+- Parking
+- Headlights
+- Brake lights
+- Horns
+- Indicators where supported
+
+Different vehicles must behave differently.
+
+Motorcycles should feel different from cars.
+
+Trucks should feel heavier and require more room to turn and stop.
+
+Vehicles must not drive through buildings, other vehicles, pedestrians, road barriers, or solid structures.
+
+---
+
+# PHASE 4: TRUCKS, CARGO AND TRANSPORT ECONOMY
+
+## 10. Introduce functional trucks
+
+Create cargo transport vehicles.
+
+Include:
+
+- Pickup trucks
+- Small delivery trucks
+- Box trucks
+- Flatbed trucks
+- Commercial cargo trucks
+- Goods transport vehicles
+
+Vehicles should visibly carry goods.
+
+Cargo may include:
+
+- Rice
+- Grain
+- Yams
+- Vegetables
+- Fruits
+- Cement
+- Timber
+- Building materials
+- Market produce
+- Furniture
+- Household goods
+- Shop supplies
+- Packaged merchandise
+- Water supplies
+
+Goods should fit properly within the vehicle.
+
+Cargo should not float, clip through the truck, or randomly disappear.
+
+## 11. Cargo loading and unloading
+
+Create physical or visually convincing loading and unloading systems.
+
+Players should be able to:
+
+- Collect goods
+- Inspect cargo
+- Load goods
+- Secure cargo where appropriate
+- Transport goods
+- Unload goods
+- Deliver cargo
+- Receive payment
+
+Goods should be represented visually.
+
+Where full physical item simulation is too expensive, use efficient animation and interaction systems.
+
+## 12. Transport jobs
+
+Introduce a complete transport job system.
+
+Jobs may include:
+
+- Market deliveries
+- Shop supply deliveries
+- Warehouse deliveries
+- Produce transportation
+- Building material deliveries
+- Furniture transportation
+- Household goods
+- Parcel deliveries
+- Business supply transport
+- Farm-to-market deliveries
+
+Gameplay sequence:
+
+1. Browse available transport jobs.
+2. Select a job.
+3. Review pickup location.
+4. Review destination.
+5. Review cargo type and quantity.
+6. Review reward and deadline.
+7. Accept the job.
+8. Travel to the pickup.
+9. Load goods.
+10. Navigate to the destination.
+11. Transport the goods.
+12. Unload goods.
+13. Complete the delivery.
+14. Receive payment.
+15. Update reputation and progression.
+
+Jobs should use actual roads and connected navigation.
+
+Include different job requirements depending on cargo size, vehicle type, and weight.
+
+Motorcycles should not be able to transport truck-sized cargo.
+
+Introduce appropriate gameplay risks such as traffic, fuel, vehicle condition, cargo damage, and delays.
+
+---
+
+# PHASE 5: FIX THE ENTIRE ROAD NETWORK
+
+## 13. Road connectivity audit
+
+The current city contains disconnected roads.
+
+This must be treated as a critical infrastructure problem.
+
+Audit every road segment and junction.
+
+Build a properly connected road network.
+
+Roads must connect to:
+
+- Major roads
+- Minor roads
+- Residential streets
+- Commercial streets
+- Market roads
+- Transport areas
+- Access roads
+- Appropriate parking areas
+
+Ensure the road graph is navigable by vehicles.
+
+Identify:
+
+- Disconnected roads
+- Missing connections
+- Invalid junctions
+- Road overlaps
+- Floating segments
+- Road gaps
+- Sharp turns
+- Roads ending unexpectedly
+- Roads passing through buildings
+- Inconsistent elevations
+- Unusable intersections
+- Incorrect road widths
+
+Fix these problems.
+
+## 14. Road geometry
+
+Improve road geometry.
+
+Ensure:
+
+- Roads are aligned.
+- Curves are smooth.
+- Widths are consistent.
+- Road surfaces connect.
+- Junctions are properly constructed.
+- Sidewalks connect.
+- Drainage is appropriately placed.
+- Road markings are aligned.
+- Road elevations are consistent.
+- Vehicle routes are physically traversable.
+
+Create believable transitions between major roads, neighbourhood roads, market roads, and residential streets.
+
+## 15. Building placement and alignment
+
+The current world has buildings that sit on roads or intersect road surfaces.
+
+Audit all building placements.
+
+Correct buildings that:
+
+- Occupy roads
+- Block intersections
+- Intersect traffic lanes
+- Overlap sidewalks incorrectly
+- Float above the ground
+- Sink into terrain
+- Overlap other buildings
+- Have inaccessible entrances
+- Face inappropriate directions
+
+Correct position, rotation, scale, and footprint.
+
+Do not move buildings randomly.
+
+Use road geometry, building footprints, district boundaries, and reference data to determine correct placement.
+
+Maintain appropriate pedestrian access.
+
+## 16. Infrastructure validation
+
+Implement development-time validation tools.
+
+Detect:
+
+- Road connectivity errors
+- Invalid junctions
+- Buildings overlapping roads
+- Road overlaps
+- Missing road connections
+- Building collisions
+- Inaccessible entrances
+- Floating objects
+- Terrain intersection errors
+- Vehicles spawning inside objects
+
+Add a debug mode that visualizes:
+
+- Road nodes
+- Road connections
+- Road graph
+- Building bounding boxes
+- Collision boundaries
+- NPC navigation paths
+- Vehicle paths
+- Traffic routes
+
+These tools must be disabled during normal gameplay.
+
+---
+
+# PHASE 6: FUNCTIONAL TRAFFIC LIGHTS
+
+## 17. Install realistic traffic lights
+
+Add functional traffic lights at appropriate intersections.
+
+Use real Tamale road infrastructure as reference where applicable.
+
+Traffic lights should be installed at:
+
+- Major intersections
+- Busy junctions
+- Important commercial areas
+- High-traffic roads
+- Selected pedestrian crossings
+
+Not every street requires a traffic light.
+
+Smaller residential streets should use appropriate priority rules, stop signs, or uncontrolled junctions.
+
+## 18. Traffic light models
+
+Create realistic traffic signal models including:
+
+- Red lights
+- Amber lights
+- Green lights
+- Poles
+- Signal arms
+- Mounting brackets
+- Signal housings
+- Stop lines
+- Road markings
+
+Position them correctly.
+
+Ensure they face the appropriate traffic directions and are visible to approaching vehicles.
+
+Avoid traffic lights floating above roads or placed inside structures.
+
+Use emissive materials for signal illumination.
+
+Avoid excessive real-time light sources that reduce performance.
+
+## 19. Traffic signal state machine
+
+Implement proper traffic signal states.
+
+States:
+
+- RED
+- AMBER
+- GREEN
+- ALL-RED CLEARANCE where appropriate
+- RED + AMBER only where supported by the selected traffic convention
+
+Use a consistent signal convention appropriate to Ghana.
+
+Use configurable timings.
+
+Example:
+
+- Green: 20 to 35 seconds
+- Amber: 3 to 5 seconds
+- Clearance: appropriate short safety interval
+- Red: determined by the other intersection phases
+
+Do not randomly change signals.
+
+Do not allow conflicting directions to receive green simultaneously.
+
+## 20. Intersection movement logic
+
+Each signalized intersection must have a defined movement configuration.
+
+Support:
+
+- Northbound
+- Southbound
+- Eastbound
+- Westbound
+- Left-turn movements where applicable
+- Straight-through movements
+- Right-turn movements
+
+Identify the lanes controlled by each signal.
+
+Traffic signals must correspond to the actual road directions and traffic flow.
+
+## 21. AI vehicles obey traffic signals
+
+AI vehicles must respond to traffic lights.
+
+When approaching a red light, they should:
+
+1. Detect the correct traffic signal.
+2. Identify the controlled lane and direction.
+3. Reduce speed.
+4. Brake smoothly.
+5. Stop before the stop line.
+6. Wait.
+7. Proceed when permitted.
+
+Vehicles must not routinely run red lights.
+
+Prevent:
+
+- Vehicles stopping in the middle of junctions
+- Vehicles overlapping
+- Vehicles entering occupied intersections
+- Conflicting traffic movements
+- Unnecessary permanent traffic jams
+
+Implement realistic vehicle queues.
+
+Vehicles should advance naturally when the light changes.
+
+## 22. Traffic signal behaviour for players
+
+Traffic lights apply to the player.
+
+The player should be able to obey or violate signals.
+
+Detect:
+
+- Crossing stop lines during red
+- Entering intersections against red
+- Dangerous signal violations
+
+Do not penalize the player simply for being near a red signal.
+
+The system must know the player's direction, vehicle, intersection, signal, and actual movement.
+
+Integrate traffic violations with the law enforcement system.
+
+## 23. Pedestrian crossings
+
+Introduce pedestrian signals at selected intersections.
+
+Include:
+
+- WALK
+- DON'T WALK
+
+Pedestrians should cross at appropriate times and avoid moving traffic.
+
+At crossings without signals, use appropriate pedestrian gap behaviour.
+
+Prevent pedestrians from randomly walking into traffic.
+
+## 24. Traffic flow and coordination
+
+Coordinate traffic signals at nearby major intersections where appropriate.
+
+Implement:
+
+- Basic signal offsets
+- Traffic flow coordination
+- Time-of-day variation
+- Congestion-responsive timing where feasible
+
+Avoid making every signal change simultaneously.
+
+Traffic volume should reflect:
+
+- Morning rush
+- School hours
+- Market activity
+- Afternoon
+- Evening rush
+- Nightlife
+- Late night
+
+---
+
+# PHASE 7: POLICE AND LAW ENFORCEMENT
+
+## 25. Introduce police into the city
+
+Add a realistic law-enforcement ecosystem.
+
+Include:
+
+- Police officers
+- Police patrol vehicles
+- Police stations
+- Patrol routines
+- Traffic enforcement
+- Traffic stops
+- Roadside checks
+- Emergency response
+- Officer interactions
+- Warnings
+- Fines
+- Arrests
+
+Police must be functional NPCs with routines, navigation, and behaviours.
+
+Do not simply place static police models around the city.
+
+## 26. Traffic law violations
+
+Implement a traffic violation system.
+
+Potential violations:
+
+- Running red lights
+- Dangerous speeding
+- Driving against traffic
+- Dangerous driving
+- Illegal parking
+- Driving in restricted areas
+- Dangerous motorcycle behaviour
+- Ignoring lawful police instructions
+- Driving without required equipment where the game supports it
+- Dangerous collisions
+
+Only implement violations that can be reliably detected.
+
+Do not falsely penalize the player for mechanics that are not implemented.
+
+## 27. Police detection
+
+Police may detect violations based on:
+
+- Proximity
+- Visibility
+- Line of sight
+- Patrol location
+- Officer observation
+- Traffic enforcement areas
+- Violation severity
+
+The player should not receive random invisible penalties.
+
+Provide appropriate feedback.
+
+## 28. Traffic stops and arrests
+
+Create an actual traffic stop system.
+
+Sequence:
+
+1. Player commits a detected violation.
+2. Officer observes it.
+3. Police response is initiated.
+4. Officer or patrol vehicle approaches.
+5. Player receives a stop instruction.
+6. Player stops.
+7. Officer approaches.
+8. Interaction occurs.
+9. Warning, fine, or arrest is determined.
+
+Arrest should not occur instantly merely because a violation was detected.
+
+Introduce escalating consequences:
+
+- Warning
+- Fine
+- Vehicle impound
+- Arrest
+- Temporary loss of freedom of movement
+- Administrative penalties
+
+Keep consequences understandable and fair.
+
+## 29. Police routines
+
+Police should behave as part of city life.
+
+Include:
+
+- Patrol routes
+- Traffic observation
+- Station routines
+- Responding to accidents
+- Market patrols
+- Public event patrols
+- Nightlife patrols
+- Traffic stop procedures
+
+Avoid overly aggressive police behaviour.
+
+The system should make the city believable, not turn it into a constant police chase game.
+
+---
+
+# PHASE 8: USABLE OVERHEAD ROADS, FLYOVERS AND INTERCHANGES
+
+## 30. Make elevated roads functional
+
+Any overhead road, flyover, bridge, or interchange present in the game must be usable where appropriate.
+
+Players should be able to:
+
+- Drive onto ramps
+- Travel along elevated roads
+- Navigate the structure
+- Reach connected roads
+- Descend using ramps
+- Walk on permitted pedestrian paths
+
+Ensure:
+
+- Correct elevation
+- Connected ramps
+- Proper road surfaces
+- Collision support
+- Navigation support
+- Traffic support
+- Realistic vehicle behaviour
+
+Vehicles must not teleport onto elevated roads.
+
+Prevent:
+
+- Floating
+- Falling through surfaces
+- Driving through support pillars
+- Getting trapped
+- Broken ramp transitions
+
+Pedestrian access should only be included where appropriate.
+
+Use real infrastructure references when representing real Tamale structures.
+
+Do not fabricate real landmarks.
+
+Clearly distinguish fictional infrastructure from real infrastructure.
+
+---
+
+# PHASE 9: NIGHTLIFE AND A LIVING CITY AT NIGHT
+
+## 31. Transform the city after dark
+
+Nighttime must feel different from daytime.
+
+The city should not simply become darker.
+
+Create realistic night city lighting and activities.
+
+Include:
+
+- Streetlights
+- Headlights
+- Tail lights
+- Brake lights
+- Shop lights
+- Illuminated signage
+- Neon lighting where appropriate
+- Restaurants
+- Clubs
+- Bars
+- Night food vendors
+- Social gathering places
+- Music
+- Dancing
+- Night-time transport
+- Markets where active
+- Lit homes
+- Security lights
+- Commercial buildings
+- Nightlife districts
+
+Lights must illuminate surroundings realistically.
+
+Avoid excessive glowing objects.
+
+Nighttime should have depth, atmosphere, and visual variety.
+
+## 32. Dynamic city lighting
+
+Improve:
+
+- Streetlight placement
+- Building lights
+- Vehicle lights
+- Club lighting
+- Shop interiors
+- Headlights
+- Brake lights
+- Signage
+- Ambient lighting
+- Shadow transitions
+
+Use light pooling and emissive materials appropriately.
+
+Optimize lighting for performance.
+
+Night lighting should be visible without making the entire city excessively bright.
+
+## 33. Nighttime population
+
+NPC routines must change at night.
+
+Some people:
+
+- Go home
+- Rest
+- Sleep
+- Socialize
+- Visit restaurants
+- Visit clubs
+- Attend events
+- Work night shifts
+- Sell food
+- Transport passengers
+- Drive taxis
+- Ride motorcycles
+- Gather with friends
+
+Nighttime population density must vary by location.
+
+Commercial and nightlife areas should be more active.
+
+Residential areas should become quieter.
+
+---
+
+# PHASE 10: FUNCTIONAL CLUBS AND ENTERTAINMENT
+
+## 34. Enterable clubs
+
+Create functional nightlife venues.
+
+Players must be able to:
+
+- Locate clubs
+- Navigate to them
+- Enter them
+- Explore the interiors
+- Listen to music
+- Socialize
+- Dance
+- Interact with staff
+- Purchase items or services where implemented
+- Leave
+
+Clubs must not be decorative buildings.
+
+## 35. Club interiors
+
+Create detailed interiors with:
+
+- Dance floors
+- DJ booths
+- Speakers
+- Lighting rigs
+- Seating
+- Tables
+- Bar or service counters where appropriate
+- Decorations
+- Security
+- Staff
+- Customers
+
+Create distinctive club environments.
+
+Not all clubs should look the same.
+
+## 36. Dancing and social behaviour
+
+Implement NPC dancing.
+
+Include:
+
+- Different dance styles
+- Individual dance animations
+- Group dancing
+- Social interactions
+- DJ behaviour
+- Crowd reactions
+- Sitting and socializing
+- Drinking or eating where appropriate
+
+NPCs should not all dance identically.
+
+Movement should reflect the music and the environment.
+
+## 37. Club audio
+
+Use spatial audio.
+
+Music should be audible outside clubs at reduced volume.
+
+Upon entering:
+
+- Music becomes clearer.
+- Volume increases naturally.
+- Interior sound profile changes.
+- Exterior noise decreases appropriately.
+
+When leaving, audio transitions smoothly.
+
+Different venues should have distinct sound identities.
+
+---
+
+# PHASE 11: ENTERTAINMENT AND GAMBLING ACTIVITIES
+
+## 38. Optional entertainment
+
+Introduce optional activities.
+
+Include:
+
+- Pool
+- Card games
+- Board games
+- Competitive games
+- Betting-themed games
+- Entertainment competitions
+- Social activities
+
+If gambling is included:
+
+- Keep it optional.
+- Use fictional in-game currency with no real monetary value.
+- Do not require gambling to complete progression.
+- Do not use real-money betting.
+- Do not use monetized gambling.
+- Avoid manipulative gambling design.
+- Provide alternative non-gambling activities.
+
+The objective is entertainment and city-life immersion.
+
+---
+
+# PHASE 12: ACCIDENTS AND EMERGENCY EVENTS
+
+## 39. Dynamic accident system
+
+Introduce occasional accidents into the city.
+
+Include:
+
+- Car collisions
+- Motorcycle collisions
+- Minor accidents
+- Roadside breakdowns
+- Traffic obstructions
+- Damaged vehicles
+- Emergency situations
+
+Accidents should occur at a believable frequency.
+
+Do not constantly create accidents.
+
+Do not spawn accidents directly on top of the player.
+
+## 40. Accident response
+
+When an accident occurs:
+
+- Vehicles stop appropriately.
+- Traffic slows.
+- NPCs react.
+- Bystanders may gather.
+- Police may respond.
+- Emergency services may respond where implemented.
+- Traffic may become congested.
+- Alternative routes may be used.
+
+Create varied events.
+
+Avoid repeating identical accident scenarios.
+
+## 41. Player-caused accidents
+
+When the player causes an accident:
+
+- Detect the collision.
+- Determine severity.
+- Apply vehicle damage.
+- Affect involved vehicles.
+- Trigger appropriate NPC reactions.
+- Create traffic disruptions.
+- Potentially attract police.
+- Apply repair costs or consequences.
+
+Avoid exaggerated explosions or unrealistic physics.
+
+Accidents should be handled with restraint and realism.
+
+---
+
+# PHASE 13: TASK MAP, MINI-MAP AND GPS NAVIGATION
+
+## 42. Persistent mini-map
+
+Add a mini-map to the main gameplay HUD.
+
+The map must display:
+
+- Player position
+- Player orientation
+- Nearby roads
+- Road connections
+- Important landmarks
+- Destination marker
+- Active task
+- Route
+- Nearby points of interest where useful
+
+The map must be accurate to the actual world.
+
+Do not generate a disconnected decorative map.
+
+## 43. Task navigation
+
+Whenever a player accepts a task:
+
+- Identify the destination.
+- Display it on the mini-map.
+- Calculate a valid route.
+- Highlight the route.
+- Show the destination marker.
+- Display distance remaining.
+- Provide directional guidance.
+- Update if the player goes off-route.
+- Recalculate when appropriate.
+- Notify the player upon arrival.
+
+Navigation must use the actual road graph.
+
+For walking, use pedestrian-accessible routes.
+
+For driving, use vehicle-accessible roads.
+
+For trucks, consider vehicle restrictions and suitable road types.
+
+Never draw navigation through buildings, walls, disconnected roads, or inaccessible areas.
+
+## 44. Navigation HUD
+
+Display only essential navigation information.
+
+Include:
+
+- Destination name
+- Distance
+- Direction
+- Route line
+- Arrival notification
+- Off-route indication
+
+Avoid clutter.
+
+The mini-map must remain visible but not obstruct gameplay.
+
+Adapt it to laptop, mobile, and tablet layouts.
+
+Allow the player to expand the map for detailed navigation.
+
+---
+
+# PHASE 14: REAL NORTHERN GHANAIAN MUSIC
+
+## 45. Integrate real Northern artists
+
+The game should eventually feature real Northern Ghanaian artists and their music.
+
+Research Northern Ghana's music scene and develop a catalogue featuring artists such as:
+
+- Maccasio
+- Fancy Gadam
+- Wiz Child
+- Don Sigli
+- Northern hip-hop artists
+- Dagbani musicians
+- Northern Afrobeat artists
+- Northern dancehall artists
+- Emerging Northern musicians
+
+These are examples, not a limited list.
+
+Research more artists and create an authentic music representation.
+
+## 46. Music genres
+
+Organize music by appropriate categories:
+
+- Northern Hip-Hop
+- Dagbon Rap
+- Afrobeat
+- Dancehall
+- Hiplife
+- Traditional music
+- Folk music
+- Gospel
+- Hausa music
+- Highlife
+- Instrumental music
+- Contemporary African music
+
+Do not mislabel songs.
+
+## 47. Full in-game music player
+
+Create a functional smartphone music application.
+
+Include:
+
+- Song title
+- Artist
+- Album
+- Cover art
+- Play
+- Pause
+- Previous
+- Next
+- Seek
+- Volume
+- Shuffle
+- Repeat
+- Search
+- Favourites
+- Recently played
+- Playlists
+- Artist pages
+- Album pages
+- Genre browsing
+
+Players should be able to create playlists and select music.
+
+## 48. Music in vehicles
+
+Vehicles must have a radio system.
+
+Players can:
+
+- Turn radio on/off
+- Change stations
+- Select songs
+- Change volume
+- Play personal playlists
+- Switch radio modes
+
+Music should remain functional during driving.
+
+## 49. Music in the world
+
+Where appropriate, music should be heard in:
+
+- Clubs
+- Homes
+- Shops
+- Restaurants
+- Barber shops
+- Social gatherings
+- Event locations
+
+Use spatial audio.
+
+Music should become louder and clearer when the player approaches its source.
+
+## 50. Music licensing
+
+Do not illegally download, rip, or embed copyrighted music.
+
+Use:
+
+- Artist-approved music
+- Licensed tracks
+- Independent music with permission
+- Appropriate royalty-free music
+- Music with valid redistribution rights
+
+Build a modular catalogue that can be updated easily.
+
+Every real song must include licence information.
+
+Create placeholders for songs awaiting permission.
+
+Do not falsely claim that artists have approved the game.
+
+The long-term goal is to establish partnerships with Northern artists and promote their music through TAMALE 3D.
+
+---
+
+# PHASE 15: REALISTIC CHARACTER COLLISION AND PHYSICS
+
+## 51. Solid environmental obstacles
+
+Characters must be physically blocked by the environment.
+
+The player should not walk through:
+
+- Walls
+- Houses
+- Buildings
+- Vehicles
+- Trees
+- Poles
+- Streetlights
+- Fences
+- Gates
+- Furniture
+- Counters
+- Shelves
+- Tables
+- Chairs
+- Beds
+- Appliances
+- Other solid objects
+
+Inspect the existing movement system and fix collision issues.
+
+## 52. Collision implementation
+
+Use an efficient collision system appropriate for Three.js.
+
+Consider:
+
+- Capsule collider for player
+- Box colliders
+- Cylinder colliders
+- Collision layers
+- Spatial partitioning
+- Broad-phase collision detection
+- Narrow-phase collision resolution
+- Efficient obstacle queries
+
+Avoid expensive mesh-to-mesh collision calculations for every object every frame.
+
+## 53. Collision response
+
+Implement:
+
+- Wall blocking
+- Sliding along walls
+- Corner navigation
+- Proper doorways
+- Collision against vehicles
+- Collision against furniture
+- Collision against environmental objects
+- Jumping interaction with obstacles
+- Stable movement
+- No unwanted bouncing
+- No jittering
+- No teleporting
+
+Ensure collider dimensions are appropriate.
+
+Do not make the player unable to move through normal doorways.
+
+## 54. Interior collision
+
+Apply the same physical rules inside buildings.
+
+Characters must not pass through:
+
+- Interior walls
+- Furniture
+- Shelves
+- Counters
+- Beds
+- Tables
+- Chairs
+- Equipment
+- Appliances
+
+Interior layout must be traversable.
+
+Interactions must be accessible from proper physical locations.
+
+## 55. Vehicle collision
+
+Implement proper vehicle collision against:
+
+- Buildings
+- Roadsides
+- Other vehicles
+- Pedestrians
+- Barriers
+- Trees
+- Poles
+- Solid objects
+
+Prevent vehicles from passing through each other.
+
+Handle collision response without excessive physics instability.
+
+## 56. NPC obstacle awareness
+
+NPCs must navigate around solid objects.
+
+Implement or improve:
+
+- Pathfinding
+- Navigation zones
+- Waypoints
+- Obstacle avoidance
+- Dynamic rerouting
+- Destination selection
+- Pedestrian crossing
+- Crowd movement
+
+NPCs should not walk endlessly into walls or vehicles.
+
+---
+
+# PHASE 16: IMPROVE THE GAME INTERFACE
+
+## 57. Reduce on-screen instructions
+
+The current screen has too many instructions.
+
+Remove excessive permanent control lists.
+
+Create a clean, immersive HUD.
+
+Show only:
+
+- Player status where needed
+- Money
+- Location
+- Current task
+- Mini-map
+- Contextual interaction prompt
+- Small notifications
+
+Control instructions should appear only when relevant.
+
+## 58. Contextual prompts
+
+Show appropriate prompts based on player location and state.
+
+Examples:
+
+- Enter vehicle
+- Exit vehicle
+- Enter building
+- Talk
+- Interact
+- Accept job
+- Deliver goods
+- Dance
+- Use service
+
+Hints should fade naturally and not stack.
+
+Create onboarding for new players.
+
+Allow experienced players to disable tutorial hints.
+
+---
+
+# PHASE 17: DEVICE-SPECIFIC INTERFACES
+
+## 59. Separate desktop, mobile and tablet experiences
+
+Do not simply scale one interface across all devices.
+
+Create three intentionally designed gameplay experiences.
+
+### Laptop/Desktop
+
+Controls:
+
+- WASD movement
+- Mouse camera
+- Shift run
+- Space jump
+- E interact
+- F enter/exit vehicle
+- M map
+- I inventory
+- H horn
+- Esc pause
+
+Minimal HUD.
+
+Keyboard and mouse support.
+
+Compact menus.
+
+## 60. Mobile
+
+Create a dedicated touch interface.
+
+Include:
+
+- Virtual joystick
+- Camera swipe
+- Contextual action buttons
+- Jump
+- Run
+- Interact
+- Vehicle controls
+- Phone
+- Map
+- Pause
+
+Do not display all buttons permanently.
+
+Use contextual controls.
+
+Ensure simultaneous movement and camera rotation.
+
+Prevent browser scrolling and accidental touch conflicts.
+
+## 61. Tablet/iPad
+
+Create a hybrid interface.
+
+Include:
+
+- Touch joystick
+- Larger camera region
+- Contextual buttons
+- Larger icons
+- Spacious HUD
+- Touch-friendly menus
+- Multi-touch support
+- Optional keyboard compatibility
+
+Use the screen space appropriately.
+
+Do not stretch the mobile interface.
+
+## 62. Device adaptation
+
+Detect device capabilities using:
+
+- Screen size
+- Aspect ratio
+- Touch
+- Pointer capability
+- Orientation
+
+Do not rely exclusively on screen width.
+
+Allow manual control scheme selection.
+
+Support portrait and landscape where feasible.
+
+Adapt:
+
+- HUD
+- Mini-map
+- Phone
+- Menus
+- Controls
+- UI scale
+- Orientation
+
+## 63. Performance settings
+
+Create Low, Medium, and High graphics presets.
+
+Adapt:
+
+- Resolution
+- Shadows
+- NPC density
+- Lighting
+- Reflections
+- Texture quality
+- Effects
+- Rendering performance
+
+Target mid-range laptops and mobile devices.
+
+---
+
+# PHASE 18: DYNAMIC CITY LIFE AND WORLD INTERACTIONS
+
+All systems must interact with one another.
+
+Examples:
+
+- Trucks deliver goods to markets.
+- Markets become busier during delivery periods.
+- Traffic lights control traffic flow.
+- Traffic congestion affects transport jobs.
+- Accidents create traffic obstructions.
+- Police respond to traffic violations and accidents.
+- Nightlife increases population in selected areas.
+- Clubs feature music and dancing.
+- NPCs visit businesses.
+- NPCs use vehicles.
+- NPCs have daily routines.
+- Task destinations appear on the mini-map.
+- Weather affects roads and movement.
+- Nighttime lights change the city's atmosphere.
+- Music comes from real in-world sources.
+- Players physically interact with buildings and services.
+
+Do not build disconnected feature islands.
+
+Create systems that share the same world state.
+
+---
+
+# PHASE 19: PERFORMANCE OPTIMIZATION
+
+Target hardware:
+
+- Intel Core i7 8th generation
+- 16 GB RAM
+- Windows 11
+
+The game should remain playable on this hardware.
+
+Optimize:
+
+- Rendering
+- Lighting
+- Shadows
+- NPC simulation
+- Traffic
+- Collision detection
+- Road navigation
+- Vehicles
+- Audio
+- Interiors
+- Textures
+- UI
+
+Use:
+
+- LOD
+- Instancing
+- Frustum culling
+- Distance culling
+- Spatial partitioning
+- NPC simulation throttling
+- Object pooling where appropriate
+- Texture optimization
+- Efficient collision shapes
+- Adaptive graphics quality
+
+Do not add large amounts of expensive physics or lighting without performance testing.
+
+Ensure mobile devices receive appropriate quality settings.
+
+---
+
+# PHASE 20: TESTING AND VERIFICATION
+
+Do not assume that successful compilation proves the game works.
+
+Test every major system.
+
+## Graphics
+
+- Character models
+- Character animations
+- Vehicle models
+- Roads
+- Buildings
+- Daytime
+- Nighttime
+- Shadows
+- Lighting
+- Weather
+
+## Roads
+
+- Road connectivity
+- Junctions
+- Roundabouts
+- Intersections
+- Building placement
+- Elevated roads
+- Vehicle routes
+- Pedestrian routes
+
+## Traffic
+
+- Cars
+- Motorcycles
+- Trucks
+- Traffic lights
+- Queues
+- Braking
+- Intersections
+- Collisions
+
+## Law enforcement
+
+- Traffic violation detection
+- Police patrols
+- Police observation
+- Traffic stops
+- Warnings
+- Fines
+- Arrests
+- Accident responses
+
+## Cargo
+
+- Loading
+- Cargo visibility
+- Transport
+- Navigation
+- Unloading
+- Delivery
+- Payment
+- Vehicle capacity
+
+## Nightlife
+
+- Lighting
+- Clubs
+- Music
+- NPC dancing
+- Social interactions
+- Night-time traffic
+- Night-time population
+
+## Music
+
+- Player
+- Artist search
+- Song search
+- Playlists
+- Playback
+- Radio
+- Vehicle music
+- Spatial audio
+- Licence validation
+
+## UI
+
+- Laptop
+- Mobile
+- Tablet
+- Resizing
+- Orientation
+- Controls
+- Map
+- Navigation
+- HUD
+- Menus
+- Phone
+
+## Collision
+
+- Player versus wall
+- Player versus vehicle
+- Player versus furniture
+- NPC versus obstacles
+- Vehicle versus buildings
+- Vehicle versus vehicle
+- Doorways
+- Interior navigation
+
+Fix identified issues before moving to the next phase.
+
+---
+
+# DEVELOPMENT RULES
+
+1. Inspect before implementing.
+2. Preserve the current project.
+3. Do not create a replacement game.
+4. Avoid duplicate systems.
+5. Preserve player saves.
+6. Preserve character-specific progression.
+7. Preserve existing gameplay features.
+8. Keep changes modular.
+9. Do not introduce unnecessary dependencies.
+10. Do not add nonfunctional buttons.
+11. Do not fake systems that are described as functional.
+12. Do not create inaccurate roads.
+13. Do not position buildings randomly.
+14. Do not use unlicensed music or assets.
+15. Do not create generic human models and call them realistic.
+16. Do not make traffic lights decorative.
+17. Do not make police merely decorative.
+18. Do not make clubs inaccessible.
+19. Do not make trucks cosmetic.
+20. Do not make navigation routes inaccurate.
+21. Do not claim tests were performed when they were not.
+22. Do not sacrifice performance for visual effects.
+
+Implement this in phases.
+
+After each phase:
+
+- Run the build.
+- Run TypeScript checks.
+- Run existing tests.
+- Add tests where needed.
+- Inspect the changed files.
+- Fix regressions.
+- Verify functionality.
+
+If interactive browser testing is available, use it.
+
+If visual verification is unavailable, clearly state this.
+
+---
+
+# IMPLEMENTATION ORDER
+
+## Milestone 1: Structural integrity
+- Audit road network.
+- Fix disconnected roads.
+- Fix buildings sitting on roads.
+- Fix intersections.
+- Fix elevation.
+- Validate road connectivity.
+
+## Milestone 2: Physical world
+- Improve collision.
+- Fix player movement.
+- Improve NPC obstacle avoidance.
+- Improve vehicle collision.
+- Improve interior navigation.
+
+## Milestone 3: Visual realism
+- Upgrade human models.
+- Upgrade animation.
+- Upgrade cars.
+- Upgrade motorcycles.
+- Upgrade trucks.
+- Upgrade building assets.
+- Upgrade materials.
+- Improve lighting and environment.
+
+## Milestone 4: Transport economy
+- Introduce trucks.
+- Introduce cargo.
+- Introduce loading and unloading.
+- Create market delivery jobs.
+- Create transport jobs.
+- Integrate payment and progression.
+
+## Milestone 5: Traffic system
+- Install traffic lights.
+- Implement signal phases.
+- Make vehicles obey signals.
+- Implement queues.
+- Add pedestrian crossings.
+- Coordinate intersections.
+
+## Milestone 6: Law enforcement
+- Introduce police.
+- Create patrol routines.
+- Implement traffic violations.
+- Implement detection.
+- Implement traffic stops.
+- Implement fines.
+- Implement arrests.
+- Integrate accidents.
+
+## Milestone 7: Navigation
+- Mini-map.
+- Player location.
+- Destination markers.
+- Task routes.
+- GPS-style guidance.
+- Route recalculation.
+- Connected road graph integration.
+
+## Milestone 8: Nightlife
+- Night lighting.
+- Clubs.
+- Interiors.
+- Dancing.
+- Music.
+- Social activities.
+- Night-time NPC schedules.
+- Night traffic.
+
+## Milestone 9: Northern music
+- Research artists.
+- Build artist catalogue.
+- Create player.
+- Create playlists.
+- Implement radio.
+- Implement vehicle music.
+- Integrate licensed music when permissions are available.
+
+## Milestone 10: Device-specific UI
+- Desktop interface.
+- Mobile interface.
+- Tablet/iPad interface.
+- Touch controls.
+- Camera.
+- Contextual prompts.
+- Mini-map adaptation.
+- Performance presets.
+
+## Milestone 11: Quality assurance
+- Regression testing.
+- Performance profiling.
+- Gameplay walkthrough.
+- Graphics testing.
+- Collision testing.
+- Traffic testing.
+- Interior testing.
+- Audio testing.
+- Mobile testing.
+- Tablet testing.
+
+---
+
+# FINAL QUALITY EXPECTATION
+
+TAMALE 3D must become a recognizable, believable, immersive city-life simulation.
+
+I want players to experience:
+
+- Walking through realistic Tamale streets.
+- Seeing believable human characters.
+- Driving realistic cars.
+- Riding motorcycles.
+- Encountering commercial trucks.
+- Transporting goods.
+- Delivering produce to markets.
+- Using properly connected roads.
+- Driving through functional intersections.
+- Obeying traffic lights.
+- Encountering police.
+- Receiving warnings and fines.
+- Being arrested when appropriate.
+- Using overhead roads and interchanges.
+- Navigating with a mini-map.
+- Completing jobs.
+- Entering buildings.
+- Exploring businesses.
+- Listening to real Northern Ghanaian music when properly licensed.
+- Visiting clubs.
+- Seeing people dance.
+- Experiencing night-time city life.
+- Encountering accidents and traffic disruptions.
+- Experiencing a city that changes throughout the day and night.
+
+The game should not feel like a static 3D environment.
+
+It should feel like a living city.
+
+Focus on quality over quantity.
+
+Fix structural problems before expanding the world.
+
+Make every major system functional, interconnected, visually convincing, culturally grounded, and performant.
+
+At the end, provide a factual implementation report detailing:
+
+- What was implemented.
+- What was improved.
+- What was repaired.
+- Files changed.
+- Systems completed.
+- Systems partially completed.
+- Placeholder systems.
+- Tests run.
+- Test results.
+- Performance impact.
+- Remaining limitations.
+- Recommended next milestone.
+
+Do not misrepresent unfinished work as complete.
+
+The ultimate goal is to create an immersive open-world Tamale city simulator with its own identity, culture, infrastructure, transport, economy, music, nightlife, and everyday life.

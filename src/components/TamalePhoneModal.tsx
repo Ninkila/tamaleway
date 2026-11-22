@@ -8,6 +8,7 @@ import {
   Building2,
   Camera,
   CheckCircle2,
+  Home,
   Landmark,
   Map as MapIcon,
   MapPin,
@@ -62,8 +63,14 @@ import {
 } from "../types/game";
 import { DeviceLayoutConfig } from "../utils/deviceProfile";
 
+import {
+  computeDailyHomeBillCedis,
+  DAILY_ROUTINE_SUGGESTIONS,
+} from "../data/tamaleHomeData";
+
 export type PhoneTab =
   | "home"
+  | "my_home"
   | "jobs"
   | "services"
   | "businesses"
@@ -128,6 +135,9 @@ interface TamalePhoneModalProps {
   onOpenMap?: () => void;
   onOpenInventory?: () => void;
   onOpenSettings?: () => void;
+  onNavigateHome?: () => void;
+  onTravelHome?: () => void;
+  onToggleHomeReminders?: () => void;
   onClose: () => void;
 }
 
@@ -158,6 +168,9 @@ export const TamalePhoneModal: React.FC<TamalePhoneModalProps> = ({
   onCancelService,
   onAdjustWallets,
   onSendPhoneMessage,
+  onNavigateHome,
+  onTravelHome,
+  onToggleHomeReminders,
   onMarkMessagesRead,
   onPlayTrack,
   onPlayPlaylist,
@@ -237,6 +250,13 @@ export const TamalePhoneModal: React.FC<TamalePhoneModalProps> = ({
     accent: string;
     badge?: string | number;
   }> = [
+    {
+      id: "my_home",
+      label: "My Home",
+      subtitle: characterState.homeState ? `${Math.round(characterState.homeState.cleanliness)}% Clean` : "Changli Home",
+      Icon: Home,
+      accent: "bg-emerald-500/20 text-emerald-300 border-emerald-500/35",
+    },
     {
       id: "jobs",
       label: "Jobs",
@@ -635,6 +655,14 @@ export const TamalePhoneModal: React.FC<TamalePhoneModalProps> = ({
                         </div>
                         <div className="text-sm font-bold text-[#f8f5ef]">{job.title}</div>
                         <div className="text-xs text-[#cfc8bc]">{job.description}</div>
+                        {job.executionMode === "cargo_haul" && (
+                          <div className="text-[11px] font-mono-num text-sky-300">
+                            Freight: {job.cargoTitle ?? "City Cargo"} ({job.cargoWeightKg ?? 100} kg)
+                            {job.requiredVehicleClasses?.length
+                              ? ` · Vehicles: ${job.requiredVehicleClasses.join(" / ")}`
+                              : ""}
+                          </div>
+                        )}
                         <div className="text-[11px] text-[#9c9487]">
                           Pickup: {job.pickupLabel} → Target: {job.targetLandmarkName} · Energy -
                           {job.energyCost}%
@@ -1289,6 +1317,158 @@ export const TamalePhoneModal: React.FC<TamalePhoneModalProps> = ({
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* TAB: MY HOME & DAILY NEEDS */}
+          {tab === "my_home" && (
+            <div className="space-y-4">
+              {(() => {
+                const home = characterState.homeState;
+                const laundry = characterState.laundryState;
+                const needs = characterState.needs;
+                const totalIngUnits = home
+                  ? Object.values(home.fridgeIngredients).reduce((a, b) => a + (b ?? 0), 0)
+                  : 0;
+                return (
+                  <>
+                    <div className="p-4 rounded-xl bg-[#1f1a16] border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="text-[11px] font-semibold text-emerald-400">
+                          {home?.homeDistrict ?? "Changli – Jakarayili Residential Quarter"} · Day {characterState.dayCount ?? 1}
+                        </div>
+                        <h3 className="font-display text-base font-bold text-[#f8f5ef]">
+                          {home?.homeName ?? "My Changli Compound Home"}
+                        </h3>
+                        <div className="text-xs text-[#cfc8bc] mt-0.5 font-mono-num">
+                          House Cleanliness: {Math.round(home?.cleanliness ?? 90)}% · Outfit Cleanliness: {Math.round(laundry?.outfitCleanliness ?? 95)}%
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {onNavigateHome && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onNavigateHome();
+                              onClose();
+                            }}
+                            className="min-h-[38px] px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-[#0f172a] font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Navigation className="w-3.5 h-3.5" />
+                            <span>GPS Route Home</span>
+                          </button>
+                        )}
+                        {onTravelHome && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onTravelHome();
+                              onClose();
+                            }}
+                            className="min-h-[38px] px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-[#071c0e] font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Home className="w-3.5 h-3.5" />
+                            <span>Go Home</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Personal Daily Needs */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs font-mono-num">
+                      {[
+                        { label: "Energy", val: characterState.energy, bar: "bg-emerald-400" },
+                        { label: "Hygiene", val: needs?.hygiene ?? 88, bar: "bg-sky-400" },
+                        { label: "Hunger", val: needs?.hunger ?? 82, bar: "bg-amber-400" },
+                        { label: "Thirst", val: needs?.thirst ?? 80, bar: "bg-cyan-400" },
+                        { label: "Social", val: needs?.social ?? 76, bar: "bg-orange-400" },
+                        { label: "Comfort", val: needs?.comfort ?? 82, bar: "bg-violet-400" },
+                      ].map((n) => {
+                        const pct = Math.max(0, Math.min(100, Math.round(n.val)));
+                        return (
+                          <div key={n.label} className="p-2.5 rounded-xl bg-[#1f1a16] border border-white/10 space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[#cfc8bc]">{n.label}</span>
+                              <span className="font-bold text-[#f8f5ef]">{pct}%</span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-white/12 overflow-hidden">
+                              <div className={`h-full rounded-full ${n.bar}`} style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Household Status Snapshot */}
+                    {home && laundry && (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono-num">
+                        <div className="p-2.5 rounded-xl bg-[#120f0d] border border-white/10">
+                          <div className="text-[10px] text-[#9c9487]">Sink &amp; Waste</div>
+                          <div className="font-semibold text-[#f8f5ef] mt-0.5">
+                            {home.dirtyDishesCount} dishes · {home.rubbishCount} bin
+                          </div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-[#120f0d] border border-white/10">
+                          <div className="text-[10px] text-[#9c9487]">Laundry</div>
+                          <div className="font-semibold text-sky-300 mt-0.5">
+                            {laundry.dirtyClothesCount} dirty · {laundry.dryingOnLineCount} line
+                          </div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-[#120f0d] border border-white/10">
+                          <div className="text-[10px] text-[#9c9487]">Kitchen Stock</div>
+                          <div className="font-semibold text-amber-300 mt-0.5">
+                            {totalIngUnits} items · {home.cookedMealsReady.length} cooked
+                          </div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-[#120f0d] border border-white/10">
+                          <div className="text-[10px] text-[#9c9487]">Utility Rate</div>
+                          <div className="font-semibold text-emerald-300 mt-0.5">
+                            GH₵ {computeDailyHomeBillCedis(home)}/day
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Optional Daily Rhythm */}
+                    {home && (
+                      <div className="p-3.5 rounded-xl bg-[#1f1a16] border border-white/10 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-semibold text-amber-400">
+                            Optional Daily Rhythm
+                          </span>
+                          {onToggleHomeReminders && (
+                            <button
+                              type="button"
+                              onClick={onToggleHomeReminders}
+                              className="px-2.5 py-1 rounded bg-[#120f0d] border border-white/10 text-[11px] text-[#cfc8bc] cursor-pointer"
+                            >
+                              Reminders: {home.remindersEnabled ? "On" : "Off"}
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
+                          {DAILY_ROUTINE_SUGGESTIONS.map((item) => {
+                            const done = home.dailyRoutineIdsDone.includes(item.id);
+                            return (
+                              <div
+                                key={item.id}
+                                className={`px-2.5 py-1.5 rounded-lg border ${
+                                  done
+                                    ? "bg-emerald-950/40 border-emerald-500/35 text-emerald-200"
+                                    : "bg-[#15120f] border-white/10 text-[#b5ada0]"
+                                }`}
+                              >
+                                <span className="font-semibold">{done ? "✓ " : "○ "}</span>
+                                <span>{item.label}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
           </div>

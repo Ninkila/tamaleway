@@ -1,6 +1,7 @@
 import * as THREE from "three";
-import { InteriorRoomSpec } from "../types/game";
-import { createCharacterRig } from "./models";
+import { HomeLaundryState, HomeState, InteriorRoomSpec } from "../types/game";
+import { buildPlayerHomeInterior } from "./homeInteriorBuilder";
+import { CharacterRig, createCharacterRig } from "./models";
 import { ProceduralTextureSet } from "./textures";
 
 export interface InteriorBoxCollider {
@@ -17,6 +18,9 @@ export interface BuiltInteriorScene {
   colliders: InteriorBoxCollider[];
   animatedFans: THREE.Group[];
   stationMarkers: Array<{ id: string; ring: THREE.Mesh }>;
+  danceRigs: CharacterRig[];
+  clubLights: THREE.PointLight[];
+  syncHomeVisuals?: (home?: HomeState | null, laundry?: HomeLaundryState | null) => void;
   dispose: () => void;
 }
 
@@ -140,7 +144,10 @@ export function buildPhysicalInteriorScene(
   const colliders: InteriorBoxCollider[] = [];
   const animatedFans: THREE.Group[] = [];
   const stationMarkers: Array<{ id: string; ring: THREE.Mesh }> = [];
+  const danceRigs: CharacterRig[] = [];
+  const clubLights: THREE.PointLight[] = [];
   const disposables: Array<{ dispose: () => void }> = [];
+  let syncHomeVisuals: ((home?: HomeState | null, laundry?: HomeLaundryState | null) => void) | undefined;
 
   const halfW = spec.width / 2;
   const halfD = spec.depth / 2;
@@ -238,7 +245,9 @@ export function buildPhysicalInteriorScene(
   group.add(fillLight);
 
   // Ceiling fan(s)
-  animatedFans.push(addCeilingFan(group, 0, h - 0.35, 0));
+  if (spec.archetype !== "player_home_compound") {
+    animatedFans.push(addCeilingFan(group, 0, h - 0.35, 0));
+  }
 
   // Archetype-specific Physical Furniture, Props & Staff NPCs
   switch (spec.archetype) {
@@ -423,6 +432,130 @@ export function buildPhysicalInteriorScene(
       break;
     }
 
+    case "club_lounge": {
+      const darkWood = new THREE.MeshStandardMaterial({ color: "#27272a", roughness: 0.55 });
+      const glowAmber = new THREE.MeshStandardMaterial({
+        color: "#f59e0b",
+        emissive: "#d97706",
+        emissiveIntensity: 0.7,
+      });
+      const glowMagenta = new THREE.MeshStandardMaterial({
+        color: "#f97316",
+        emissive: "#ea580c",
+        emissiveIntensity: 0.65,
+      });
+      disposables.push(darkWood, glowAmber, glowMagenta);
+
+      // DJ booth + twin speaker stacks along north wall
+      addDesk(group, colliders, 0, -halfD + 1.4, 3.6, 1.15, 1.1, darkTrimMat, glowAmber);
+      for (const sx of [-2.3, 2.3]) {
+        addDesk(group, colliders, sx, -halfD + 1.4, 0.9, 2.0, 0.85, darkWood, darkTrimMat);
+      }
+
+      // Grill & Drinks bar counter on West flank
+      addDesk(group, colliders, -4.4, -3.2, 3.0, 1.05, 1.0, accentMat, woodMat);
+      addInteriorAttendant(group, -4.4, -4.4, 0, "#f59e0b", "#18181b", "braids", textures, colliders);
+      addInteriorAttendant(group, 0, -halfD + 0.65, 0, "#ea580c", "#fef3c7", "none", textures, colliders);
+
+      // Illuminated tiled dance floor center
+      const tileColors = ["#f59e0b", "#ea580c", "#fbbf24", "#0284c7"];
+      for (let gx = -1; gx <= 1; gx++) {
+        for (let gz = -1; gz <= 1; gz++) {
+          const tileMat = new THREE.MeshStandardMaterial({
+            color: tileColors[(gx + gz + 4) % tileColors.length],
+            emissive: tileColors[(gx + gz + 4) % tileColors.length],
+            emissiveIntensity: 0.25,
+            roughness: 0.3,
+          });
+          disposables.push(tileMat);
+          const tile = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.04, 1.15), tileMat);
+          tile.position.set(gx * 1.25, 0.02, -0.5 + gz * 1.25);
+          group.add(tile);
+        }
+      }
+
+      // Animated dancing club patrons
+      const dancers: Array<[number, number, number, string, string, "none" | "headwrap" | "braids"]> = [
+        [-1.3, -1.0, 0.4, "#f59e0b", "#1e293b", "braids"],
+        [1.4, -0.2, -0.5, "#0284c7", "#fef3c7", "none"],
+        [-0.5, 0.9, Math.PI * 0.85, "#be123c", "#fde68a", "headwrap"],
+      ];
+      for (const [dx, dz, rotY, pri, acc, hw] of dancers) {
+        const dRig = createCharacterRig(
+          {
+            outfit: "polo",
+            headwear: hw,
+            primaryColor: pri,
+            accentColor: acc,
+            skinTone: "#5f361e",
+          },
+          textures
+        );
+        dRig.root.position.set(dx, 0, dz);
+        dRig.root.rotation.y = rotY;
+        group.add(dRig.root);
+        danceRigs.push(dRig);
+      }
+
+      // Oware & Ludo wooden game table on East side
+      addDesk(group, colliders, 4.6, 0.5, 1.8, 0.82, 1.3, woodMat, woodMat);
+      const boardMesh = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.08, 0.52), glowAmber);
+      boardMesh.position.set(4.6, 0.9, 0.5);
+      group.add(boardMesh);
+
+      // Pulsing club stage lights
+      const l1 = new THREE.PointLight("#f59e0b", 18, 12, 1.4);
+      l1.position.set(-2.5, h - 0.7, -1.2);
+      const l2 = new THREE.PointLight("#fb7185", 16, 12, 1.4);
+      l2.position.set(2.5, h - 0.7, -1.2);
+      group.add(l1, l2);
+      clubLights.push(l1, l2);
+      break;
+    }
+
+    case "police_station": {
+      const policeBlue = new THREE.MeshStandardMaterial({ color: "#1e3a8a", roughness: 0.45 });
+      const silverSteel = new THREE.MeshStandardMaterial({ color: "#94a3b8", metalness: 0.5, roughness: 0.4 });
+      disposables.push(policeBlue, silverSteel);
+
+      // Charge Office Desk + Partition + Locker Cabinet
+      addDesk(group, colliders, 0, -2.8, 6.2, 1.12, 1.0, policeBlue, woodMat);
+      addDesk(group, colliders, -4.8, -0.2, 1.1, 2.0, 2.8, silverSteel, darkTrimMat);
+      addDesk(group, colliders, 4.6, 1.2, 1.0, 0.55, 3.2, darkTrimMat, policeBlue);
+
+      // Uniformed Ghana Police Duty Officer behind Charge Desk
+      const dutyRig = createCharacterRig(
+        {
+          outfit: "polo",
+          headwear: "none",
+          primaryColor: "#1e3a8a",
+          accentColor: "#eab308",
+          skinTone: "#5b321b",
+          policeUniform: true,
+        },
+        textures
+      );
+      dutyRig.root.position.set(0, 0, -4.0);
+      dutyRig.root.rotation.y = 0;
+      group.add(dutyRig.root);
+      colliders.push({ minX: -0.36, maxX: 0.36, minZ: -4.36, maxZ: -3.64, minY: 0, maxY: 1.75 });
+      break;
+    }
+
+    case "player_home_compound": {
+      const homeHandles = buildPlayerHomeInterior(
+        spec,
+        group,
+        colliders,
+        disposables,
+        textures,
+        addCeilingFan,
+        animatedFans
+      );
+      syncHomeVisuals = homeHandles.syncVisuals;
+      break;
+    }
+
     default: {
       // Market hall, Cultural gallery, Palace, Mosque
       addDesk(group, colliders, 0, -2.8, 5.2, 0.98, 1.0, woodMat, accentMat);
@@ -459,6 +592,9 @@ export function buildPhysicalInteriorScene(
     colliders,
     animatedFans,
     stationMarkers,
+    danceRigs,
+    clubLights,
+    syncHomeVisuals,
     dispose: () => {
       for (const d of disposables) {
         d.dispose();

@@ -4,6 +4,11 @@ import {
   PlayableCharacterProfile,
 } from "../types/game";
 import { TAMALE_ECONOMY_CONFIG } from "./tamaleEconomy";
+import {
+  createDefaultHomeStateForCharacter,
+  createDefaultLaundryState,
+  createDefaultNeedsForCharacter,
+} from "./tamaleHomeData";
 
 export const PLAYABLE_CHARACTERS: PlayableCharacterProfile[] = [
   {
@@ -450,7 +455,7 @@ export function createInitialCharacterState(
     customization: { ...profile.customization, hairstyle: profile.customization.hairstyle ?? "natural" },
     inventory: profile.startingInventory.map((item) => ({ ...item })),
     friendships: { ...profile.startingFriendships },
-    discoveredLandmarks: [...profile.startingDiscoveredLandmarks],
+    discoveredLandmarks: Array.from(new Set([...profile.startingDiscoveredLandmarks, "player_home"])),
     learnedVocabIds: [...profile.startingVocabIds],
     activeErrandId: null,
     completedErrands: [],
@@ -467,11 +472,16 @@ export function createInitialCharacterState(
         id: `msg_welcome_${profile.id}`,
         senderName: "Tamale City Dispatch",
         senderRole: profile.occupation,
-        text: `Dasuba ${profile.nickname}! Your ${profile.homeDistrict} shift & Mobile Money wallet are ready. Visit Tamale Enterprise Bank or any MoMo kiosk anytime.`,
+        text: `Dasuba ${profile.nickname}! Your ${profile.homeDistrict} shift & Changli compound home are ready. Visit your house south of Central Mosque anytime to cook, shower, wash clothes, or rest.`,
         timestampClock: "08:30",
         read: false,
       },
     ],
     playerPos: { ...profile.spawnPos },
+    dayCount: 1,
+    needs: createDefaultNeedsForCharacter(),
+    homeState: createDefaultHomeStateForCharacter(profile),
+    laundryState: createDefaultLaundryState(),
+    ownedOutfits: ["batakari", "kaba", "casual", "polo"],
   };
 }

@@ -13,11 +13,13 @@ import {
   Pause,
   Play,
   Radio,
+  ShieldAlert,
   SkipBack,
   SkipForward,
   SlidersHorizontal,
   Smartphone,
   Tag,
+  Truck,
   User,
   Users,
   Volume2,
@@ -29,15 +31,20 @@ import {
   ActiveTaskRuntime,
   CameraMode,
   ContextualHintPayload,
+  DrivableVehicleKind,
   KeyBindings,
   LanguageMode,
+  NavRouteSnapshot,
   NearbyChatter,
   NearbyInteractable,
+  NearbySignalSnapshot,
+  PlayerNeedsState,
   ServiceRequestRuntime,
   WeatherType,
 } from "../types/game";
 import { DeviceLayoutConfig } from "../utils/deviceProfile";
 import { ContextualHintBanner } from "./ContextualHintBanner";
+import { MiniMapHud } from "./MiniMapHud";
 import { MiniMusicRadioBar } from "./MusicRadioApp";
 
 interface GameHudProps {
@@ -46,19 +53,33 @@ interface GameHudProps {
   onDismissOnboarding: () => void;
   district: string;
   formattedTime: string;
+  dayCount?: number;
   timePeriodLabel: string;
   moneyCedis: number;
   energy: number;
+  needs?: PlayerNeedsState | null;
   cultureXp: number;
   activeCharacterName?: string;
   activeCareerTitle?: string;
   isDriving: boolean;
   isRidingService?: boolean;
   drivingLabel: string | null;
+  drivingKind?: DrivableVehicleKind | null;
+  vehicleHealthPct?: number;
   speedKmh: number;
   nearby: NearbyInteractable | null;
   nearbyVehicle: NearbyInteractable | null;
   nearbyChatter: NearbyChatter | null;
+  nearbySignal?: NearbySignalSnapshot | null;
+  policePursuitActive?: boolean;
+  impoundedVehicleId?: string | null;
+  navSnapshot?: NavRouteSnapshot | null;
+  cargoIntegrityPct?: number | null;
+  cargoLoadProgressPct?: number | null;
+  policeCruiserPositions?: Array<{ x: number; z: number }>;
+  roadIncidentPositions?: Array<{ id: string; title: string; x: number; z: number }>;
+  playerPos?: { x: number; z: number; rotY: number };
+  servicePos?: { x: number; z: number } | null;
   nearestGuidance: {
     id: string;
     name: string;
@@ -134,15 +155,28 @@ export const GameHud: React.FC<GameHudProps> = ({
   onDismissOnboarding,
   district,
   formattedTime,
+  dayCount = 1,
   moneyCedis,
   energy,
+  needs = null,
   activeCharacterName,
   isDriving,
   isRidingService = false,
   drivingLabel,
+  vehicleHealthPct = 100,
   speedKmh,
   nearby,
   nearbyChatter,
+  nearbySignal = null,
+  policePursuitActive = false,
+  impoundedVehicleId = null,
+  navSnapshot = null,
+  cargoIntegrityPct = null,
+  cargoLoadProgressPct = null,
+  policeCruiserPositions = [],
+  roadIncidentPositions = [],
+  playerPos,
+  servicePos = null,
   nearestGuidance,
   activeErrandTitle,
   activeGigTitle = null,
@@ -255,7 +289,7 @@ export const GameHud: React.FC<GameHudProps> = ({
 
             {!isMinimal && (
               <div className="text-[11px] text-[#ded8cc] font-medium truncate">
-                {district} · <span className="font-mono-num text-[#b5ada0]">{formattedTime}</span>
+                {district} · <span className="font-mono-num text-[#b5ada0]">D{dayCount} {formattedTime}</span>
               </div>
             )}
 
@@ -283,6 +317,12 @@ export const GameHud: React.FC<GameHudProps> = ({
               </div>
             )}
 
+            {impoundedVehicleId && (
+              <div className="text-[10px] text-amber-300 border-t border-white/10 pt-0.5 truncate">
+                Vehicle Impounded · Settle at Police HQ
+              </div>
+            )}
+
             {isIndoors && onExitInterior && (
               <button
                 type="button"
@@ -304,12 +344,25 @@ export const GameHud: React.FC<GameHudProps> = ({
                     {district}
                   </span>
                   <span className="text-[11px] font-mono-num text-[#b5ada0] whitespace-nowrap shrink-0">
-                    {formattedTime} · {WEATHER_SHORT[weather]}
+                    Day {dayCount} · {formattedTime} · {WEATHER_SHORT[weather]}
                   </span>
                 </div>
                 {activeCharacterName && (
                   <div className="text-[11px] text-amber-300/90 truncate">
                     {activeCharacterName}
+                  </div>
+                )}
+                {needs && (
+                  <div className="flex items-center gap-2.5 text-[10px] font-mono-num text-[#cfc8bc] pt-0.5">
+                    <span className={needs.hygiene < 30 ? "text-red-300 font-bold" : ""}>
+                      Hyg {Math.round(needs.hygiene)}%
+                    </span>
+                    <span className={needs.hunger < 30 ? "text-amber-300 font-bold" : ""}>
+                      Food {Math.round(needs.hunger)}%
+                    </span>
+                    <span className={needs.thirst < 30 ? "text-cyan-300 font-bold" : ""}>
+                      Water {Math.round(needs.thirst)}%
+                    </span>
                   </div>
                 )}
                 {nearestGuidance && nearestGuidance.isErrandTarget && (
@@ -329,6 +382,12 @@ export const GameHud: React.FC<GameHudProps> = ({
             {activeMissionText && (
               <div className="text-[11px] text-emerald-300 pt-1 border-t border-white/10 truncate">
                 {activeMissionText}
+              </div>
+            )}
+
+            {impoundedVehicleId && (
+              <div className="text-[11px] text-amber-300 pt-1 border-t border-white/10 truncate">
+                Vehicle Impounded · Visit Tamale Police HQ to release
               </div>
             )}
 
@@ -363,7 +422,8 @@ export const GameHud: React.FC<GameHudProps> = ({
           </div>
         )}
 
-        {/* TOP-RIGHT ACTIONS */}
+        {/* TOP-RIGHT ACTIONS + GPS MINIMAP */}
+        <div className="flex flex-col items-end gap-2">
         {isPhone ? (
           /* Mobile Phone: Strictly <= 3 compact >=44px action buttons */
           <div className="pointer-events-auto flex items-center gap-1.5 bg-[#14110f]/88 border border-white/12 rounded-xl p-1 shadow-lg">
@@ -727,6 +787,19 @@ export const GameHud: React.FC<GameHudProps> = ({
             )}
           </div>
         )}
+
+          {!isIndoors && playerPos && (
+            <MiniMapHud
+              deviceLayout={deviceLayout}
+              playerPos={playerPos}
+              navSnapshot={navSnapshot}
+              policeCruiserPositions={policeCruiserPositions}
+              roadIncidentPositions={roadIncidentPositions}
+              servicePos={servicePos}
+              onOpenFullMap={onOpenMap}
+            />
+          )}
+        </div>
       </div>
 
       {/* Subtle Portrait Mobile Orientation Tip (only when user prefers landscape & is in portrait) */}
@@ -789,7 +862,49 @@ export const GameHud: React.FC<GameHudProps> = ({
           </div>
         )}
 
-        {/* Driving Speedometer & Compact Radio Bar */}
+        {/* MTTD Police Pursuit Alert */}
+        {policePursuitActive && (
+          <div className="bg-[#231012]/95 border border-red-500/70 rounded-xl px-3.5 py-1.5 text-xs font-bold text-red-200 flex items-center gap-2 shadow-xl">
+            <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
+            <span>MTTD Patrol Signal · Slow down and pull over for traffic inspection</span>
+          </div>
+        )}
+
+        {/* Cargo Loading Progress or Integrity Readout */}
+        {(cargoLoadProgressPct !== null || cargoIntegrityPct !== null) && (
+          <div className="bg-[#14110f]/92 border border-amber-500/45 rounded-xl px-3.5 py-1.5 shadow-lg flex items-center gap-3 text-xs">
+            <Truck className="w-4 h-4 text-amber-400 shrink-0" />
+            {cargoLoadProgressPct !== null ? (
+              <div className="flex items-center gap-2">
+                <span className="text-amber-200 font-semibold">Transferring Freight...</span>
+                <div className="w-24 h-2 bg-white/12 rounded-sm overflow-hidden">
+                  <div
+                    className="h-full bg-amber-400"
+                    style={{ width: `${Math.min(100, Math.max(0, cargoLoadProgressPct))}%` }}
+                  />
+                </div>
+                <span className="font-mono-num text-amber-300">{Math.round(cargoLoadProgressPct)}%</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-[#ded8cc]">Cargo Integrity</span>
+                <span
+                  className={`font-mono-num font-bold ${
+                    (cargoIntegrityPct ?? 100) > 65
+                      ? "text-emerald-400"
+                      : (cargoIntegrityPct ?? 100) > 35
+                      ? "text-amber-400"
+                      : "text-red-400"
+                  }`}
+                >
+                  {Math.round(cargoIntegrityPct ?? 100)}%
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Driving Speedometer, Vehicle Health, Signal Aspect & Compact Radio Bar */}
         {isDriving && (
           <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2 sm:gap-3 bg-[#14110f]/90 border border-amber-500/40 rounded-xl px-3 py-1.5 shadow-lg max-w-[92vw]">
             <div className="text-xs text-[#cfc8bc] truncate max-w-[120px] sm:max-w-none">
@@ -798,6 +913,51 @@ export const GameHud: React.FC<GameHudProps> = ({
             <div className="font-mono-num text-sm font-bold text-amber-400 whitespace-nowrap">
               {speedKmh} km/h
             </div>
+            <div className="flex items-center gap-1.5 pl-2 border-l border-white/12 font-mono-num text-[11px]">
+              <span className="text-[#9c9487]">Cond</span>
+              <span
+                className={
+                  vehicleHealthPct > 65
+                    ? "text-emerald-400 font-bold"
+                    : vehicleHealthPct > 35
+                    ? "text-amber-400 font-bold"
+                    : "text-red-400 font-bold"
+                }
+              >
+                {Math.round(vehicleHealthPct)}%
+              </span>
+            </div>
+            {nearbySignal && (
+              <div className="flex items-center gap-1.5 pl-2 border-l border-white/12 text-[11px] font-mono-num">
+                <span className="text-[#b5ada0] hidden sm:inline">{nearbySignal.label}</span>
+                <span
+                  className={
+                    nearbySignal.ewAspect === "green"
+                      ? "text-emerald-400 font-bold"
+                      : nearbySignal.ewAspect === "amber"
+                      ? "text-amber-300 font-bold"
+                      : "text-red-400 font-bold"
+                  }
+                >
+                  EW {nearbySignal.ewAspect.toUpperCase()}
+                </span>
+                <span className="text-[#8c8478]" aria-hidden="true">
+                  /
+                </span>
+                <span
+                  className={
+                    nearbySignal.nsAspect === "green"
+                      ? "text-emerald-400 font-bold"
+                      : nearbySignal.nsAspect === "amber"
+                      ? "text-amber-300 font-bold"
+                      : "text-red-400 font-bold"
+                  }
+                >
+                  NS {nearbySignal.nsAspect.toUpperCase()}
+                </span>
+                <span className="text-[#9c9487]">{nearbySignal.remainingSec}s</span>
+              </div>
+            )}
 
             {musicSnapshot && (
               <div className="flex items-center gap-1 pl-2 border-l border-white/12">

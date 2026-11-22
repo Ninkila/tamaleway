@@ -334,6 +334,7 @@ export class TamaleAudioEngine {
     // 5. Evening & Nightlife Lounges, Open-Air Grills & Spots (active 17:00 - 02:00)
     const loungeSpots: Array<[number, number]> = [
       [34, -12],   // Daa Waakye & Night Lounge
+      [112, 14],   // Savannah Beats Club
       [86, 36],    // Jubilee Evening Plaza
       [-120, 12],  // Aboabo Grill
       [-84, 110],  // Lamashegu Evening Spot
@@ -981,6 +982,52 @@ export class TamaleAudioEngine {
     gain.connect(this.masterGain);
     osc.start(now);
     osc.stop(now + 0.3);
+  }
+
+  public playCrashThud(intensity = 0.7) {
+    if (!this.ctx || !this.masterGain || !this.enabled || this.ctx.state !== "running") return;
+    const now = this.ctx.currentTime;
+    const clamped = Math.max(0.25, Math.min(1.0, intensity));
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(118 + clamped * 45, now);
+    osc.frequency.exponentialRampToValueAtTime(34, now + 0.24);
+
+    gain.gain.setValueAtTime(0.22 * clamped, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(now);
+    osc.stop(now + 0.3);
+  }
+
+  public playPoliceChirp() {
+    if (!this.ctx || !this.masterGain || !this.enabled || this.ctx.state !== "running") return;
+    const now = this.ctx.currentTime;
+    for (let i = 0; i < 2; i++) {
+      const start = now + i * 0.24;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(660, start);
+      osc.frequency.exponentialRampToValueAtTime(1240, start + 0.16);
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.value = 1800;
+
+      gain.gain.setValueAtTime(0.001, start);
+      gain.gain.linearRampToValueAtTime(0.07, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.2);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(start);
+      osc.stop(start + 0.22);
+    }
   }
 
   private playBirdChirp() {

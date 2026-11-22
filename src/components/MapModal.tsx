@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Compass, Info, Layers, Navigation, X } from "lucide-react";
+import { Compass, Home, Info, Layers, Navigation, X } from "lucide-react";
 import { TAMALE_COMMUNITIES } from "../data/tamaleExpansionData";
 import {
   TAMALE_LANDMARKS,
@@ -18,6 +18,12 @@ interface MapModalProps {
   activeGigLandmarkId?: string | null;
   npcStates?: NpcRuntimeSnapshot[];
   servicePos?: { x: number; z: number } | null;
+  navRoutePoints?: Array<{ x: number; z: number }>;
+  navTargetLabel?: string | null;
+  policeCruiserPositions?: Array<{ x: number; z: number }>;
+  roadIncidentPositions?: Array<{ id: string; title: string; x: number; z: number }>;
+  onSetNavDestination?: (dest: { landmarkId?: string; label: string; x: number; z: number }) => void;
+  onClearNavDestination?: () => void;
   onFastTravel: (landmark: LandmarkData) => void;
   onFastTravelCoords?: (x: number, z: number, label: string) => void;
   onInspectLandmark?: (landmark: LandmarkData) => void;
@@ -32,6 +38,12 @@ export const MapModal: React.FC<MapModalProps> = ({
   activeGigLandmarkId = null,
   npcStates = [],
   servicePos = null,
+  navRoutePoints = [],
+  navTargetLabel = null,
+  policeCruiserPositions = [],
+  roadIncidentPositions = [],
+  onSetNavDestination,
+  onClearNavDestination,
   onFastTravel,
   onFastTravelCoords,
   onInspectLandmark,
@@ -66,6 +78,24 @@ export const MapModal: React.FC<MapModalProps> = ({
             )}
           </div>
           <div className="flex items-center gap-2">
+            {onSetNavDestination && (
+              <button
+                type="button"
+                onClick={() => {
+                  onSetNavDestination({
+                    landmarkId: "player_home",
+                    label: "My Changli Compound Home",
+                    x: 20,
+                    z: 89,
+                  });
+                  onClose();
+                }}
+                className="min-h-[40px] flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-400/50 text-emerald-200 transition-colors cursor-pointer"
+              >
+                <Home className="w-3.5 h-3.5" />
+                <span>Go Home (GPS)</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setShowCommunities((v) => !v)}
@@ -149,6 +179,24 @@ export const MapModal: React.FC<MapModalProps> = ({
                 />
               ))}
 
+              {/* Active GPS Route Polyline */}
+              {navRoutePoints.length > 0 && (
+                <polyline
+                  points={[
+                    `${toMapX(playerPos.x).toFixed(1)},${toMapY(playerPos.z).toFixed(1)}`,
+                    ...navRoutePoints.map(
+                      (pt) => `${toMapX(pt.x).toFixed(1)},${toMapY(pt.z).toFixed(1)}`
+                    ),
+                  ].join(" ")}
+                  fill="none"
+                  stroke="#38bdf8"
+                  strokeWidth="2.8"
+                  strokeDasharray="5 3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              )}
+
               {/* Landmarks */}
               {TAMALE_LANDMARKS.map((lm) => {
                 const mx = toMapX(lm.x);
@@ -182,9 +230,11 @@ export const MapModal: React.FC<MapModalProps> = ({
                     <circle
                       cx={mx}
                       cy={my}
-                      r={isSelected ? 8.5 : 6}
+                      r={lm.id === "player_home" ? 8 : isSelected ? 8.5 : 6}
                       fill={
-                        isGigTarget
+                        lm.id === "player_home"
+                          ? "#10b981"
+                          : isGigTarget
                           ? "#22d3ee"
                           : isErrandTarget
                           ? "#10b981"
@@ -258,6 +308,28 @@ export const MapModal: React.FC<MapModalProps> = ({
                   </g>
                 );
               })}
+
+              {/* Breakdown Road Incidents */}
+              {roadIncidentPositions.map((inc) => (
+                <g key={inc.id} transform={`translate(${toMapX(inc.x)}, ${toMapY(inc.z)})`}>
+                  <rect
+                    x="-4"
+                    y="-4"
+                    width="8"
+                    height="8"
+                    fill="#f97316"
+                    stroke="#0f172a"
+                    strokeWidth="1.2"
+                  />
+                </g>
+              ))}
+
+              {/* MTTD Police Cruisers */}
+              {policeCruiserPositions.map((pc, idx) => (
+                <g key={`police_${idx}`} transform={`translate(${toMapX(pc.x)}, ${toMapY(pc.z)})`}>
+                  <circle r="4.5" fill="#3b82f6" stroke="#ef4444" strokeWidth="1.5" />
+                </g>
+              ))}
 
               {/* Live Service Vehicle Marker */}
               {servicePos && (
@@ -396,37 +468,90 @@ export const MapModal: React.FC<MapModalProps> = ({
                   <span>Amber · Landmarks</span>
                   <span>Dashed · Communities</span>
                   <span>Green · Errand</span>
-                  <span>Cyan · Active Gig / Service</span>
-                  <span>Blue · Live Residents</span>
+                  <span>Cyan · Active Gig / GPS Route</span>
+                  <span>Blue/Red · MTTD Police</span>
+                  <span>Orange · Road Incident</span>
                 </div>
               </div>
 
+              {navTargetLabel && onClearNavDestination && (
+                <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-[#12161d] border border-sky-400/35 text-xs">
+                  <span className="text-sky-200 truncate">GPS Active: {navTargetLabel}</span>
+                  <button
+                    type="button"
+                    onClick={onClearNavDestination}
+                    className="px-2.5 py-1 rounded bg-red-500/20 hover:bg-red-500/35 text-red-200 font-semibold shrink-0 cursor-pointer"
+                  >
+                    Clear GPS Route
+                  </button>
+                </div>
+              )}
+
               {selectedLandmark && (
-                <button
-                  type="button"
-                  onClick={() => onFastTravel(selectedLandmark)}
-                  className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-[#12100e] font-semibold text-sm rounded-lg flex items-center justify-center gap-2 transition-colors cursor-pointer"
-                >
-                  <Navigation className="w-4 h-4" />
-                  <span>Travel to {selectedLandmark.name}</span>
-                </button>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  {onSetNavDestination && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSetNavDestination({
+                          landmarkId: selectedLandmark.id,
+                          label: selectedLandmark.name,
+                          x: selectedLandmark.x,
+                          z: selectedLandmark.z,
+                        });
+                        onClose();
+                      }}
+                      className="min-h-[42px] flex-1 py-2 px-3 bg-sky-500 hover:bg-sky-400 text-[#0f172a] font-semibold text-xs sm:text-sm rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Compass className="w-4 h-4" />
+                      <span>Set GPS Route</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onFastTravel(selectedLandmark)}
+                    className="min-h-[42px] flex-1 py-2 px-3 bg-amber-500 hover:bg-amber-400 text-[#12100e] font-semibold text-xs sm:text-sm rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Navigation className="w-4 h-4" />
+                    <span>Travel to {selectedLandmark.name}</span>
+                  </button>
+                </div>
               )}
 
               {selectedCommunity && onFastTravelCoords && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    onFastTravelCoords(
-                      selectedCommunity.x,
-                      selectedCommunity.z + 12,
-                      selectedCommunity.name
-                    )
-                  }
-                  className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-[#12100e] font-semibold text-sm rounded-lg flex items-center justify-center gap-2 transition-colors cursor-pointer"
-                >
-                  <Navigation className="w-4 h-4" />
-                  <span>Travel to {selectedCommunity.name}</span>
-                </button>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  {onSetNavDestination && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSetNavDestination({
+                          label: selectedCommunity.name,
+                          x: selectedCommunity.x,
+                          z: selectedCommunity.z + 12,
+                        });
+                        onClose();
+                      }}
+                      className="min-h-[42px] flex-1 py-2 px-3 bg-sky-500 hover:bg-sky-400 text-[#0f172a] font-semibold text-xs sm:text-sm rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Compass className="w-4 h-4" />
+                      <span>Set GPS Route</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onFastTravelCoords(
+                        selectedCommunity.x,
+                        selectedCommunity.z + 12,
+                        selectedCommunity.name
+                      )
+                    }
+                    className="min-h-[42px] flex-1 py-2 px-3 bg-amber-500 hover:bg-amber-400 text-[#12100e] font-semibold text-xs sm:text-sm rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Navigation className="w-4 h-4" />
+                    <span>Travel to {selectedCommunity.name}</span>
+                  </button>
+                </div>
               )}
 
               {selectedNpc && onFastTravelCoords && (
@@ -435,14 +560,33 @@ export const MapModal: React.FC<MapModalProps> = ({
                   const tx = (live ? live.x : selectedNpc.homeX) + 2;
                   const tz = (live ? live.z : selectedNpc.homeZ) + 2;
                   return (
-                    <button
-                      type="button"
-                      onClick={() => onFastTravelCoords(tx, tz, `${selectedNpc.name}'s location`)}
-                      className="w-full py-2.5 px-4 bg-sky-500 hover:bg-sky-400 text-[#0f172a] font-semibold text-sm rounded-lg flex items-center justify-center gap-2 transition-colors cursor-pointer"
-                    >
-                      <Navigation className="w-4 h-4" />
-                      <span>Meet {selectedNpc.name}</span>
-                    </button>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      {onSetNavDestination && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onSetNavDestination({
+                              label: selectedNpc.name,
+                              x: tx,
+                              z: tz,
+                            });
+                            onClose();
+                          }}
+                          className="min-h-[42px] flex-1 py-2 px-3 bg-amber-500 hover:bg-amber-400 text-[#12100e] font-semibold text-xs sm:text-sm rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <Compass className="w-4 h-4" />
+                          <span>Set GPS Route</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => onFastTravelCoords(tx, tz, `${selectedNpc.name}'s location`)}
+                        className="min-h-[42px] flex-1 py-2 px-3 bg-sky-500 hover:bg-sky-400 text-[#0f172a] font-semibold text-xs sm:text-sm rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Navigation className="w-4 h-4" />
+                        <span>Meet {selectedNpc.name}</span>
+                      </button>
+                    </div>
                   );
                 })()
               )}

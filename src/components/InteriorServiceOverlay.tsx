@@ -4,10 +4,12 @@ import {
   BedDouble,
   CheckCircle2,
   CreditCard,
+  Dices,
   Dumbbell,
   Landmark,
   Music,
   Scissors,
+  ShieldCheck,
   ShoppingBasket,
   Smartphone,
   Sparkles,
@@ -43,6 +45,10 @@ interface InteriorServiceOverlayProps {
   energy: number;
   vehicleCondition: number;
   customization: PlayerCustomization;
+  policeFinesOwedCedis?: number;
+  trafficViolationsCount?: number;
+  cleanDrivingStreak?: number;
+  impoundedVehicleId?: string | null;
   onAdjustWallets: (patch: {
     cashDelta?: number;
     bankDelta?: number;
@@ -72,6 +78,10 @@ interface InteriorServiceOverlayProps {
     costCedis?: number,
     label?: string
   ) => boolean;
+  onPayPoliceFines?: (payWith: "cash" | "momo") => boolean;
+  onReleaseImpoundedVehicle?: (payWith: "cash" | "momo") => boolean;
+  onOpenClubGames?: () => void;
+  onToggleRoomMusic?: (action: "toggle" | "next") => void;
   onOpenDagbaniGuide: () => void;
   onClose: () => void;
 }
@@ -101,11 +111,19 @@ export const InteriorServiceOverlay: React.FC<InteriorServiceOverlayProps> = ({
   energy,
   vehicleCondition,
   customization,
+  policeFinesOwedCedis = 0,
+  trafficViolationsCount = 0,
+  cleanDrivingStreak = 0,
+  impoundedVehicleId = null,
   onAdjustWallets,
   onBuyItem,
   onApplyEnergyAndTime,
   onRepairVehicle,
   onApplyCustomization,
+  onPayPoliceFines,
+  onReleaseImpoundedVehicle,
+  onOpenClubGames,
+  onToggleRoomMusic,
   onOpenDagbaniGuide,
   onClose,
 }) => {
@@ -228,6 +246,13 @@ export const InteriorServiceOverlay: React.FC<InteriorServiceOverlayProps> = ({
         return <BedDouble className="w-5 h-5 text-indigo-400" />;
       case "gym_rack":
         return <Dumbbell className="w-5 h-5 text-amber-400" />;
+      case "police_desk":
+        return <ShieldCheck className="w-5 h-5 text-blue-400" />;
+      case "club_game_table":
+        return <Dices className="w-5 h-5 text-emerald-400" />;
+      case "dj_booth":
+      case "dance_floor":
+        return <Music className="w-5 h-5 text-amber-400" />;
       default:
         return <ShoppingBasket className="w-5 h-5 text-amber-400" />;
     }
@@ -1087,6 +1112,176 @@ export const InteriorServiceOverlay: React.FC<InteriorServiceOverlayProps> = ({
                   Open Dagbani Phrasebook
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* TAMALE POLICE HQ MTTD DESK */}
+          {stationKind === "police_desk" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-2.5 text-xs font-mono-num">
+                <div className="p-3 rounded-xl bg-[#1f1a16] border border-white/10">
+                  <div className="text-[11px] text-[#9c9487]">Owed Fines</div>
+                  <div className="text-base font-bold text-amber-400 mt-0.5">
+                    GH₵ {policeFinesOwedCedis}
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-[#1f1a16] border border-white/10">
+                  <div className="text-[11px] text-[#9c9487]">Traffic Citations</div>
+                  <div className="text-base font-bold text-[#f8f5ef] mt-0.5">
+                    {trafficViolationsCount}
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-[#1f1a16] border border-white/10">
+                  <div className="text-[11px] text-[#9c9487]">Clean Streak</div>
+                  <div className="text-base font-bold text-emerald-300 mt-0.5">
+                    {cleanDrivingStreak}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1 bg-[#120f0d] p-1 rounded-lg border border-white/10 w-fit">
+                <button
+                  type="button"
+                  onClick={() => setPayWith("cash")}
+                  className={`min-h-[34px] px-3 text-xs rounded-md font-semibold cursor-pointer ${
+                    payWith === "cash" ? "bg-amber-500 text-[#12100e]" : "text-[#b5ada0]"
+                  }`}
+                >
+                  Pay Cash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPayWith("momo")}
+                  className={`min-h-[34px] px-3 text-xs rounded-md font-semibold cursor-pointer ${
+                    payWith === "momo" ? "bg-yellow-400 text-[#12100e]" : "text-[#b5ada0]"
+                  }`}
+                >
+                  Pay MoMo
+                </button>
+              </div>
+
+              {policeFinesOwedCedis > 0 && onPayPoliceFines && (
+                <button
+                  type="button"
+                  disabled={availablePayFunds < policeFinesOwedCedis}
+                  onClick={() => {
+                    if (onPayPoliceFines(payWith)) {
+                      setStatusFeedback("Settled outstanding MTTD traffic fine cleanly.");
+                    }
+                  }}
+                  className="min-h-[46px] w-full px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-[#12100e] font-bold text-xs cursor-pointer"
+                >
+                  Settle Outstanding Traffic Fine · GH₵ {policeFinesOwedCedis} ({payWith.toUpperCase()})
+                </button>
+              )}
+
+              {impoundedVehicleId && onReleaseImpoundedVehicle && (
+                <button
+                  type="button"
+                  disabled={availablePayFunds < 120}
+                  onClick={() => {
+                    if (onReleaseImpoundedVehicle(payWith)) {
+                      setStatusFeedback("Impounded vehicle cleared and returned to Tamale streets!");
+                    }
+                  }}
+                  className="min-h-[46px] w-full px-4 py-2.5 rounded-xl bg-blue-500/25 hover:bg-blue-500/40 disabled:opacity-40 border border-blue-400/45 text-blue-100 font-bold text-xs cursor-pointer"
+                >
+                  Release Impounded Vehicle ({impoundedVehicleId}) · GH₵ 120 ({payWith.toUpperCase()})
+                </button>
+              )}
+
+              {policeFinesOwedCedis === 0 && !impoundedVehicleId && (
+                <div className="p-3.5 rounded-xl bg-emerald-950/35 border border-emerald-500/35 text-xs text-emerald-200">
+                  Your Tamale MTTD driving record is completely clear. Keep obeying red traffic
+                  lights and 50 km/h urban corridors!
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* CLUB LOUNGE OWARE & LUDO TABLE */}
+          {stationKind === "club_game_table" && (
+            <div className="space-y-3">
+              <div className="p-4 rounded-xl bg-[#1f1a16] border border-white/10 space-y-2">
+                <div className="text-sm font-bold text-[#f8f5ef]">
+                  Social Lounge Board Games (No-Money Play)
+                </div>
+                <p className="text-xs text-[#b5ada0] leading-relaxed">
+                  Challenge lounge regulars to traditional Ghanaian Oware (Awale) or Tamale Ludo.
+                  Strictly social &amp; cultural entertainment — zero wagering, grants Culture XP
+                  and +10% energy mood boost.
+                </p>
+              </div>
+              {onOpenClubGames && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenClubGames();
+                  }}
+                  className="min-h-[46px] w-full px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-[#12100e] font-bold text-xs cursor-pointer"
+                >
+                  Sit at Oware &amp; Ludo Table
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* CLUB DJ BOOTH */}
+          {stationKind === "dj_booth" && (
+            <div className="space-y-3">
+              <div className="p-4 rounded-xl bg-[#1f1a16] border border-white/10 text-xs text-[#cfc8bc]">
+                Control the venue sound system playing Northern Ghanaian Hip-Hop, Dagbon Afrobeat,
+                and live Tamale FM mixes.
+              </div>
+              {onToggleRoomMusic && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onToggleRoomMusic("toggle");
+                      setStatusFeedback("Toggled club DJ playback.");
+                    }}
+                    className="min-h-[46px] px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-[#12100e] font-bold text-xs cursor-pointer"
+                  >
+                    Play / Pause Club Audio
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onToggleRoomMusic("next");
+                      setStatusFeedback("Switched to next Northern beat!");
+                    }}
+                    className="min-h-[46px] px-4 py-2 rounded-xl bg-[#241f1a] hover:bg-white/10 border border-white/15 text-[#f8f5ef] font-bold text-xs cursor-pointer"
+                  >
+                    Cue Next Northern Track
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* CLUB DANCE FLOOR */}
+          {stationKind === "dance_floor" && (
+            <div className="space-y-3">
+              <div className="p-4 rounded-xl bg-[#1f1a16] border border-white/10 text-xs text-[#cfc8bc]">
+                Join neighbours on the illuminated club floor to unwind to Savannah rhythms.
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onApplyEnergyAndTime({
+                    energyDelta: 10,
+                    xpBonus: 12,
+                    advanceMinutes: 25,
+                    message: "Danced with Tamale locals (+10% Mood Energy, +12 Culture XP)!",
+                  });
+                  setStatusFeedback("Joined the dance floor (+10% Mood Energy, +12 XP)!");
+                }}
+                className="min-h-[46px] w-full px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-[#071c0e] font-bold text-xs cursor-pointer"
+              >
+                Join the Dance Floor (+10% Mood Energy, +12 Culture XP)
+              </button>
             </div>
           )}
 

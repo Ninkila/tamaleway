@@ -18,6 +18,10 @@ const OUTFITS: Array<{ id: OutfitStyle; label: string; desc: string }> = [
   { id: "kaba", label: "Kaba & Wrap", desc: "Traditional print attire" },
   { id: "polo", label: "Tamale Polo", desc: "Smart everyday shirt" },
   { id: "casual", label: "Everyday Tee", desc: "Relaxed street wear" },
+  { id: "workwear", label: "Workwear Jacket", desc: "Rider & workshop utility" },
+  { id: "formal", label: "Formal Suit & Tie", desc: "Office & palace occasions" },
+  { id: "sportswear", label: "Athletic Tracksuit", desc: "Stadium fitness & sport" },
+  { id: "nightlife", label: "Evening Lounge Wear", desc: "Evening social & Jubilee spots" },
 ];
 
 const HEADWEAR: Array<{ id: HeadwearStyle; label: string }> = [

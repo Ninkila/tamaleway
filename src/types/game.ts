@@ -13,7 +13,15 @@ export type TimePeriod = "morning" | "afternoon" | "evening" | "night";
 
 export type CameraMode = "third-person" | "wide" | "overhead";
 
-export type OutfitStyle = "batakari" | "casual" | "kaba" | "polo";
+export type OutfitStyle =
+  | "batakari"
+  | "casual"
+  | "kaba"
+  | "polo"
+  | "workwear"
+  | "formal"
+  | "sportswear"
+  | "nightlife";
 export type HeadwearStyle = "none" | "kufi" | "headwrap" | "braids";
 export type HairstyleOption = "natural" | "low_fade" | "waves" | "braided_crown" | "afro_trim";
 
@@ -95,6 +103,74 @@ export interface ShopMetadata {
   services?: ShopServiceAction[];
 }
 
+export type HomeRoomKey = "courtyard" | "livingRoom" | "kitchen" | "bedroom" | "bathroom";
+
+export type HomeUpgradeId =
+  | "bed_tier"
+  | "solar_power"
+  | "polytank_plumbing"
+  | "kitchen_appliance"
+  | "tv_entertainment"
+  | "security_gate";
+
+export type HomeIngredientId =
+  | "cornmeal_millet"
+  | "rice_beans"
+  | "yam_tubers"
+  | "groundnut_paste"
+  | "fresh_greens"
+  | "meat_fish"
+  | "eggs_bread"
+  | "tea_sugar"
+  | "cooking_oil"
+  | "clean_water";
+
+export interface PlayerNeedsState {
+  hygiene: number;  // 0..100
+  hunger: number;   // 0..100
+  thirst: number;   // 0..100
+  social: number;   // 0..100
+  comfort: number;  // 0..100
+}
+
+export interface HomeCookedMeal {
+  id: string;
+  recipeId: string;
+  name: string;
+  dagbaniName: string;
+  hungerRestore: number;
+  energyRestore: number;
+  thirstRestore: number;
+  comfortRestore: number;
+  preparedDay: number;
+}
+
+export interface HomeLaundryState {
+  dirtyClothesCount: number;
+  washedWetCount: number;
+  dryingOnLineCount: number;
+  dryReadyAtMinutes: number | null;
+  dryReadyDay: number | null;
+  cleanOutfitsStored: number;
+  outfitCleanliness: number; // 0..100
+}
+
+export interface HomeState {
+  homeName: string;
+  homeDistrict: string;
+  cleanliness: number; // 0..100
+  dirtyDishesCount: number;
+  rubbishCount: number;
+  roomDirt: Record<HomeRoomKey, number>;
+  upgrades: Record<HomeUpgradeId, number>;
+  fridgeIngredients: Record<HomeIngredientId, number>;
+  cookedMealsReady: HomeCookedMeal[];
+  lastMaintainedDay: number;
+  dailyBillsOwed: number;
+  dailyRoutineIdsDone: string[];
+  remindersEnabled: boolean;
+}
+
 export interface ShopItem {
   id: string;
   name: string;
@@ -102,6 +178,11 @@ export interface ShopItem {
   category: "food" | "clothing" | "craft";
   price: number;
   energyRestore?: number;
+  hungerRestore?: number;
+  thirstRestore?: number;
+  hygieneRestore?: number;
+  ingredientKey?: HomeIngredientId;
+  ingredientUnits?: number;
   description: string;
   unlockOutfit?: OutfitStyle;
 }
@@ -113,6 +194,10 @@ export interface InventoryItem {
   category: "food" | "clothing" | "craft";
   quantity: number;
   energyRestore?: number;
+  hungerRestore?: number;
+  thirstRestore?: number;
+  hygieneRestore?: number;
+  ingredientKey?: HomeIngredientId;
   description: string;
 }
 
@@ -159,7 +244,10 @@ export type LandmarkType =
   | "stadium"
   | "airport"
   | "art_centre"
-  | "commercial";
+  | "commercial"
+  | "police"
+  | "nightclub"
+  | "residential_home";
 
 export interface LandmarkData {
   id: string;
@@ -340,6 +428,38 @@ export interface NpcProfile {
   }>;
 }
 
+export type DrivableVehicleKind =
+  | "pragya"
+  | "motorcycle"
+  | "cargo_trike"
+  | "taxi"
+  | "pickup_truck"
+  | "box_truck"
+  | "flatbed_truck";
+
+export type TrafficVehicleKind =
+  | "moto"
+  | "pragya"
+  | "taxi"
+  | "car"
+  | "cargo"
+  | "bicycle"
+  | "minibus"
+  | "police_car"
+  | "pickup_truck"
+  | "box_truck"
+  | "flatbed_truck";
+
+export type CargoPropKind =
+  | "none"
+  | "rice_sacks"
+  | "yam_bundles"
+  | "cement_bags"
+  | "timber_beams"
+  | "water_packs"
+  | "market_crates"
+  | "mixed_parcels";
+
 export type InteractionVerb =
   | "talk"
   | "shop"
@@ -352,7 +472,10 @@ export type InteractionVerb =
   | "board_service"
   | "pickup_passenger"
   | "work"
-  | "repair";
+  | "repair"
+  | "load_cargo"
+  | "unload_cargo"
+  | "play_minigame";
 
 export interface NearbyInteractable {
   kind:
@@ -364,17 +487,26 @@ export interface NearbyInteractable {
     | "delivery"
     | "vendor"
     | "service_provider"
-    | "job_action";
+    | "job_action"
+    | "police_officer"
+    | "accident_scene";
   id: string;
   label: string;
   sublabel?: string;
   interactionVerb?: InteractionVerb;
-  vehicleKind?: "pragya" | "motorcycle";
+  vehicleKind?: DrivableVehicleKind;
   shopId?: string;
   stationKind?: InteriorStationKind;
   isGigDelivery?: boolean;
   servicePhase?: "pickup_food_or_repair" | "board_ride";
-  jobActionMode?: "pickup_passenger" | "work_shift" | "mechanic_repair" | "photo_capture" | "sports_drill";
+  jobActionMode?:
+    | "pickup_passenger"
+    | "work_shift"
+    | "mechanic_repair"
+    | "photo_capture"
+    | "sports_drill"
+    | "load_cargo"
+    | "unload_cargo";
   doorClosed?: boolean;
 }
 
@@ -473,7 +605,7 @@ export interface PlayableCharacterProfile {
   startingMoney: number;
   startingEnergy: number;
   startingVehicleLabel: string;
-  startingVehicleKind?: "pragya" | "motorcycle";
+  startingVehicleKind?: DrivableVehicleKind;
   bio: string;
   dailyRoutineSummary: string;
   careerTrack: string;
@@ -503,7 +635,8 @@ export type CityTaskCategory =
   | "photography"
   | "exploration"
   | "social_activity"
-  | "community_errand";
+  | "community_errand"
+  | "cargo_freight";
 
 export type CityTaskExecutionMode =
   | "transport_passenger"
@@ -512,7 +645,8 @@ export type CityTaskExecutionMode =
   | "mechanic_dispatch"
   | "photo_survey"
   | "sports_drill"
-  | "business_manage";
+  | "business_manage"
+  | "cargo_haul";
 
 export interface CityTaskJob {
   id: string;
@@ -531,7 +665,11 @@ export interface CityTaskJob {
   rewardCultureXp: number;
   energyCost: number;
   skillReward: { skill: SkillKey; points: number };
-  recommendedVehicle?: "any" | "pragya" | "motorcycle" | "foot";
+  recommendedVehicle?: "any" | "pragya" | "motorcycle" | "foot" | "truck" | "cargo_trike";
+  requiredVehicleClasses?: DrivableVehicleKind[];
+  cargoWeightKg?: number;
+  cargoKind?: CargoPropKind;
+  cargoTitle?: string;
   shiftDomain?: "kitchen" | "supermarket" | "electronics" | "fashion" | "event" | "community";
   distanceMeters?: number;
 }
@@ -541,6 +679,9 @@ export interface ActiveTaskRuntime {
   stage: "go_to_pickup" | "go_to_destination" | "ready_for_activity";
   passengerBoarded?: boolean;
   passengerName?: string;
+  cargoLoaded?: boolean;
+  cargoDamagePct?: number;
+  assignedVehicleId?: string;
   startedAtMinutes: number;
 }
 
@@ -637,6 +778,15 @@ export interface CharacterRuntimeState {
   capturedPhotos: CapturedPhotoRecord[];
   phoneMessages?: PhoneMessageRecord[];
   playerPos: { x: number; z: number; rotY: number };
+  policeFinesOwedCedis?: number;
+  trafficViolationsCount?: number;
+  cleanDrivingStreak?: number;
+  cargoDeliveriesCount?: number;
+  dayCount?: number;
+  needs?: PlayerNeedsState;
+  homeState?: HomeState;
+  laundryState?: HomeLaundryState;
+  ownedOutfits?: OutfitStyle[];
 }
 
 export interface SavedGameState {
@@ -650,6 +800,7 @@ export interface SavedGameState {
   energy: number;
   cultureXp: number;
   gameMinutes: number; // 0 - 1440
+  dayCount?: number;
   weather: WeatherType;
   activeCityEvent: ActiveCityEventMode;
   customization: PlayerCustomization;
@@ -680,11 +831,14 @@ export type InteriorBuildingArchetype =
   | "pharmacy_bakery"
   | "guesthouse"
   | "compound_home"
+  | "player_home_compound"
   | "palace_courtyard"
   | "mosque_courtyard"
   | "cultural_gallery"
   | "market_hall"
-  | "fitness_print";
+  | "fitness_print"
+  | "club_lounge"
+  | "police_station";
 
 export type InteriorStationKind =
   | "exit_door"
@@ -704,7 +858,26 @@ export type InteriorStationKind =
   | "wardrobe"
   | "room_radio"
   | "cultural_bench"
-  | "gym_rack";
+  | "gym_rack"
+  | "dj_booth"
+  | "dance_floor"
+  | "club_game_table"
+  | "police_desk"
+  | "home_shower"
+  | "home_sink_hygiene"
+  | "home_toilet"
+  | "home_mirror"
+  | "home_kitchen_fridge"
+  | "home_kitchen_stove"
+  | "home_kitchen_sink"
+  | "home_clean_sweep"
+  | "home_clean_mop"
+  | "home_rubbish_bin"
+  | "home_laundry_wash"
+  | "home_clothesline"
+  | "home_sofa_tv"
+  | "home_upgrade_desk"
+  | "home_charger";
 
 export interface InteriorStationSpec {
   id: string;
@@ -867,4 +1040,34 @@ export interface GeoLocationAuditEntry {
   confidence: "verified-osm-photo" | "verified-osm" | "representative-local";
 }
 
+export type PoliceViolationKind = "red_light" | "speeding" | "reckless_collision";
 
+export interface PoliceStopNotice {
+  id: string;
+  violationKind: PoliceViolationKind;
+  officerName: string;
+  title: string;
+  detail: string;
+  fineCedis: number;
+  warningEligible: boolean;
+  impoundRisk: boolean;
+  offenseCountAfter: number;
+}
+
+export interface NearbySignalSnapshot {
+  id: string;
+  label: string;
+  ewAspect: "green" | "amber" | "red";
+  nsAspect: "green" | "amber" | "red";
+  remainingSec: number;
+  dist: number;
+}
+
+export interface NavRouteSnapshot {
+  targetLandmarkId?: string;
+  targetLabel: string;
+  routePoints: Array<{ x: number; z: number }>;
+  remainingMeters: number;
+  nextTurnLabel: string;
+  isOffRoute: boolean;
+}

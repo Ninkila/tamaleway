@@ -28,6 +28,8 @@ interface SettingsAndControlsModalProps {
   onUpdateSettings: (patch: Partial<GameSettings>) => void;
   onResetKeyBindings: () => void;
   onResetTutorialHints?: () => void;
+  debugWireframe?: boolean;
+  onToggleDebugWireframe?: () => void;
   onClose: () => void;
 }
 
@@ -62,6 +64,8 @@ export const SettingsAndControlsModal: React.FC<SettingsAndControlsModalProps> =
   onUpdateSettings,
   onResetKeyBindings,
   onResetTutorialHints,
+  debugWireframe = false,
+  onToggleDebugWireframe,
   onClose,
 }) => {
   const [tab, setTab] = useState<"settings" | "controls">(initialTab);
@@ -311,6 +315,30 @@ export const SettingsAndControlsModal: React.FC<SettingsAndControlsModalProps> =
                     </button>
                   </div>
                 </div>
+
+                {onToggleDebugWireframe && (
+                  <div className="flex flex-wrap items-center justify-between gap-2.5 bg-[#201b17] border border-white/10 rounded-xl p-3.5">
+                    <div>
+                      <div className="text-xs sm:text-sm font-medium text-[#f5f2eb]">
+                        World Bounds &amp; Collider Wireframe
+                      </div>
+                      <div className="text-[11px] text-[#9c9487]">
+                        Inspect Tamale building collision boxes and Naa Gbewaa ramp clearances
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onToggleDebugWireframe}
+                      className={`min-h-[40px] min-w-[68px] px-3.5 rounded-lg text-xs font-semibold cursor-pointer ${
+                        debugWireframe
+                          ? "bg-amber-500 text-[#12100e]"
+                          : "bg-[#14110f] text-[#bfb7aa] border border-white/15"
+                      }`}
+                    >
+                      {debugWireframe ? "On" : "Off"}
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Graphics Quality */}

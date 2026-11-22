@@ -66,6 +66,7 @@ export interface DynamicVehicleObstacle {
   id: string;
   x: number;
   z: number;
+  y?: number;
   rotY: number;
   halfWidth: number;
   halfLength: number;
@@ -442,7 +443,8 @@ export class SpatialCollisionWorld {
     radius: number,
     layerMask: number = COLLIDER_MASK_ALL_WITH_VEHICLES,
     dynamicVehicles?: readonly DynamicVehicleObstacle[],
-    ignoreVehicleId?: string
+    ignoreVehicleId?: string,
+    entityY?: number
   ): { x: number; z: number; collided: boolean } {
     let rx = clamp(x, this.bounds.minX, this.bounds.maxX);
     let rz = clamp(z, this.bounds.minZ, this.bounds.maxZ);
@@ -462,6 +464,9 @@ export class SpatialCollisionWorld {
       let passHit = false;
       for (const obs of candidates) {
         if ((obs.layer & layerMask) === 0) continue;
+        if (entityY !== undefined && (entityY + 1.65 < obs.minY || entityY > obs.maxY + 0.18)) {
+          continue;
+        }
         if (obs.kind === "box") {
           const res = resolveCircleAgainstAABB(rx, rz, radius, obs.minX, obs.maxX, obs.minZ, obs.maxZ);
           if (res.hit) {
@@ -501,6 +506,10 @@ export class SpatialCollisionWorld {
       if (checkVehicles) {
         for (const v of dynamicVehicles!) {
           if (!v.isActive || v.id === ignoreVehicleId) continue;
+          const vy = v.y ?? 0;
+          if (entityY !== undefined && (entityY + 1.65 < vy || entityY > vy + v.height + 0.18)) {
+            continue;
+          }
           const res = resolveCircleAgainstOBB(
             rx,
             rz,
@@ -540,7 +549,8 @@ export class SpatialCollisionWorld {
     radius: number,
     layerMask: number = COLLIDER_MASK_ALL_WITH_VEHICLES,
     dynamicVehicles?: readonly DynamicVehicleObstacle[],
-    ignoreVehicleId?: string
+    ignoreVehicleId?: string,
+    entityY?: number
   ): { x: number; z: number; collided: boolean } {
     const dx = toX - fromX;
     const dz = toZ - fromZ;
@@ -561,7 +571,8 @@ export class SpatialCollisionWorld {
         radius,
         layerMask,
         dynamicVehicles,
-        ignoreVehicleId
+        ignoreVehicleId,
+        entityY
       );
       if (res.collided) anyCollision = true;
       curX = res.x;
@@ -815,19 +826,24 @@ export function sweepInteriorCameraRay(
 
 /**
  * Computes physical ground elevation at (x, z) including road asphalt crown,
- * sidewalk curbs, and Tamale speed humps — while safely keeping pedestrians and
- * vehicles passing UNDER the Naa Gbewaa Interchange at ground level (no false elevation jump).
+ * Naa Gbewaa Interchange approach ramps + elevated viaduct, and Tamale speed humps —
+ * while keeping pedestrians and vehicles passing UNDER the interchange at y = 0.
  */
 export function getTamaleGroundHeight(x: number, z: number, currentY = 0): number {
   let y = 0;
 
-  // Elevated Naa Gbewaa Interchange deck/ramps ONLY if already elevated on the upper viaduct
-  if (currentY > 2.4 && Math.abs(z) < 5.1 && Math.abs(x) <= 60.5) {
-    if (Math.abs(x) <= 33) {
-      return 6.28;
+  const absX = Math.abs(x);
+  const absZ = Math.abs(z);
+  const onDeckCorridor = absZ <= 4.85 && absX <= 60.8;
+  const atRampMouth = absZ <= 4.65 && absX >= 53.5 && absX <= 60.8;
+
+  // Climb cleanly onto interchange from either ground ramp mouth OR continue seamlessly if already elevated
+  if (onDeckCorridor && (currentY > 1.35 || atRampMouth)) {
+    if (absX <= 33) {
+      return 6.29;
     }
-    const rampT = 1 - (Math.abs(x) - 33) / 27.5;
-    return clamp(rampT, 0, 1) * 6.28;
+    const rampT = clamp((60.8 - absX) / 27.8, 0, 1);
+    return rampT * 6.29;
   }
 
   // Smooth cosine bump over physical yellow-and-black Tamale speed humps
@@ -845,6 +861,43 @@ export function getTamaleGroundHeight(x: number, z: number, currentY = 0): numbe
   }
 
   return y;
+}
+
+/**
+ * Computes realistic crash recoil & structural/cargo damage percentage when a vehicle hits a solid obstacle.
+ */
+export function resolveVehicleCrashImpulse(
+  speed: number,
+  rotY: number,
+  fromX: number,
+  fromZ: number,
+  resolvedX: number,
+  resolvedZ: number,
+  massKg = 1000
+): {
+  nextSpeed: number;
+  impactMagnitude: number;
+  damagePct: number;
+  severeCrash: boolean;
+} {
+  const absSpeed = Math.abs(speed);
+  const pushDist = Math.hypot(resolvedX - fromX, resolvedZ - fromZ);
+  if (absSpeed < 2.2) {
+    return { nextSpeed: speed * 0.35, impactMagnitude: 0, damagePct: 0, severeCrash: false };
+  }
+  const massFactor = clamp(Math.sqrt(massKg / 900), 0.75, 1.55);
+  const impactMagnitude = absSpeed * massFactor;
+  // Glancing scrape vs head-on collision
+  const fwdX = Math.sin(rotY);
+  const fwdZ = Math.cos(rotY);
+  const normalLen = pushDist > 1e-4 ? pushDist : 1;
+  const dot = Math.abs((fwdX * (resolvedX - fromX) + fwdZ * (resolvedZ - fromZ)) / normalLen);
+  const headOnWeight = clamp(0.4 + dot * 0.6, 0.4, 1.0);
+  const damagePct = absSpeed > 5.0 ? Math.round(clamp((absSpeed - 4.2) * headOnWeight * 2.4, 2, 34)) : 0;
+  const severeCrash = absSpeed >= 9.5 && headOnWeight > 0.55;
+  // Physical bounce recoil opposite current motion if head-on, else damped slide
+  const nextSpeed = severeCrash ? -Math.sign(speed) * Math.min(3.4, absSpeed * 0.22) : speed * 0.42;
+  return { nextSpeed, impactMagnitude, damagePct, severeCrash };
 }
 
 /**

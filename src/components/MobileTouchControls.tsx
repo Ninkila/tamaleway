@@ -10,17 +10,18 @@ import {
   OctagonX,
   RotateCcw,
   ShoppingBag,
+  Truck,
   Volume2,
   Wrench,
 } from "lucide-react";
-import { NearbyInteractable } from "../types/game";
+import { DrivableVehicleKind, NearbyInteractable } from "../types/game";
 import { DeviceLayoutConfig } from "../utils/deviceProfile";
 
 interface MobileTouchControlsProps {
   deviceLayout: DeviceLayoutConfig;
   isDriving: boolean;
   isRidingService?: boolean;
-  drivingKind: "pragya" | "motorcycle" | null;
+  drivingKind: DrivableVehicleKind | null;
   nearby: NearbyInteractable | null;
   nearbyVehicle: NearbyInteractable | null;
   vibrationEnabled: boolean;
@@ -222,6 +223,10 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
       ? nearby.servicePhase === "board_ride"
         ? "BOARD RIDE"
         : "COLLECT"
+      : nearby?.kind === "police_officer"
+      ? "OFFICER"
+      : nearby?.kind === "accident_scene"
+      ? "ASSIST"
       : nearby?.kind === "job_action"
       ? nearby.jobActionMode === "pickup_passenger"
         ? "PICK UP"
@@ -231,7 +236,13 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
         ? "PHOTO"
         : nearby.jobActionMode === "sports_drill"
         ? "DRILL"
+        : nearby.jobActionMode === "load_cargo" || nearby.interactionVerb === "load_cargo"
+        ? "LOAD CARGO"
+        : nearby.jobActionMode === "unload_cargo" || nearby.interactionVerb === "unload_cargo"
+        ? "UNLOAD CARGO"
         : "WORK"
+      : nearby?.interactionVerb === "play_minigame"
+      ? "PLAY GAMES"
       : nearby?.interactionVerb === "talk"
       ? "TALK"
       : nearby?.interactionVerb === "enter"
@@ -247,12 +258,14 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
       : "INTERACT";
 
   const ContextIcon =
-    nearby?.interactionVerb === "talk"
+    nearby?.interactionVerb === "talk" || nearby?.kind === "police_officer"
       ? MessageCircle
       : nearby?.interactionVerb === "enter" || nearby?.interactionVerb === "exit"
       ? DoorOpen
-      : nearby?.interactionVerb === "repair"
+      : nearby?.interactionVerb === "repair" || nearby?.kind === "accident_scene"
       ? Wrench
+      : nearby?.interactionVerb === "load_cargo" || nearby?.interactionVerb === "unload_cargo"
+      ? Truck
       : nearby?.kind === "service_provider"
       ? Bike
       : ShoppingBag;
@@ -334,7 +347,19 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
             <span className="text-xs font-bold text-[#bfb7aa] pointer-events-none">R</span>
           </div>
           <div className="text-[10px] text-center text-[#cfc8bc] mt-1 font-medium tracking-wide">
-            {drivingKind === "motorcycle" ? "MOTO" : "PRAGYA"}
+            {drivingKind === "motorcycle"
+              ? "MOTO"
+              : drivingKind === "cargo_trike"
+              ? "CARGO TRIKE"
+              : drivingKind === "taxi"
+              ? "TAXI"
+              : drivingKind === "pickup_truck"
+              ? "PICKUP"
+              : drivingKind === "box_truck"
+              ? "BOX TRUCK"
+              : drivingKind === "flatbed_truck"
+              ? "FLATBED"
+              : "PRAGYA"}
           </div>
         </div>
       ) : null}

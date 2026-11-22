@@ -15,16 +15,24 @@ import {
   ActiveCityEventMode,
   ActiveTaskRuntime,
   CameraMode,
+  CargoPropKind,
   DEFAULT_KEY_BINDINGS,
   DeviceClass,
+  DrivableVehicleKind,
   GraphicsQuality,
+  HomeLaundryState,
+  HomeState,
   InteriorRoomSpec,
   KeyBindings,
+  NavRouteSnapshot,
   NearbyChatter,
   NearbyInteractable,
+  NearbySignalSnapshot,
   NpcRuntimeSnapshot,
   PlayerCustomization,
+  PoliceStopNotice,
   ServiceRequestRuntime,
+  TrafficVehicleKind,
   WeatherType,
 } from "../types/game";
 import { getInteriorSpecForLandmark } from "../data/tamaleInteriors";
@@ -35,6 +43,25 @@ import {
   getCrossRoadsAlong,
   getRoadExtentBounds,
 } from "../data/tamaleRoadGraph";
+import {
+  TAMALE_BENCH_PLACEMENTS,
+  TAMALE_BUS_STOPS,
+  TAMALE_COMPOUND_SPECS,
+  TAMALE_DIRECTION_SIGNS,
+  TAMALE_DRIVABLE_SPAWNS,
+  TAMALE_DUSTY_LANES,
+  TAMALE_HOUSE_SPECS,
+  TAMALE_NIGHT_SPOTS,
+  TAMALE_PARKED_MOTOS,
+  TAMALE_PLANTER_BINS,
+  TAMALE_POLE_EW_XS,
+  TAMALE_POLE_NS_ZS,
+  TAMALE_SHOP_SPECS,
+  TAMALE_SOLAR_POLYTANK_SPOTS,
+  TAMALE_SPEED_HUMPS,
+  TAMALE_STALL_PLACEMENTS,
+  TAMALE_TREE_PLACEMENTS,
+} from "../data/tamaleWorldLayout";
 import { TamaleAudioEngine } from "./audio";
 import {
   COLLIDER_MASK_ALL_WITH_VEHICLES,
@@ -45,16 +72,23 @@ import {
   getTamaleGroundHeight,
   isNearDoorwayEntrance,
   resolveInteriorCircle2D,
+  resolveVehicleCrashImpulse,
   SpatialCollisionWorld,
   sweepInteriorCameraRay,
 } from "./collisionSystem";
 import { buildPhysicalInteriorScene, BuiltInteriorScene } from "./interiorBuilder";
+import { TamaleLawEnforcementSystem } from "./lawEnforcementSystem";
 import { NpcScheduleController } from "./NpcScheduleController";
+import { createPlayerHomeCompoundMesh } from "./homeModelBuilder";
 import {
+  animateCharacterRigDance,
+  animateCharacterRigWalk,
   CharacterRig,
   createAirportGroup,
   createBicycleMesh,
+  createBoxTruckMesh,
   createBusStopShelterMesh,
+  createCargoBundleMesh,
   createCargoTrikeMesh,
   createCentralMarketGroup,
   createCentralMosqueGroup,
@@ -62,12 +96,16 @@ import {
   createCompoundGroup,
   createCulturalCentreGroup,
   createDakpemaPalaceGroup,
+  createFlatbedTruckMesh,
   createJubileeAndOfficeGroup,
   createKukuoPotteryGroup,
   createLandmarkLabelSprite,
   createLivestockTimberGroup,
+  createMinibusTrotroMesh,
   createMotorcycleMesh,
   createMotorcycleWithRiderMesh,
+  createPickupTruckMesh,
+  createPoliceStationGroup,
   createPolytankAndSolarAddon,
   createPragyaMesh,
   createPrivateCarMesh,
@@ -90,15 +128,18 @@ import {
   createUtilityPoleWithLamp,
   NpcCarryProp,
   setCharacterPose,
-  ShopArchitecturalStyle,
-  TamaleHouseVariant,
 } from "./models";
 import { createProceduralTextures, ProceduralTextureSet } from "./textures";
+import { TamaleTrafficSignalSystem } from "./trafficSystem";
+import { buildWorldDebugWireframeGroup } from "./worldValidation";
 
 // Pre-allocated math helpers (Zero GC in loop)
 const _camTarget = new THREE.Vector3();
 const _desiredCamPos = new THREE.Vector3();
 const _dummyObj = new THREE.Object3D();
+const _roomBgColor = new THREE.Color("#181410");
+const _skyColor = new THREE.Color();
+const _lightningFlashColor = new THREE.Color("#dbeafe");
 
 function getLaneShift(roadCoord: number): number {
   return roadCoord === 0 ? 4.9 : 2.25;
@@ -106,23 +147,44 @@ function getLaneShift(roadCoord: number): number {
 
 interface DrivableVehicle {
   id: string;
-  kind: "pragya" | "motorcycle";
+  kind: DrivableVehicleKind;
   label: string;
   group: THREE.Group;
   wheels: THREE.Mesh[];
   headlightMat: THREE.MeshStandardMaterial;
+  brakeLightMat?: THREE.MeshStandardMaterial;
+  cargoMountGroup?: THREE.Group;
+  attachedCargoMesh: THREE.Group | null;
   x: number;
+  y: number;
   z: number;
   rotY: number;
   speed: number;
+  healthPct: number;
+  maxCargoKg: number;
+  maxSpeed: number;
+  reverseMax: number;
+  accelRate: number;
+  brakeRate: number;
+  turnRate: number;
+  massKg: number;
+  halfWidth: number;
+  halfLength: number;
+  height: number;
+  collisionRadius: number;
+  impounded: boolean;
+  spawnX: number;
+  spawnZ: number;
+  spawnRotY: number;
 }
 
 interface TrafficVehicle {
-  kind: "moto" | "pragya" | "taxi" | "car" | "cargo" | "bicycle";
+  kind: TrafficVehicleKind;
   group: THREE.Group;
   chassisGroup?: THREE.Group;
   wheels?: THREE.Mesh[];
   headlightMat: THREE.MeshStandardMaterial;
+  brakeLightMat?: THREE.MeshStandardMaterial;
   axis: "x" | "z";
   roadCoord: number;
   x: number;
@@ -231,11 +293,21 @@ export interface EngineCallbacks {
     speedKmh: number;
     isDriving: boolean;
     drivingLabel: string | null;
-    drivingKind: "pragya" | "motorcycle" | null;
+    drivingKind: DrivableVehicleKind | null;
+    drivingMaxCargoKg: number;
+    vehicleHealthPct: number;
     isRidingService: boolean;
     nearby: NearbyInteractable | null;
     nearbyVehicle: NearbyInteractable | null;
     nearbyChatter: NearbyChatter | null;
+    nearbySignal: NearbySignalSnapshot | null;
+    policePursuitActive: boolean;
+    impoundedVehicleId: string | null;
+    navSnapshot: NavRouteSnapshot | null;
+    cargoIntegrityPct: number | null;
+    cargoLoadProgressPct: number | null;
+    policeCruiserPositions: Array<{ x: number; z: number }>;
+    roadIncidentPositions: Array<{ id: string; title: string; x: number; z: number }>;
     nearestGuidance: {
       id: string;
       name: string;
@@ -256,6 +328,9 @@ export interface EngineCallbacks {
   onInteriorChange?: (spec: InteriorRoomSpec | null) => void;
   onEnergyDrain?: (delta: number) => void;
   onWebGLContextChange?: (lost: boolean) => void;
+  onPoliceStop?: (notice: PoliceStopNotice) => void;
+  onLawEventToast?: (msg: string) => void;
+  onCargoDamaged?: (nextIntegrityPct: number, reason: string) => void;
 }
 
 export class TamaleEngine {
@@ -334,6 +409,10 @@ export class TamaleEngine {
   private doorways: DoorwayEntranceSpec[] = [];
   private dynamicVehicleBuf: DynamicVehicleObstacle[] = [];
   private npcController!: NpcScheduleController;
+  private trafficSignals!: TamaleTrafficSignalSystem;
+  private lawEnforcement!: TamaleLawEnforcementSystem;
+  private debugWireframeGroup: THREE.Group | null = null;
+  private policeBeaconMat: THREE.MeshStandardMaterial | null = null;
   private crowdAgents: CrowdAgent[] = [];
   private ambientPlayableCharacters: Array<{ id: string; rig: CharacterRig }> = [];
   private activePlayableId = "yakubu_pragya";
@@ -354,10 +433,20 @@ export class TamaleEngine {
   private serviceSyncDirty = false;
   private servicePassengerRiding = false;
 
+  private navDest: { landmarkId?: string; label: string; x: number; z: number } | null = null;
+  private navRoutePoints: Array<{ x: number; z: number }> = [];
+  private navLastRouteFrom = { x: Infinity, z: Infinity };
+  private cargoLoadProgress: number | null = null;
+  private cargoLoadMode: "load" | "unload" | null = null;
+  private cargoLoadCallback: (() => void) | null = null;
+  private activeCargoIntegrity = 100;
+  private activeCargoVehicleId: string | null = null;
+
   private deviceClass: DeviceClass = "desktop";
   private graphicsQuality: GraphicsQuality = "high";
   private resolutionScale = 1.0;
   private crowdUpdateRadius = 115;
+  private homeVisualState: { home?: HomeState | null; laundry?: HomeLaundryState | null } = {};
   private trafficUpdateRadius = 250;
   private labelMaxDist = 195;
 
@@ -609,12 +698,15 @@ export class TamaleEngine {
     this.worldRoot.add(interchangeGroup);
     this.lampBulbMats.push(...bridgeLampBulbs);
 
-    // Bridge piers & central roundabout island colliders (keeping Gukpegu Rd N-S & High St frontage lanes passable!)
+    // Bridge piers, central roundabout island & elevated viaduct guardrails (keeping Gukpegu Rd passable below!)
     for (const px of [-24, -10, 10, 24]) {
-      this.addCollider(px - 0.9, px + 0.9, -2.6, 2.6);
+      this.addCollider(px - 0.9, px + 0.9, -2.6, 2.6, 5.2, ColliderLayer.BUILDING, true);
     }
-    this.addCollider(-4.1, 4.1, -4.1, 4.1); // Roundabout island
-    this.addCollider(-14.5, -6.8, 9.8, 11.2); // Highway gantry sign posts
+    this.addCollider(-4.1, 4.1, -4.1, 4.1, 4.5, ColliderLayer.BUILDING, true); // Roundabout island
+    this.addCollider(-14.5, -6.8, 9.8, 11.2, 5.2, ColliderLayer.BUILDING, true); // Highway gantry sign posts
+    for (const zSide of [-5.1, 5.1]) {
+      this.addCollider(-33, 33, zSide - 0.35, zSide + 0.35, 7.5, ColliderLayer.WALL, false, 5.85);
+    }
 
     // 4. Tamale Central Market (-44, 0, -30)
     const market = createCentralMarketGroup(this.textures);
@@ -737,10 +829,10 @@ export class TamaleEngine {
 
     // 15. Aboabo Market (-132, 0, 28) & Lamashegu Market Hub (-84, 0, 100) & Kakpagyili Market (32, 0, 158)
     const aboaboMarket = createCentralMarketGroup(this.textures);
-    aboaboMarket.position.set(-132, 0, 28);
+    aboaboMarket.position.set(-132, 0, 27);
     aboaboMarket.scale.set(0.9, 1, 0.9);
     this.worldRoot.add(aboaboMarket);
-    this.addCollider(-144.5, -119.5, 17.5, 38.5);
+    this.addCollider(-144.5, -119.5, 16.5, 37.5);
 
     const lamasheguMarket = createCentralMarketGroup(this.textures);
     lamasheguMarket.position.set(-84, 0, 100);
@@ -765,18 +857,49 @@ export class TamaleEngine {
     this.worldRoot.add(dunguCampus);
     this.addCollider(-143.5, -124.5, 151, 160);
 
+    // 16b. Ghana Police Service Tamale Divisional HQ (54, 0, -32)
+    const policeHq = createPoliceStationGroup(this.textures);
+    policeHq.group.position.set(54, 0, -32);
+    this.worldRoot.add(policeHq.group);
+    this.policeBeaconMat = policeHq.beaconMat;
+
+    // 16c. Player's Personal Changli Compound Home (20, 0, 81)
+    const playerHomeMesh = createPlayerHomeCompoundMesh(
+      this.textures,
+      this.homeVisualState.home?.upgrades
+    );
+    playerHomeMesh.position.set(20, 0, 81);
+    this.worldRoot.add(playerHomeMesh);
+    // Perimeter walls (leave gate open x: 18.2..21.8 at z: 86.8) & main house body
+    this.addCollider(12.5, 27.5, 75.0, 75.4, 2.5, ColliderLayer.WALL);
+    this.addCollider(12.5, 12.9, 75.0, 87.0, 2.5, ColliderLayer.WALL);
+    this.addCollider(27.1, 27.5, 75.0, 87.0, 2.5, ColliderLayer.WALL);
+    this.addCollider(12.5, 18.0, 86.65, 87.05, 2.5, ColliderLayer.WALL);
+    this.addCollider(22.0, 27.5, 86.65, 87.05, 2.5, ColliderLayer.WALL);
+    this.addCollider(14.6, 25.4, 75.8, 81.5, 4.8, ColliderLayer.BUILDING);
+    this.addCollider(48.8, 59.2, -38.8, -25.2, 6.0, ColliderLayer.BUILDING, true);
+
+    // 16c. Functional Traffic Signals, MTTD Law Enforcement Patrols & Optional Debug Overlay
+    this.trafficSignals = new TamaleTrafficSignalSystem(this.scene);
+    this.worldRoot.add(this.trafficSignals.group);
+    this.lawEnforcement = new TamaleLawEnforcementSystem(this.scene, this.textures, {
+      onStopTriggered: (notice) => {
+        this.paused = true;
+        this.callbacks.onPoliceStop?.(notice);
+      },
+      onWarningToast: (msg) => {
+        this.callbacks.onLawEventToast?.(msg);
+      },
+      onPoliceChirp: () => {
+        this.audio.playPoliceChirp();
+      },
+    });
+    this.worldRoot.add(this.lawEnforcement.group);
+    this.debugWireframeGroup = buildWorldDebugWireframeGroup();
+    this.worldRoot.add(this.debugWireframeGroup);
+
     // 17. Traditional Dagomba Clay-and-Thatch Compounds across Communities
-    const compoundSpecs: Array<[number, number, number]> = [
-      [-84, 48, 0],
-      [-134, 52, 0],
-      [-134, -68, Math.PI],
-      [-48, -134, 0],
-      [24, 184, Math.PI],
-      [48, 184, Math.PI],
-      [-134, 184, Math.PI],
-      [204, 14, 0],
-    ];
-    for (const [cx, cz, rot] of compoundSpecs) {
+    for (const [cx, cz, rot] of TAMALE_COMPOUND_SPECS) {
       const comp = createCompoundGroup(this.textures);
       comp.position.set(cx, 0, cz);
       comp.rotation.y = rot;
@@ -785,46 +908,7 @@ export class TamaleEngine {
     }
 
     // 18. Diverse Tamale Residential & Artisan Neighbourhood Architecture (17 Communities)
-    const houseSpecs: Array<{
-      x: number;
-      z: number;
-      rotY: number;
-      variant: TamaleHouseVariant;
-      primary: string;
-      accent: string;
-      halfW: number;
-      halfD: number;
-    }> = [
-      // Kalpohin & Kalpohin Estates
-      { x: 84, z: -120, rotY: 0, variant: "modern_gated", primary: "#d1fae5", accent: "#15803d", halfW: 5.5, halfD: 5.0 },
-      { x: 108, z: -120, rotY: 0, variant: "modern_gated", primary: "#fef3c7", accent: "#b45309", halfW: 5.5, halfD: 5.0 },
-      { x: 96, z: -140, rotY: Math.PI, variant: "uncompleted_build", primary: "#94a3b8", accent: "#78350f", halfW: 5.2, halfD: 4.0 },
-      // Gumani Developing Suburb
-      { x: 148, z: -120, rotY: 0, variant: "uncompleted_build", primary: "#94a3b8", accent: "#78350f", halfW: 5.2, halfD: 4.0 },
-      { x: 168, z: -120, rotY: 0, variant: "uncompleted_build", primary: "#94a3b8", accent: "#78350f", halfW: 5.2, halfD: 4.0 },
-      { x: 158, z: -142, rotY: Math.PI, variant: "modern_gated", primary: "#e0f2fe", accent: "#0369a1", halfW: 5.5, halfD: 5.0 },
-      // Kanvilli & Gumbihini & Choggu
-      { x: 24, z: -120, rotY: 0, variant: "multi_storey_apt", primary: "#f1f5f9", accent: "#1e3a5f", halfW: 6.2, halfD: 4.2 },
-      { x: 46, z: -120, rotY: 0, variant: "modern_gated", primary: "#ffedd5", accent: "#c2410c", halfW: 5.5, halfD: 5.0 },
-      { x: -24, z: -120, rotY: 0, variant: "multi_storey_apt", primary: "#e7e5e4", accent: "#0f766e", halfW: 6.2, halfD: 4.2 },
-      { x: -82, z: -120, rotY: 0, variant: "modern_gated", primary: "#dcfce7", accent: "#166534", halfW: 5.5, halfD: 5.0 },
-      // Sagnarigu & Nyohini
-      { x: -182, z: -116, rotY: Math.PI / 2, variant: "modern_gated", primary: "#fef9c3", accent: "#a16207", halfW: 5.5, halfD: 5.0 },
-      { x: -182, z: -24, rotY: Math.PI / 2, variant: "multi_storey_apt", primary: "#f8fafc", accent: "#991b1b", halfW: 6.2, halfD: 4.2 },
-      // Aboabo & Lamashegu Mechanics
-      { x: -134, z: -16, rotY: 0, variant: "multi_storey_apt", primary: "#fed7aa", accent: "#9a3412", halfW: 6.2, halfD: 4.2 },
-      { x: -124, z: 106, rotY: 0, variant: "mechanic_timber_bay", primary: "#cbd5e1", accent: "#0369a1", halfW: 5.5, halfD: 4.2 },
-      { x: -144, z: 106, rotY: 0, variant: "mechanic_timber_bay", primary: "#e2e8f0", accent: "#b45309", halfW: 5.5, halfD: 4.2 },
-      { x: -42, z: 106, rotY: 0, variant: "multi_storey_apt", primary: "#f1f5f9", accent: "#1d4ed8", halfW: 6.2, halfD: 4.2 },
-      // Dabokpaa & Vittin
-      { x: 150, z: 152, rotY: 0, variant: "multi_storey_apt", primary: "#fef3c7", accent: "#0f766e", halfW: 6.2, halfD: 4.2 },
-      { x: 170, z: 152, rotY: 0, variant: "uncompleted_build", primary: "#94a3b8", accent: "#78350f", halfW: 5.2, halfD: 4.0 },
-      { x: 204, z: 78, rotY: -Math.PI / 2, variant: "modern_gated", primary: "#e0f2fe", accent: "#15803d", halfW: 5.5, halfD: 5.0 },
-      // Dungu student hostels
-      { x: -182, z: 148, rotY: Math.PI / 2, variant: "multi_storey_apt", primary: "#e0e7ff", accent: "#1e40af", halfW: 6.2, halfD: 4.2 },
-    ];
-
-    for (const h of houseSpecs) {
+    for (const h of TAMALE_HOUSE_SPECS) {
       const mesh = createTamaleHouseVariant(h.variant, this.textures, h.primary, h.accent);
       mesh.position.set(h.x, 0, h.z);
       mesh.rotation.y = h.rotY;
@@ -841,57 +925,8 @@ export class TamaleEngine {
       });
     }
 
-    // 19. Realistically Signposted Tamale Commercial Shops, Restaurants, Fast Food & Supermarkets
-    const shopSpecs: Array<{
-      x: number;
-      z: number;
-      rotY: number;
-      w: number;
-      h: number;
-      d: number;
-      wall: string;
-      awning: string;
-      name: string;
-      sub: string;
-      style?: ShopArchitecturalStyle;
-    }> = [
-      { x: -18, z: -13, rotY: 0, w: 8.5, h: 3.9, d: 6.2, wall: "#fef3c7", awning: "#047857", name: "NORTHERN STAR PHARMACY", sub: "GBEWAA HIGH ST · TAMALE" },
-      { x: 20, z: -13, rotY: 0, w: 8.5, h: 3.8, d: 6.0, wall: "#e0f2fe", awning: "#b45309", name: "TAMALE MOBILE MONEY", sub: "PROVISIONS & COLD DRINKS" },
-      { x: 34, z: -13, rotY: 0, w: 8.5, h: 3.7, d: 6.0, wall: "#ffedd5", awning: "#1d4ed8", name: "DAA WAAKYE & TZ SPOT", sub: "HOT SAƔIM · FRESH KOM", style: "restaurant" },
-      { x: 48, z: -13, rotY: 0, w: 8.2, h: 4.0, d: 6.2, wall: "#e2e8f0", awning: "#991b1b", name: "DAGBON HARDWARE", sub: "TOOLS & ZINC ROOFING", style: "mechanic" },
-      { x: 68, z: -13, rotY: 0, w: 9.2, h: 4.1, d: 6.4, wall: "#fff1f2", awning: "#dc2626", name: "SAVANNAH FRIED CHICKEN", sub: "BURGERS · JOLLOF · SHAKES", style: "fast_food" },
-      { x: -54, z: -13, rotY: 0, w: 10.2, h: 4.3, d: 6.8, wall: "#f8fafc", awning: "#0284c7", name: "TAMALE CENTRAL MART", sub: "SUPERMARKET & COLD STORE", style: "supermarket" },
-      { x: 24, z: 14, rotY: Math.PI, w: 8.5, h: 3.8, d: 6.0, wall: "#fae8ff", awning: "#0f766e", name: "ALHASSAN FABRICS", sub: "SMOCKS & WAX PRINTS" },
-      { x: 40, z: 14, rotY: Math.PI, w: 8.5, h: 3.8, d: 6.0, wall: "#ecfccb", awning: "#ca8a04", name: "SHEA CO-OP DEPOT", sub: "PURE KPAKPILI & YAM" },
-      { x: -20, z: 14, rotY: Math.PI, w: 8.2, h: 3.7, d: 6.0, wall: "#f1f5f9", awning: "#1e40af", name: "SAVANNAH TELECOM", sub: "AIRTIME & REPAIRS" },
-      { x: -36, z: 14, rotY: Math.PI, w: 8.2, h: 3.8, d: 6.0, wall: "#fde68a", awning: "#15803d", name: "TISHIGU BAKERY", sub: "BREAD & ROASTED YAM", style: "cafe" },
-      { x: -60, z: 14, rotY: Math.PI, w: 8.4, h: 3.8, d: 6.0, wall: "#fef9c3", awning: "#9a3412", name: "NORTHERN TAILORS ROW", sub: "BATAKARI · LEATHER SANDALS" },
-      { x: 84, z: -14, rotY: 0, w: 9.5, h: 4.1, d: 6.5, wall: "#f8fafc", awning: "#0369a1", name: "TAMALE ENTERPRISE BANK", sub: "HIGH ST BRANCH & ATM", style: "bank_momo" },
-      { x: 102, z: -13, rotY: 0, w: 8.6, h: 3.9, d: 6.0, wall: "#0f172a", awning: "#0284c7", name: "GBEWAA ELECTRONICS HUB", sub: "PHONES · SOLAR · REPAIRS", style: "electronics" },
-      { x: 116, z: -13, rotY: 0, w: 8.2, h: 3.7, d: 6.0, wall: "#fff1f2", awning: "#ec4899", name: "TAMALE COOL SCOOP", sub: "ICE CREAM · SMOOTHIES", style: "ice_cream" },
-      { x: 52, z: 14, rotY: Math.PI, w: 8.4, h: 3.8, d: 6.0, wall: "#fdf2f8", awning: "#be185d", name: "SAVANNAH BOUTIQUE", sub: "FASHION · COSMETICS · PERFUME", style: "boutique" },
-      { x: -82, z: -13, rotY: 0, w: 8.4, h: 3.8, d: 6.0, wall: "#fef3c7", awning: "#7c2d12", name: "NORTHERN FOOTWEAR & BAGS", sub: "SANDALS · SNEAKERS · LEATHER", style: "boutique" },
-      { x: -16, z: 42, rotY: Math.PI / 2, w: 8.6, h: 3.8, d: 6.0, wall: "#fffbeb", awning: "#ea580c", name: "GUKPEGU TILAPIA & JOLLOF", sub: "CHARCOAL FISH · BANKU · SOBOLO", style: "restaurant" },
-      { x: 112, z: 138, rotY: Math.PI, w: 8.6, h: 3.8, d: 6.2, wall: "#f8fafc", awning: "#0d9488", name: "DABOKPAA HOUSEHOLD MART", sub: "PLASTICS · FLASKS · GROCERIES", style: "supermarket" },
-      { x: -18, z: -62, rotY: 0, w: 8.6, h: 3.7, d: 6.4, wall: "#e7e5e4", awning: "#b45309", name: "KALPOHIN BOOKSHOP", sub: "STATIONERY & PRINTS" },
-      { x: -120, z: 14, rotY: Math.PI, w: 8.4, h: 3.7, d: 6.0, wall: "#fef3c7", awning: "#b45309", name: "ABOABO CHICHINGA GRILL", sub: "SPICED KEBAB & WAAKYE", style: "restaurant" },
-      { x: -116, z: 32, rotY: Math.PI / 2, w: 8.6, h: 3.8, d: 6.0, wall: "#fffbeb", awning: "#b45309", name: "HAJIA MEMUNA TZ & FUFU", sub: "SAƔIM · AYOYO · SOUP", style: "restaurant" },
-      { x: -84, z: 142, rotY: 0, w: 8.8, h: 3.8, d: 6.2, wall: "#e2e8f0", awning: "#dc2626", name: "LAMASHEGU SPARE PARTS", sub: "BAJAJ PRAGYA & MOTO", style: "mechanic" },
-      { x: 146, z: 14, rotY: Math.PI, w: 8.2, h: 3.7, d: 6.0, wall: "#ffedd5", awning: "#9a3412", name: "KUKUO PROVISIONS", sub: "SHEA BUTTER & GRAINS" },
-      { x: 174, z: 6, rotY: Math.PI, w: 8.8, h: 3.9, d: 6.2, wall: "#fff7ed", awning: "#c2410c", name: "VITTIN PIZZA & SUYA BAR", sub: "SMASH BURGERS · GRILL", style: "fast_food" },
-      { x: 20, z: -144, rotY: 0, w: 8.6, h: 3.8, d: 6.0, wall: "#f1f5f9", awning: "#0369a1", name: "KANVILLI HIGHWAY MART", sub: "AIRPORT RD FUEL & DRINKS", style: "supermarket" },
-      { x: 52, z: -96, rotY: 0, w: 8.4, h: 3.8, d: 6.0, wall: "#fefce8", awning: "#16a34a", name: "KALPOHIN JUICE & PASTRY", sub: "MANGO · BAOBAB · BREAD", style: "cafe" },
-      // Enterable Neighbourhood Businesses & Services
-      { x: -146, z: -13, rotY: 0, w: 8.4, h: 3.7, d: 6.0, wall: "#f8fafc", awning: "#7c3aed", name: "NYOHINI FADE & BRAIDS", sub: "BARBER & SALON STUDIO", style: "salon" },
-      { x: 56, z: 32, rotY: -Math.PI / 2, w: 9.2, h: 4.3, d: 6.6, wall: "#fef3c7", awning: "#0f766e", name: "JUBILEE REST GUEST HOUSE", sub: "COOL ROOMS · OPEN 24H" },
-      { x: 150, z: 114, rotY: 0, w: 9.0, h: 3.9, d: 6.2, wall: "#e0f2fe", awning: "#dc2626", name: "SAVANNAH FITNESS & PRINT", sub: "GYM · PHOTOCOPY · DESIGN" },
-      { x: 18, z: -32, rotY: Math.PI / 2, w: 8.4, h: 3.8, d: 6.0, wall: "#ecfccb", awning: "#15803d", name: "TISHIGU PHARMACY & BAKERY", sub: "HOT SUGAR BREAD · TONICS", style: "cafe" },
-      { x: 86, z: -78, rotY: 0, w: 9.2, h: 3.9, d: 6.4, wall: "#e2e8f0", awning: "#b45309", name: "KALPOHIN HARDWARE & WELDING", sub: "CEMENT · WOOD · STEEL", style: "mechanic" },
-      { x: -144, z: 144, rotY: 0, w: 8.8, h: 3.8, d: 6.2, wall: "#eff6ff", awning: "#1d4ed8", name: "DUNGU CAMPUS CAFE & BOOKS", sub: "INTERNET · PRINTS · WAAKYE", style: "cafe" },
-      { x: -84, z: -144, rotY: 0, w: 8.8, h: 3.8, d: 6.2, wall: "#fff7ed", awning: "#ea580c", name: "CHOGGU EVENING SPOT", sub: "GRILLED TILAPIA · MUSIC", style: "restaurant" },
-    ];
-
-    for (const s of shopSpecs) {
+    // 19. Realistically Signposted Tamale Commercial Shops, Nightclubs, Restaurants & Supermarkets
+    for (const s of TAMALE_SHOP_SPECS) {
       const shop = createShopBuilding(
         s.w,
         s.h,
@@ -919,7 +954,7 @@ export class TamaleEngine {
     }
 
     // Build exact front-doorway entrance map for all enterable landmarks
-    this.registerLandmarkDoorways(shopSpecs);
+    this.registerLandmarkDoorways(TAMALE_SHOP_SPECS);
 
     // Zebra Crosswalk Markings at major Tamale intersections
     const crosswalkMat = new THREE.MeshStandardMaterial({
@@ -951,9 +986,8 @@ export class TamaleEngine {
     }
 
     // 20. ECG Utility Poles with Streetlamps + Overhead Power Cables
-    const ewPoleXs = [-148, -120, -92, -74, -52, -32, -16, 16, 36, 56, 76, 96, 144, 170];
     let prevEwPole: { x: number; z: number } | null = null;
-    for (const lx of ewPoleXs) {
+    for (const lx of TAMALE_POLE_EW_XS) {
       const pz = -8.2;
       const { group, bulbMat } = createUtilityPoleWithLamp();
       group.position.set(lx, 0, pz);
@@ -974,9 +1008,8 @@ export class TamaleEngine {
       prevEwPole = { x: lx, z: pz };
     }
 
-    const nsPoleZs = [-140, -112, -76, -58, -32, -14, 16, 36, 56, 78, 108, 144];
     let prevNsPole: { x: number; z: number } | null = null;
-    for (const lz of nsPoleZs) {
+    for (const lz of TAMALE_POLE_NS_ZS) {
       const px = -7.2;
       const { group, bulbMat } = createUtilityPoleWithLamp();
       group.position.set(px, 0, lz);
@@ -999,16 +1032,7 @@ export class TamaleEngine {
     }
 
     // 21. Authentic Northern Ghana Trees (Baobab, Shea, Mango, Neem) Across All Districts
-    const treePlacements: Array<[number, number, "baobab" | "shea" | "neem" | "mango"]> = [
-      [-12, -24, "neem"], [14, -26, "shea"], [48, -28, "mango"], [-24, 28, "baobab"],
-      [14, 28, "neem"], [56, 34, "shea"], [74, 42, "mango"], [98, 42, "neem"],
-      [-76, -24, "baobab"], [-92, -32, "shea"], [-46, 34, "mango"], [-32, 54, "baobab"],
-      [14, -64, "neem"], [54, -66, "baobab"], [-96, 28, "neem"],
-      [-114, 52, "baobab"], [-150, -74, "shea"], [-50, -112, "neem"], [78, -104, "mango"],
-      [144, 52, "shea"], [196, 18, "baobab"], [116, 114, "neem"], [52, 142, "mango"],
-      [-114, 146, "baobab"], [-26, -172, "shea"], [26, -172, "neem"],
-    ];
-    for (const [tx, tz, ttype] of treePlacements) {
+    for (const [tx, tz, ttype] of TAMALE_TREE_PLACEMENTS) {
       const tree = createTreeMesh(ttype);
       tree.position.set(tx, 0, tz);
       const s = 0.9 + Math.random() * 0.25;
@@ -1034,14 +1058,7 @@ export class TamaleEngine {
       polygonOffset: true,
       polygonOffsetFactor: -1,
     });
-    const dustyLanes: Array<{ x: number; z: number; w: number; d: number }> = [
-      { x: -108, z: 56, w: 68, d: 4.6 }, // Compound lane linking Cultural Quarter & Aboabo
-      { x: -134, z: 74, w: 4.6, d: 42 }, // Aboabo-Lamashegu dusty link
-      { x: 162, z: 14, w: 48, d: 4.5 }, // Kukuo-Vittin east side-lane
-      { x: 96, z: -130, w: 62, d: 4.5 }, // Kalpohin Estates unpaved cross-lane
-      { x: 36, z: 174, w: 54, d: 4.6 }, // Kakpagyili compound lane
-    ];
-    for (const lane of dustyLanes) {
+    for (const lane of TAMALE_DUSTY_LANES) {
       const laneMesh = new THREE.Mesh(new THREE.PlaneGeometry(lane.w, lane.d), dustyLaneMat);
       laneMesh.rotation.x = -Math.PI / 2;
       laneMesh.position.set(lane.x, 0.015, lane.z);
@@ -1050,54 +1067,7 @@ export class TamaleEngine {
     }
 
     // 21c. Roadside Kiosks, Mobile-Money Booths, Charcoal Food Stalls, Phone Carts, Ice Cream & Household Tables
-    const stallPlacements: Array<{
-      kind:
-        | "kiosk"
-        | "food_vendor"
-        | "mobile_money"
-        | "accessories_cart"
-        | "cloth_table"
-        | "corn_grill"
-        | "ice_cream_cart"
-        | "household_table";
-      x: number;
-      z: number;
-      rotY: number;
-      color: string;
-    }> = [
-      { kind: "food_vendor", x: -36, z: -15.5, rotY: 0, color: "#dc2626" },
-      { kind: "food_vendor", x: 34, z: -10.8, rotY: 0, color: "#eab308" },
-      { kind: "food_vendor", x: -120, z: 11.2, rotY: Math.PI, color: "#ea580c" },
-      { kind: "food_vendor", x: -84, z: 109.5, rotY: 0, color: "#b45309" },
-      { kind: "food_vendor", x: -84, z: -140.5, rotY: 0, color: "#ea580c" },
-      { kind: "food_vendor", x: -144, z: 140.5, rotY: 0, color: "#15803d" },
-      { kind: "food_vendor", x: -10.8, z: 42, rotY: Math.PI / 2, color: "#ea580c" },
-      { kind: "mobile_money", x: 12, z: -10.2, rotY: 0, color: "#facc15" },
-      { kind: "mobile_money", x: -24, z: 10.6, rotY: Math.PI, color: "#ef4444" },
-      { kind: "mobile_money", x: -72, z: 10.4, rotY: Math.PI, color: "#0284c7" },
-      { kind: "mobile_money", x: 91, z: -10.2, rotY: 0, color: "#facc15" },
-      { kind: "kiosk", x: -56, z: 11.5, rotY: Math.PI, color: "#0284c7" },
-      { kind: "kiosk", x: 56, z: -11.5, rotY: 0, color: "#0f766e" },
-      { kind: "kiosk", x: -140, z: -12, rotY: 0, color: "#d97706" },
-      { kind: "kiosk", x: 138, z: 12, rotY: Math.PI, color: "#15803d" },
-      { kind: "kiosk", x: 38, z: 146, rotY: 0, color: "#0369a1" },
-      { kind: "accessories_cart", x: -12, z: 9.8, rotY: Math.PI, color: "#facc15" },
-      { kind: "accessories_cart", x: -50, z: -10.4, rotY: 0, color: "#0284c7" },
-      { kind: "accessories_cart", x: 106, z: -9.8, rotY: 0, color: "#0284c7" },
-      { kind: "cloth_table", x: -42, z: -16.2, rotY: 0, color: "#be123c" },
-      { kind: "cloth_table", x: -124, z: 15.8, rotY: Math.PI, color: "#1d4ed8" },
-      { kind: "cloth_table", x: 48, z: 10.2, rotY: Math.PI, color: "#be185d" },
-      { kind: "corn_grill", x: 16, z: -10.2, rotY: 0, color: "#ea580c" },
-      { kind: "corn_grill", x: -78, z: 108, rotY: 0, color: "#f59e0b" },
-      { kind: "corn_grill", x: 90, z: 100, rotY: Math.PI, color: "#dc2626" },
-      { kind: "corn_grill", x: -128, z: -100, rotY: 0, color: "#ea580c" },
-      { kind: "ice_cream_cart", x: 112, z: -9.5, rotY: 0, color: "#ec4899" },
-      { kind: "ice_cream_cart", x: 32, z: -56, rotY: 0, color: "#0284c7" },
-      { kind: "ice_cream_cart", x: -136, z: 140, rotY: 0, color: "#f59e0b" },
-      { kind: "household_table", x: -48, z: -41, rotY: Math.PI, color: "#0d9488" },
-      { kind: "household_table", x: 112, z: 134, rotY: Math.PI, color: "#0284c7" },
-    ];
-    for (const sp of stallPlacements) {
+    for (const sp of TAMALE_STALL_PLACEMENTS) {
       const built = createRoadsideStallMesh(sp.kind, sp.color, this.textures);
       built.group.position.set(sp.x, 0, sp.z);
       built.group.rotation.y = sp.rotY;
@@ -1118,22 +1088,7 @@ export class TamaleEngine {
     }
 
     // 21c-1. Tamale Street Direction Signs, Speed Humps & Planters/Waste Bins
-    const directionSignSpecs: Array<{
-      x: number;
-      z: number;
-      rotY: number;
-      title: string;
-      sub: string;
-      bg?: string;
-    }> = [
-      { x: 11, z: -10.5, rotY: -Math.PI / 4, title: "<- CENTRAL MARKET", sub: "AIRPORT N10 ->", bg: "#065f46" },
-      { x: -11, z: 10.5, rotY: (3 * Math.PI) / 4, title: "<- ABOABO / STADIUM", sub: "MOSQUE / SALAGA ->", bg: "#065f46" },
-      { x: -60, z: -10.2, rotY: 0, title: "CENTRAL MARKET", sub: "DAKPEMA PALACE ^", bg: "#047857" },
-      { x: 72, z: 10.2, rotY: Math.PI, title: "JUBILEE PARK", sub: "TEACHING HOSPITAL ->", bg: "#0369a1" },
-      { x: -96, z: 118, rotY: Math.PI / 2, title: "LAMASHEGU HUB", sub: "<- DUNGU | SALAGA ->", bg: "#065f46" },
-      { x: 120, z: 120, rotY: -Math.PI / 2, title: "TEACHING HOSPITAL", sub: "DABOKPAA / VITTIN ->", bg: "#0f766e" },
-    ];
-    for (const ds of directionSignSpecs) {
+    for (const ds of TAMALE_DIRECTION_SIGNS) {
       const sign = createStreetDirectionSignMesh(ds.title, ds.sub, ds.bg);
       sign.position.set(ds.x, 0, ds.z);
       sign.rotation.y = ds.rotY;
@@ -1148,27 +1103,14 @@ export class TamaleEngine {
       });
     }
 
-    const speedHumpSpecs: Array<{ x: number; z: number; rotY: number; w?: number }> = [
-      { x: -24, z: 0, rotY: Math.PI / 2, w: 12 },
-      { x: 30, z: -48, rotY: Math.PI / 2, w: 8.5 },
-      { x: -115, z: 0, rotY: Math.PI / 2, w: 12 },
-      { x: -84, z: 128, rotY: Math.PI / 2, w: 9.2 },
-      { x: 86, z: 128, rotY: Math.PI / 2, w: 9.2 },
-      { x: 0, z: 24, rotY: 0, w: 10.5 },
-    ];
-    for (const sh of speedHumpSpecs) {
+    for (const sh of TAMALE_SPEED_HUMPS) {
       const hump = createSpeedHumpMesh(sh.w ?? 9.0);
       hump.position.set(sh.x, 0, sh.z);
       hump.rotation.y = sh.rotY;
       this.getSectorFor(sh.x, sh.z).add(hump);
     }
 
-    const planterBinSpecs: Array<[number, number, boolean]> = [
-      [-15, -9.6, true], [15, 9.6, true], [44, -9.8, false], [74, 9.8, true],
-      [88, 12, true], [104, -9.8, false], [-44, 9.6, false], [-78, -9.8, true],
-      [92, 114, true], [-134, -104, false],
-    ];
-    for (const [px, pz, hasPlant] of planterBinSpecs) {
+    for (const [px, pz, hasPlant] of TAMALE_PLANTER_BINS) {
       const prop = createRoadsidePlanterBinMesh(hasPlant);
       prop.position.set(px, 0, pz);
       this.getSectorFor(px, pz).add(prop);
@@ -1182,22 +1124,7 @@ export class TamaleEngine {
       });
     }
 
-    const benchPlacements: Array<[number, number, number]> = [
-      [-14, -10.2, 0],
-      [28, 10.8, Math.PI],
-      [-40, 10.8, Math.PI],
-      [-80, 40, 0],
-      [-126, 44, 0],
-      [42, -110, Math.PI],
-      [92, -110, Math.PI],
-      [148, 22, 0],
-      [24, 174, 0],
-      [84, 36, 0],
-      [-84, -138, 0],
-      [115, -9.8, 0],
-      [-11.2, 46, Math.PI / 2],
-    ];
-    for (const [bx, bz, brot] of benchPlacements) {
+    for (const [bx, bz, brot] of TAMALE_BENCH_PLACEMENTS) {
       const bench = createRoadsideBenchMesh(this.textures);
       bench.position.set(bx, 0, bz);
       bench.rotation.y = brot;
@@ -1215,21 +1142,7 @@ export class TamaleEngine {
     }
 
     // 21c-2. Nightlife String Bulbs & Dynamic Light Anchor Spots Across Tamale Night Hubs
-    const nightStringSpots: Array<{ x: number; z: number; color: number }> = [
-      { x: 34, z: -9.2, color: 0xffa73b },    // Daa Waakye & Night Lounge
-      { x: 38, z: -9.2, color: 0xffb347 },
-      { x: 20, z: -9.2, color: 0xfde047 },    // Gbewaa Mobile Money & Pharmacy frontage
-      { x: -120, z: 9.8, color: 0xfb923c },   // Aboabo Chichinga Grill
-      { x: -84, z: 111, color: 0xffa73b },    // Lamashegu evening chop bar
-      { x: 86, z: 36, color: 0xfacc15 },      // Jubilee evening plaza
-      { x: -84, z: -139, color: 0xfb923c },   // Choggu Evening Spot & Grill
-      { x: -144, z: 139, color: 0x38bdf8 },   // Dungu Student Hub Café
-      { x: 52, z: 32, color: 0xfde047 },      // Jubilee Rest Guest House entrance
-      { x: 116, z: -9.2, color: 0xf472b6 },   // Tamale Cool Scoop Ice Cream Bar
-      { x: -10.5, z: 42, color: 0xfb923c },   // Gukpegu Grilled Tilapia Spot
-      { x: 52, z: 9.8, color: 0xf472b6 },     // Savannah Glamour Boutique
-    ];
-    for (const spot of nightStringSpots) {
+    for (const spot of TAMALE_NIGHT_SPOTS) {
       const bulbMat = new THREE.MeshStandardMaterial({
         color: "#fef08a",
         emissive: "#f59e0b",
@@ -1247,28 +1160,7 @@ export class TamaleEngine {
     }
 
     // 21d. Parked Street Motorcycles Outside Shops, Markets, Ranks & Compounds
-    const parkedMotos: Array<[number, number, number, string]> = [
-      [-23, -10.5, 0.4, "#dc2626"],
-      [-45, -13.5, -0.3, "#1d4ed8"],
-      [23, 10.5, Math.PI - 0.3, "#15803d"],
-      [43, -10.2, 0.25, "#18181b"],
-      [-76, 15, 1.2, "#b45309"],
-      [-122, 10.6, -0.4, "#dc2626"],
-      [-92, 134, 0.6, "#0284c7"],
-      [82, -10.8, -0.2, "#1e3a8a"],
-      [144, 10.4, Math.PI + 0.2, "#ca8a04"],
-      [28, -114, 0.3, "#dc2626"],
-      // Expanded neighbourhood motorcycle ranks (Nyohini, Stadium, Airport, Dungu, Choggu, Kukuo, Hospital)
-      [-142, -10.2, -0.2, "#7c3aed"],
-      [-128, -101, 0.35, "#dc2626"],
-      [12, -184, 0.1, "#0284c7"],
-      [-140, 141, -0.5, "#1d4ed8"],
-      [-78, -141, 0.4, "#ea580c"],
-      [154, 24, 0.2, "#15803d"],
-      [82, 104, -0.3, "#1e293b"],
-      [54, 28, Math.PI / 2, "#b45309"],
-    ];
-    for (const [mx, mz, mrot, col] of parkedMotos) {
+    for (const [mx, mz, mrot, col] of TAMALE_PARKED_MOTOS) {
       const moto = createMotorcycleMesh(col, this.textures);
       moto.group.position.set(mx, 0, mz);
       moto.group.rotation.y = mrot;
@@ -1310,7 +1202,9 @@ export class TamaleEngine {
         Math.abs(gz + 92) < 7 ||
         Math.abs(gz + 158) < 7 ||
         Math.abs(gz - 66) < 7 ||
-        Math.abs(gz - 128) < 7;
+        Math.abs(gz - 128) < 7 ||
+        (Math.abs(gz - 96) < 5.5 && gx > -2 && gx < 68) ||
+        (Math.abs(gx - 36) < 5 && gz > 64 && gz < 130);
       _dummyObj.position.set(gx, onRoad ? -6 : 0, gz);
       const scale = 0.72 + (i % 5) * 0.14;
       _dummyObj.scale.set(scale, scale, scale);
@@ -1343,15 +1237,7 @@ export class TamaleEngine {
     this.worldRoot.add(perimMesh);
 
     // 22b. Tamale Transport Ranks / Bus Shelters, Road Surface Patches, Drainage Culverts & Solar/Water Polytanks
-    const busStops: Array<[number, number, number, string, string]> = [
-      [14, -9.8, 0, "INTERCHANGE EAST", "#0284c7"],
-      [-28, -9.8, 0, "CENTRAL MARKET", "#eab308"],
-      [-114, 9.8, Math.PI, "ABOABO RANK", "#15803d"],
-      [-76, 118, Math.PI / 2, "LAMASHEGU HUB", "#0284c7"],
-      [78, 118, -Math.PI / 2, "HOSPITAL GATE", "#dc2626"],
-      [-128, 146, 0, "UDS DUNGU STOP", "#1d4ed8"],
-    ];
-    for (const [bx, bz, brot, lbl, col] of busStops) {
+    for (const [bx, bz, brot, lbl, col] of TAMALE_BUS_STOPS) {
       const shelter = createBusStopShelterMesh(lbl, col);
       shelter.position.set(bx, 0, bz);
       shelter.rotation.y = brot;
@@ -1388,15 +1274,7 @@ export class TamaleEngine {
       this.getSectorFor(px, pz).add(mesh);
     }
 
-    const solarPolytankSpots: Array<[number, number, number, boolean]> = [
-      [84, 4.1, -14, true],
-      [102, 3.9, -13, true],
-      [-54, 4.3, -13, true],
-      [56, 4.3, 32, false],
-      [84, 3.8, -120, true],
-      [24, 5.4, -120, false],
-    ];
-    for (const [rx, ry, rz, withSolar] of solarPolytankSpots) {
+    for (const [rx, ry, rz, withSolar] of TAMALE_SOLAR_POLYTANK_SPOTS) {
       const addon = createPolytankAndSolarAddon(withSolar);
       addon.position.set(rx, ry, rz);
       this.getSectorFor(rx, rz).add(addon);
@@ -1588,9 +1466,10 @@ export class TamaleEngine {
     maxZ: number,
     maxY = 5.0,
     layer: number = ColliderLayer.BUILDING,
-    blocksCamera = true
+    blocksCamera = true,
+    minY = 0
   ) {
-    this.collisionWorld.addBox({ minX, maxX, minZ, maxZ, minY: 0, maxY, layer, blocksCamera });
+    this.collisionWorld.addBox({ minX, maxX, minZ, maxZ, minY, maxY, layer, blocksCamera });
   }
 
   private addCompoundColliders(cx: number, cz: number, rot: number) {
@@ -1680,6 +1559,8 @@ export class TamaleEngine {
       scca_red_clay: { doorX: 206.4, doorZ: 42, normalX: -1, normalZ: 0, triggerRadius: 3.2 },
       cultural_centre: { doorX: -84, doorZ: 28.2, normalX: 0, normalZ: 1, triggerRadius: 3.2 },
       kalpohin_compounds: { doorX: -88, doorZ: 53.7, normalX: 0, normalZ: 1, triggerRadius: 3.2 },
+      tamale_police_hq: { doorX: 48.2, doorZ: -32, normalX: -1, normalZ: 0, triggerRadius: 3.2 },
+      player_home: { doorX: 20, doorZ: 82.4, normalX: 0, normalZ: 1, triggerRadius: 3.4 },
     };
 
     const matGeo = new THREE.BoxGeometry(1.75, 0.04, 0.85);
@@ -1744,16 +1625,16 @@ export class TamaleEngine {
   private getDynamicVehicles(includeActiveService = true): DynamicVehicleObstacle[] {
     this.dynamicVehicleBuf.length = 0;
     for (const dv of this.drivables) {
-      const isMoto = dv.kind === "motorcycle";
       this.dynamicVehicleBuf.push({
         id: dv.id,
         x: dv.x,
+        y: dv.y,
         z: dv.z,
         rotY: dv.rotY,
-        halfWidth: isMoto ? 0.45 : 0.84,
-        halfLength: isMoto ? 1.0 : 1.48,
-        height: isMoto ? 1.25 : 1.85,
-        isActive: true,
+        halfWidth: dv.halfWidth,
+        halfLength: dv.halfLength,
+        height: dv.height,
+        isActive: !dv.impounded,
       });
     }
     for (let i = 0; i < this.traffic.length; i++) {
@@ -1761,16 +1642,33 @@ export class TamaleEngine {
       if (!tv.group.visible) continue;
       const isTwoWheel = tv.kind === "moto" || tv.kind === "bicycle";
       const isCar = tv.kind === "car" || tv.kind === "taxi";
+      const isHeavy = tv.kind === "minibus" || tv.kind === "pickup_truck";
       this.dynamicVehicleBuf.push({
         id: `traffic_${i}`,
         x: tv.x,
+        y: getTamaleGroundHeight(tv.x, tv.z, 0),
         z: tv.z,
         rotY: tv.rotY,
-        halfWidth: isTwoWheel ? 0.44 : isCar ? 0.96 : 0.82,
-        halfLength: isTwoWheel ? 0.98 : isCar ? 2.1 : 1.52,
-        height: isTwoWheel ? 1.35 : isCar ? 1.55 : 1.9,
+        halfWidth: isTwoWheel ? 0.44 : isCar ? 0.96 : isHeavy ? 1.02 : 0.82,
+        halfLength: isTwoWheel ? 0.98 : isCar ? 2.1 : isHeavy ? 2.55 : 1.52,
+        height: isTwoWheel ? 1.35 : isCar ? 1.55 : isHeavy ? 2.25 : 1.9,
         isActive: true,
       });
+    }
+    if (this.lawEnforcement) {
+      for (const cr of this.lawEnforcement.cruisers) {
+        this.dynamicVehicleBuf.push({
+          id: `police_${cr.id}`,
+          x: cr.x,
+          y: 0,
+          z: cr.z,
+          rotY: cr.rotY,
+          halfWidth: 0.96,
+          halfLength: 2.15,
+          height: 1.65,
+          isActive: true,
+        });
+      }
     }
     if (includeActiveService && this.activeService) {
       const srv = this.activeService;
@@ -1784,6 +1682,7 @@ export class TamaleEngine {
       this.dynamicVehicleBuf.push({
         id: `service_${srv.request.id}`,
         x: srv.x,
+        y: 0,
         z: srv.z,
         rotY: srv.rotY,
         halfWidth: isMoto ? 0.44 : isTaxi ? 0.96 : 0.82,
@@ -1938,7 +1837,8 @@ export class TamaleEngine {
     // Additional key commercial & civic buildings along Gbewaa High St
     const extraBuildings: Array<{ title: string; sub: string; x: number; z: number; y: number; color: string }> = [
       { title: "Northern Star Pharmacy", sub: "Gbewaa High St", x: -18, z: -13, y: 6.0, color: "#10b981" },
-      { title: "Daa Waakye & TZ Spot", sub: "Saɣim & Bɛŋa", x: 34, z: -13, y: 5.9, color: "#f59e0b" },
+      { title: "Jubilee Afrobeats Club", sub: "Night Lounge · Oware", x: 34, z: -13, y: 6.0, color: "#f59e0b" },
+      { title: "Savannah Beats Nightclub", sub: "DJ Stage · Games", x: 112, z: 14, y: 6.2, color: "#db2777" },
       { title: "Alhassan Fabrics & Prints", sub: "Batakari & Nɛma", x: 24, z: 14, y: 6.0, color: "#0f766e" },
     ];
     for (const b of extraBuildings) {
@@ -3077,6 +2977,12 @@ export class TamaleEngine {
         pts: [{ x: -146, z: -99 }, { x: -112, z: -99 }, { x: -92, z: -146 }, { x: -72, z: -146 }],
         count: 6,
       },
+      {
+        district: "Changli – Jakarayili Residential Quarter",
+        pts: [{ x: 12, z: 90.8 }, { x: 42, z: 90.8 }, { x: 42, z: 101.2 }, { x: 14, z: 101.2 }],
+        count: 6,
+        vendorRatio: 0.34,
+      },
     ];
 
     const outfitPool: Array<CrowdSpec["outfit"]> = ["kaba", "batakari", "polo", "casual"];
@@ -3217,105 +3123,203 @@ export class TamaleEngine {
   }
 
   private buildVehicles() {
-    // Drivable parked Pragyas (matching yellow_yellow_tamale.jpg blue & yellow Bajaj REs) & Motorcycle
-    const drivableConfigs: Array<{
-      id: string;
-      kind: "pragya" | "motorcycle";
-      label: string;
-      x: number;
-      z: number;
-      rotY: number;
-      color: string;
-      canopy: string;
-    }> = [
+    const classSpecs: Record<
+      DrivableVehicleKind,
       {
-        id: "pragya_interchange",
-        kind: "pragya",
-        label: "Blue Bajaj Pragya (Interchange Rank)",
-        x: 11,
-        z: 9.2,
-        rotY: -Math.PI * 0.5,
-        color: "#0284c7",
-        canopy: "#6b4f3a",
+        maxCargoKg: number;
+        maxSpeed: number;
+        reverseMax: number;
+        accelRate: number;
+        brakeRate: number;
+        turnRate: number;
+        massKg: number;
+        halfWidth: number;
+        halfLength: number;
+        height: number;
+        collisionRadius: number;
+      }
+    > = {
+      motorcycle: {
+        maxCargoKg: 45,
+        maxSpeed: 25.0,
+        reverseMax: -4.2,
+        accelRate: 26,
+        brakeRate: 25,
+        turnRate: 2.85,
+        massKg: 175,
+        halfWidth: 0.44,
+        halfLength: 0.98,
+        height: 1.35,
+        collisionRadius: 0.82,
       },
-      {
-        id: "pragya_market",
-        kind: "pragya",
-        label: "Yellow Central Market Pragya",
-        x: -26,
-        z: -10,
-        rotY: Math.PI * 0.5,
-        color: "#eab308",
-        canopy: "#14532d",
+      pragya: {
+        maxCargoKg: 180,
+        maxSpeed: 16.8,
+        reverseMax: -6.5,
+        accelRate: 17,
+        brakeRate: 18.5,
+        turnRate: 2.05,
+        massKg: 420,
+        halfWidth: 0.8,
+        halfLength: 1.38,
+        height: 1.85,
+        collisionRadius: 1.15,
       },
-      {
-        id: "moto_mosque",
-        kind: "motorcycle",
-        label: "Tamale Street Motorcycle",
-        x: 11,
-        z: 38,
-        rotY: 0,
-        color: "#dc2626",
-        canopy: "#111827",
+      cargo_trike: {
+        maxCargoKg: 450,
+        maxSpeed: 15.2,
+        reverseMax: -5.8,
+        accelRate: 14.5,
+        brakeRate: 17,
+        turnRate: 1.85,
+        massKg: 580,
+        halfWidth: 0.84,
+        halfLength: 1.56,
+        height: 1.55,
+        collisionRadius: 1.25,
       },
-      {
-        id: "pragya_aboabo",
-        kind: "pragya",
-        label: "Blue Aboabo Market Pragya",
-        x: -110,
-        z: 10,
-        rotY: Math.PI,
-        color: "#0284c7",
-        canopy: "#78350f",
+      taxi: {
+        maxCargoKg: 220,
+        maxSpeed: 22.8,
+        reverseMax: -7.5,
+        accelRate: 19.5,
+        brakeRate: 22,
+        turnRate: 1.9,
+        massKg: 1180,
+        halfWidth: 0.96,
+        halfLength: 2.1,
+        height: 1.55,
+        collisionRadius: 1.48,
       },
-      {
-        id: "pragya_lamashegu",
-        kind: "pragya",
-        label: "Yellow Lamashegu Junction Pragya",
-        x: -94,
-        z: 120,
-        rotY: Math.PI * 0.5,
-        color: "#eab308",
-        canopy: "#1e3a5f",
+      pickup_truck: {
+        maxCargoKg: 950,
+        maxSpeed: 21.4,
+        reverseMax: -7.0,
+        accelRate: 17.2,
+        brakeRate: 20,
+        turnRate: 1.65,
+        massKg: 1850,
+        halfWidth: 1.02,
+        halfLength: 2.38,
+        height: 1.78,
+        collisionRadius: 1.62,
       },
-      {
-        id: "moto_hospital",
-        kind: "motorcycle",
-        label: "Teaching Hospital Commuter Moto",
-        x: 72,
-        z: 120,
-        rotY: -Math.PI * 0.5,
-        color: "#15803d",
-        canopy: "#111827",
+      box_truck: {
+        maxCargoKg: 2200,
+        maxSpeed: 18.0,
+        reverseMax: -5.6,
+        accelRate: 12.2,
+        brakeRate: 16.5,
+        turnRate: 1.32,
+        massKg: 3400,
+        halfWidth: 1.18,
+        halfLength: 3.1,
+        height: 2.95,
+        collisionRadius: 1.95,
       },
-    ];
+      flatbed_truck: {
+        maxCargoKg: 3500,
+        maxSpeed: 16.6,
+        reverseMax: -5.2,
+        accelRate: 10.8,
+        brakeRate: 15.5,
+        turnRate: 1.22,
+        massKg: 4200,
+        halfWidth: 1.22,
+        halfLength: 3.3,
+        height: 2.5,
+        collisionRadius: 2.05,
+      },
+    };
 
-    for (const cfg of drivableConfigs) {
-      const built =
-        cfg.kind === "pragya"
-          ? createPragyaMesh(cfg.color, cfg.canopy, this.textures)
-          : createMotorcycleMesh(cfg.color, this.textures);
-      built.group.position.set(cfg.x, 0, cfg.z);
-      built.group.rotation.y = cfg.rotY;
-      this.worldRoot.add(built.group);
+    for (const cfg of TAMALE_DRIVABLE_SPAWNS) {
+      let group: THREE.Group;
+      let wheels: THREE.Mesh[];
+      let headlightMat: THREE.MeshStandardMaterial;
+      let brakeLightMat: THREE.MeshStandardMaterial | undefined;
+      let cargoMountGroup: THREE.Group | undefined;
 
+      if (cfg.kind === "pragya") {
+        const built = createPragyaMesh(cfg.color, cfg.canopyColor ?? "#6b4f3a", this.textures);
+        group = built.group;
+        wheels = built.wheels;
+        headlightMat = built.headlightMat;
+        brakeLightMat = built.brakeLightMat;
+      } else if (cfg.kind === "motorcycle") {
+        const built = createMotorcycleMesh(cfg.color, this.textures);
+        group = built.group;
+        wheels = built.wheels;
+        headlightMat = built.headlightMat;
+        brakeLightMat = built.brakeLightMat;
+      } else if (cfg.kind === "cargo_trike") {
+        const built = createCargoTrikeMesh(this.textures);
+        group = built.group;
+        wheels = built.wheels;
+        headlightMat = built.headlightMat;
+        brakeLightMat = built.brakeLightMat;
+        cargoMountGroup = built.cargoMountGroup;
+      } else if (cfg.kind === "taxi") {
+        const built = createTaxiMesh(this.textures);
+        group = built.group;
+        wheels = built.wheels;
+        headlightMat = built.headlightMat;
+        brakeLightMat = built.brakeLightMat;
+      } else if (cfg.kind === "pickup_truck") {
+        const built = createPickupTruckMesh(cfg.color, this.textures);
+        group = built.group;
+        wheels = built.wheels;
+        headlightMat = built.headlightMat;
+        brakeLightMat = built.brakeLightMat;
+        cargoMountGroup = built.cargoMountGroup;
+      } else if (cfg.kind === "box_truck") {
+        const built = createBoxTruckMesh(cfg.color, this.textures);
+        group = built.group;
+        wheels = built.wheels;
+        headlightMat = built.headlightMat;
+        brakeLightMat = built.brakeLightMat;
+        cargoMountGroup = built.cargoMountGroup;
+      } else {
+        const built = createFlatbedTruckMesh(cfg.color, this.textures);
+        group = built.group;
+        wheels = built.wheels;
+        headlightMat = built.headlightMat;
+        brakeLightMat = built.brakeLightMat;
+        cargoMountGroup = built.cargoMountGroup;
+      }
+
+      const initY = getTamaleGroundHeight(cfg.x, cfg.z, 0);
+      group.position.set(cfg.x, initY, cfg.z);
+      group.rotation.y = cfg.rotY;
+      this.worldRoot.add(group);
+
+      const spec = classSpecs[cfg.kind];
       this.drivables.push({
         id: cfg.id,
         kind: cfg.kind,
         label: cfg.label,
-        group: built.group,
-        wheels: built.wheels,
-        headlightMat: built.headlightMat,
+        group,
+        wheels,
+        headlightMat,
+        brakeLightMat,
+        cargoMountGroup,
+        attachedCargoMesh: null,
         x: cfg.x,
+        y: initY,
         z: cfg.z,
         rotY: cfg.rotY,
         speed: 0,
+        healthPct: 100,
+        ...spec,
+        impounded: false,
+        spawnX: cfg.x,
+        spawnZ: cfg.z,
+        spawnRotY: cfg.rotY,
       });
     }
 
-    // Realistic Moving Tamale Street Traffic (30 dynamic vehicles across road network)
+    // Realistic Moving Tamale Street Traffic across road network (including Trotro minibuses & pickup trucks)
     const trafficSpecs: Array<{
-      kind: "moto" | "pragya" | "taxi" | "car" | "cargo" | "bicycle";
+      kind: TrafficVehicleKind;
       axis: "x" | "z";
       roadCoord: number;
       pos: number;
@@ -3360,12 +3364,19 @@ export class TamaleEngine {
       { kind: "car", axis: "z", roadCoord: 0, pos: -115, dir: 1, speed: 11.6, color: "#7f1d1d" },
       { kind: "car", axis: "x", roadCoord: -158, pos: -40, dir: 1, speed: 11.2, color: "#1e3a8a" },
 
+      // Minibus Trotros & Utility Pickup Trucks
+      { kind: "minibus", axis: "x", roadCoord: 0, pos: -125, dir: 1, speed: 9.2, color: "#f8fafc" },
+      { kind: "minibus", axis: "x", roadCoord: 128, pos: -20, dir: 1, speed: 8.8, color: "#e2e8f0" },
+      { kind: "minibus", axis: "z", roadCoord: -66, pos: 92, dir: -1, speed: 9.0, color: "#f8fafc" },
+      { kind: "pickup_truck", axis: "z", roadCoord: 128, pos: -92, dir: 1, speed: 9.8, color: "#0f766e" },
+      { kind: "pickup_truck", axis: "x", roadCoord: -48, pos: 88, dir: -1, speed: 9.5, color: "#475569" },
+
       // Motor King Cargo Trikes & Commuter Bicycles
       { kind: "cargo", axis: "x", roadCoord: 128, pos: -110, dir: 1, speed: 7.2 },
       { kind: "cargo", axis: "z", roadCoord: 66, pos: 48, dir: -1, speed: 6.9 },
       { kind: "bicycle", axis: "x", roadCoord: -48, pos: -14, dir: 1, speed: 4.8, color: "#15803d", riderOutfit: "#f59e0b" },
       { kind: "bicycle", axis: "z", roadCoord: -102, pos: -12, dir: -1, speed: 4.6, color: "#dc2626", riderOutfit: "#0284c7" },
-      // Expanded Outer Metro, Secondary Connectors & Night Traffic (~62 vehicles across Tamale)
+      // Outer Metro & Secondary Streets
       { kind: "pragya", axis: "z", roadCoord: -162, pos: -60, dir: 1, speed: 8.3, color: "#eab308" },
       { kind: "pragya", axis: "z", roadCoord: 186, pos: 25, dir: -1, speed: 8.0, color: "#0284c7" },
       { kind: "moto", axis: "z", roadCoord: 0, pos: -140, dir: 1, speed: 13.8, color: "#dc2626", style: "sport", riderOutfit: "#0f172a" },
@@ -3380,7 +3391,6 @@ export class TamaleEngine {
       { kind: "taxi", axis: "z", roadCoord: -102, pos: 90, dir: 1, speed: 10.6 },
       { kind: "moto", axis: "x", roadCoord: 0, pos: 145, dir: -1, speed: 13.1, color: "#991b1b", style: "commuter", riderOutfit: "#f8fafc" },
       { kind: "car", axis: "x", roadCoord: 0, pos: -145, dir: 1, speed: 11.5, color: "#eab308" },
-      // Secondary Neighbourhood Streets & Extra High-Density Metro Fleet
       { kind: "moto", axis: "x", roadCoord: 42, pos: -132, dir: 1, speed: 10.8, color: "#dc2626", style: "delivery", hasGoods: true, riderOutfit: "#0f766e" },
       { kind: "pragya", axis: "x", roadCoord: 172, pos: -40, dir: 1, speed: 7.9, color: "#0284c7" },
       { kind: "moto", axis: "x", roadCoord: 172, pos: 18, dir: -1, speed: 11.6, color: "#1d4ed8", style: "commuter", hasPassenger: true, riderOutfit: "#1e293b", passengerOutfit: "#ec4899" },
@@ -3407,6 +3417,7 @@ export class TamaleEngine {
       let chassisGroup: THREE.Group | undefined;
       let wheels: THREE.Mesh[] | undefined;
       let headlightMat: THREE.MeshStandardMaterial;
+      let brakeLightMat: THREE.MeshStandardMaterial | undefined;
 
       if (ts.kind === "moto") {
         const res = createMotorcycleWithRiderMesh(
@@ -3424,20 +3435,37 @@ export class TamaleEngine {
         chassisGroup = res.chassisGroup;
         wheels = res.wheels;
         headlightMat = res.headlightMat;
+        brakeLightMat = res.brakeLightMat;
       } else if (ts.kind === "pragya") {
         const res = createPragyaMesh(ts.color ?? "#0284c7", "#6b4f3a", this.textures);
         group = res.group;
         wheels = res.wheels;
         headlightMat = res.headlightMat;
+        brakeLightMat = res.brakeLightMat;
       } else if (ts.kind === "taxi") {
         const res = createTaxiMesh(this.textures);
         group = res.group;
+        wheels = res.wheels;
         headlightMat = res.headlightMat;
+        brakeLightMat = res.brakeLightMat;
       } else if (ts.kind === "car") {
         const res = createPrivateCarMesh(ts.color ?? "#cbd5e1", this.textures);
         group = res.group;
         wheels = res.wheels;
         headlightMat = res.headlightMat;
+        brakeLightMat = res.brakeLightMat;
+      } else if (ts.kind === "minibus") {
+        const res = createMinibusTrotroMesh(ts.color ?? "#f8fafc", this.textures);
+        group = res.group;
+        wheels = res.wheels;
+        headlightMat = res.headlightMat;
+        brakeLightMat = res.brakeLightMat;
+      } else if (ts.kind === "pickup_truck") {
+        const res = createPickupTruckMesh(ts.color ?? "#0f766e", this.textures);
+        group = res.group;
+        wheels = res.wheels;
+        headlightMat = res.headlightMat;
+        brakeLightMat = res.brakeLightMat;
       } else if (ts.kind === "bicycle") {
         const res = createBicycleMesh(ts.color ?? "#15803d", ts.riderOutfit ?? "#f59e0b", this.textures);
         group = res.group;
@@ -3447,7 +3475,9 @@ export class TamaleEngine {
       } else {
         const res = createCargoTrikeMesh(this.textures);
         group = res.group;
+        wheels = res.wheels;
         headlightMat = res.headlightMat;
+        brakeLightMat = res.brakeLightMat;
       }
 
       const shift = getLaneShift(ts.roadCoord);
@@ -3462,7 +3492,7 @@ export class TamaleEngine {
           ? 0
           : Math.PI;
 
-      group.position.set(x, 0, z);
+      group.position.set(x, getTamaleGroundHeight(x, z, 0), z);
       group.rotation.y = rotY;
       this.worldRoot.add(group);
 
@@ -3472,6 +3502,7 @@ export class TamaleEngine {
         chassisGroup,
         wheels,
         headlightMat,
+        brakeLightMat,
         axis: ts.axis,
         roadCoord: ts.roadCoord,
         x,
@@ -3735,11 +3766,16 @@ export class TamaleEngine {
   public triggerHorn() {
     if (!this.drivingVehicle || this.paused) return;
     this.audio.init();
-    this.audio.playTrafficHorn(
-      this.drivingVehicle.kind === "motorcycle" ? "moto" : "pragya",
-      this.drivingVehicle.x,
-      this.drivingVehicle.z
-    );
+    const k = this.drivingVehicle.kind;
+    const hornType =
+      k === "motorcycle"
+        ? "moto"
+        : k === "pragya" || k === "cargo_trike"
+        ? "pragya"
+        : k === "taxi"
+        ? "taxi"
+        : "car";
+    this.audio.playTrafficHorn(hornType, this.drivingVehicle.x, this.drivingVehicle.z);
   }
 
   public setDevicePerformanceProfile(
@@ -3800,16 +3836,31 @@ export class TamaleEngine {
 
   private handlePrimaryInteract() {
     if (!this.nearbyInteractable) return;
+    const item = this.nearbyInteractable;
     if (
       this.drivingVehicle &&
-      this.nearbyInteractable.kind !== "delivery" &&
-      this.nearbyInteractable.kind !== "job_action"
+      item.kind !== "delivery" &&
+      item.kind !== "job_action"
     ) {
       return;
     }
 
+    if (item.kind === "job_action" && (item.jobActionMode === "load_cargo" || item.jobActionMode === "unload_cargo")) {
+      const mode = item.jobActionMode === "load_cargo" ? "load" : "unload";
+      if (this.cargoLoadProgress !== null) return;
+      if (this.drivingVehicle && Math.abs(this.drivingVehicle.speed) > 1.2) {
+        this.callbacks.onLawEventToast?.("Bring your vehicle to a complete stop before cargo transfer.");
+        return;
+      }
+      this.beginCargoTransfer(mode, () => {
+        this.audio.playChime("success");
+        this.callbacks.onInteract(item);
+      });
+      return;
+    }
+
     this.audio.playChime("interact");
-    this.callbacks.onInteract(this.nearbyInteractable);
+    this.callbacks.onInteract(item);
   }
 
   public handleVehicleToggle() {
@@ -3824,8 +3875,17 @@ export class TamaleEngine {
     if (!this.nearbyVehicleInteractable) return;
     const veh = this.drivables.find((v) => v.id === this.nearbyVehicleInteractable!.id);
     if (veh) {
+      if (veh.impounded) {
+        this.callbacks.onLawEventToast?.("Vehicle is currently impounded at Tamale Police HQ.");
+        return;
+      }
       this.drivingVehicle = veh;
-      this.playerRig.root.visible = true;
+      const isEnclosedCab =
+        veh.kind === "taxi" ||
+        veh.kind === "pickup_truck" ||
+        veh.kind === "box_truck" ||
+        veh.kind === "flatbed_truck";
+      this.playerRig.root.visible = !isEnclosedCab;
       setCharacterPose(this.playerRig, veh.kind);
       this.vehicleInput = { throttle: 0, steer: 0, brake: false, handbrake: false };
       this.audio.playChime("interact");
@@ -3839,13 +3899,14 @@ export class TamaleEngine {
   public exitVehicle() {
     if (!this.drivingVehicle) return;
     const veh = this.drivingVehicle;
+    const sideDist = Math.max(1.85, veh.halfWidth + 0.95);
     const offsets: Array<[number, number]> = [
-      [Math.cos(veh.rotY) * 1.85, -Math.sin(veh.rotY) * 1.85],
-      [-Math.cos(veh.rotY) * 1.85, Math.sin(veh.rotY) * 1.85],
-      [-Math.sin(veh.rotY) * 2.1, -Math.cos(veh.rotY) * 2.1],
-      [Math.sin(veh.rotY) * 2.1, Math.cos(veh.rotY) * 2.1],
+      [Math.cos(veh.rotY) * sideDist, -Math.sin(veh.rotY) * sideDist],
+      [-Math.cos(veh.rotY) * sideDist, Math.sin(veh.rotY) * sideDist],
+      [-Math.sin(veh.rotY) * (veh.halfLength + 1.0), -Math.cos(veh.rotY) * (veh.halfLength + 1.0)],
+      [Math.sin(veh.rotY) * (veh.halfLength + 1.0), Math.cos(veh.rotY) * (veh.halfLength + 1.0)],
     ];
-    let safePos = this.resolveCollisions(veh.x + offsets[0][0], veh.z + offsets[0][1], 0.48);
+    let safePos = this.resolveCollisions(veh.x + offsets[0][0], veh.z + offsets[0][1], 0.48, veh.y);
     for (const [ox, oz] of offsets) {
       const candidateX = veh.x + ox;
       const candidateZ = veh.z + oz;
@@ -3853,19 +3914,28 @@ export class TamaleEngine {
         candidateX,
         candidateZ,
         0.48,
-        COLLIDER_MASK_SOLID
+        COLLIDER_MASK_SOLID,
+        undefined,
+        undefined,
+        veh.y
       );
       if (!check.collided) {
-        safePos = this.resolveCollisions(candidateX, candidateZ, 0.48);
+        safePos = this.resolveCollisions(candidateX, candidateZ, 0.48, veh.y);
         break;
       }
     }
-    this.playerPos.set(safePos.x, getTamaleGroundHeight(safePos.x, safePos.z, 0), safePos.z);
+    this.playerPos.set(safePos.x, getTamaleGroundHeight(safePos.x, safePos.z, veh.y), safePos.z);
     this.playerVelX = 0;
     this.playerVelZ = 0;
     this.drivingVehicle.group.rotation.z = 0;
     this.drivingVehicle.speed = 0;
+    if (this.drivingVehicle.brakeLightMat) {
+      this.drivingVehicle.brakeLightMat.emissiveIntensity = 0.24;
+    }
     this.drivingVehicle = null;
+    this.cargoLoadProgress = null;
+    this.cargoLoadMode = null;
+    this.cargoLoadCallback = null;
     this.vehicleInput = { throttle: 0, steer: 0, brake: false, handbrake: false };
     setCharacterPose(this.playerRig, "foot");
     this.playerRig.root.visible = true;
@@ -3938,6 +4008,7 @@ export class TamaleEngine {
     this.playerVelZ = 0;
 
     const built = buildPhysicalInteriorScene(spec, this.textures);
+    built.syncHomeVisuals?.(this.homeVisualState.home, this.homeVisualState.laundry);
     this.activeInteriorSpec = spec;
     this.activeInteriorScene = built;
 
@@ -4010,6 +4081,11 @@ export class TamaleEngine {
     this.audio.playChime("interact");
     this.callbacks.onInteriorChange?.(null);
     this.lastHudSync = 0;
+  }
+
+  public setHomeVisualState(home?: HomeState | null, laundry?: HomeLaundryState | null) {
+    this.homeVisualState = { home, laundry };
+    this.activeInteriorScene?.syncHomeVisuals?.(home, laundry);
   }
 
   public setGameMinutes(mins: number) {
@@ -4341,6 +4417,178 @@ export class TamaleEngine {
     this.callbacks.onServiceUpdate?.(null);
   }
 
+  public setDebugWireframeVisible(v: boolean) {
+    if (this.debugWireframeGroup) {
+      this.debugWireframeGroup.visible = v;
+    }
+  }
+
+  public setLawEnforcementState(state: { offensesCount?: number; impoundedVehicleId?: string | null }) {
+    this.lawEnforcement?.setStateFromSave(state);
+    const impoundedId = state.impoundedVehicleId ?? null;
+    for (const dv of this.drivables) {
+      dv.impounded = dv.id === impoundedId;
+      dv.group.visible = !dv.impounded;
+    }
+  }
+
+  public getLawEnforcementState(): { offensesCount: number; impoundedVehicleId: string | null } {
+    return {
+      offensesCount: this.lawEnforcement?.getOffensesCount() ?? 0,
+      impoundedVehicleId: this.lawEnforcement?.getImpoundedVehicleId() ?? null,
+    };
+  }
+
+  public resolvePoliceStop(action: "pay_cash" | "pay_momo" | "accept_warning" | "impound") {
+    const activeVehId = this.drivingVehicle?.id ?? null;
+    const res = this.lawEnforcement.resolveStop(action, activeVehId);
+    if (action === "impound" && res.impoundedVehicleId) {
+      const targetVeh =
+        this.drivables.find((d) => d.id === res.impoundedVehicleId) ??
+        this.drivingVehicle ??
+        this.drivables[0];
+      if (targetVeh) {
+        if (this.drivingVehicle && this.drivingVehicle.id === targetVeh.id) {
+          this.exitVehicle();
+        }
+        targetVeh.impounded = true;
+        targetVeh.group.visible = false;
+      }
+    }
+    this.paused = false;
+    this.lastHudSync = 0;
+    return res;
+  }
+
+  public releaseImpoundedVehicle(): { releasedId: string | null; feeCedis: number } {
+    const res = this.lawEnforcement.releaseImpoundedVehicle();
+    if (res.releasedId) {
+      const dv = this.drivables.find((d) => d.id === res.releasedId);
+      if (dv) {
+        dv.impounded = false;
+        dv.x = dv.spawnX;
+        dv.z = dv.spawnZ;
+        dv.y = getTamaleGroundHeight(dv.spawnX, dv.spawnZ, 0);
+        dv.rotY = dv.spawnRotY;
+        dv.speed = 0;
+        dv.group.position.set(dv.x, dv.y, dv.z);
+        dv.group.rotation.set(0, dv.rotY, 0);
+        dv.group.visible = true;
+      }
+    }
+    this.lastHudSync = 0;
+    return res;
+  }
+
+  public assistRoadIncident(incidentId: string) {
+    const inc = this.lawEnforcement.assistRoadIncident(incidentId);
+    if (inc) {
+      this.audio.playChime("success");
+      this.lastHudSync = 0;
+    }
+    return inc;
+  }
+
+  public repairDrivingVehicle(): { repairedLabel: string | null; restoredPct: number } {
+    const target =
+      this.drivingVehicle ??
+      this.drivables.reduce<DrivableVehicle | null>((best, dv) => {
+        if (dv.impounded) return best;
+        const d = Math.hypot(dv.x - this.playerPos.x, dv.z - this.playerPos.z);
+        if (!best) return dv;
+        const bd = Math.hypot(best.x - this.playerPos.x, best.z - this.playerPos.z);
+        return d < bd ? dv : best;
+      }, null);
+    if (!target) return { repairedLabel: null, restoredPct: 0 };
+    const prev = target.healthPct;
+    target.healthPct = 100;
+    this.audio.playChime("success");
+    this.lastHudSync = 0;
+    return { repairedLabel: target.label, restoredPct: Math.max(0, 100 - prev) };
+  }
+
+  public attachCargoToVehicle(cargoKind: CargoPropKind): boolean {
+    const veh = this.drivingVehicle;
+    if (!veh) return false;
+    this.clearAttachedCargo();
+    const cargoMesh = createCargoBundleMesh(cargoKind);
+    if (veh.cargoMountGroup) {
+      veh.cargoMountGroup.add(cargoMesh);
+    } else {
+      cargoMesh.position.set(0, 0.78, -0.78);
+      cargoMesh.scale.setScalar(0.7);
+      veh.group.add(cargoMesh);
+    }
+    veh.attachedCargoMesh = cargoMesh;
+    this.activeCargoVehicleId = veh.id;
+    this.activeCargoIntegrity = 100;
+    return true;
+  }
+
+  public clearAttachedCargo() {
+    for (const dv of this.drivables) {
+      if (dv.attachedCargoMesh) {
+        dv.attachedCargoMesh.parent?.remove(dv.attachedCargoMesh);
+        dv.attachedCargoMesh = null;
+      }
+    }
+    this.activeCargoVehicleId = null;
+    this.activeCargoIntegrity = 100;
+  }
+
+  public beginCargoTransfer(mode: "load" | "unload", onComplete: () => void) {
+    this.cargoLoadMode = mode;
+    this.cargoLoadProgress = 0.02;
+    this.cargoLoadCallback = onComplete;
+    this.audio.playChime("interact");
+  }
+
+  public setNavigationDestination(dest: { landmarkId?: string; label: string; x: number; z: number }) {
+    this.navDest = dest;
+    this.navRoutePoints = this.plotRoadRoute(this.playerPos.x, this.playerPos.z, dest.x, dest.z);
+    this.navLastRouteFrom = { x: this.playerPos.x, z: this.playerPos.z };
+    this.lastHudSync = 0;
+  }
+
+  public clearNavigationDestination() {
+    this.navDest = null;
+    this.navRoutePoints = [];
+    this.navLastRouteFrom = { x: Infinity, z: Infinity };
+    this.lastHudSync = 0;
+  }
+
+  public getNavigationSnapshot(): NavRouteSnapshot | null {
+    if (!this.navDest) return null;
+    const pts = this.navRoutePoints.length > 0 ? this.navRoutePoints : [{ x: this.navDest.x, z: this.navDest.z }];
+    let remDist = 0;
+    const refX = this.activeInteriorSpec ? this.exteriorReturnPos.x : this.playerPos.x;
+    const refZ = this.activeInteriorSpec ? this.exteriorReturnPos.z : this.playerPos.z;
+    let prevX = refX;
+    let prevZ = refZ;
+    for (const pt of pts) {
+      remDist += Math.hypot(pt.x - prevX, pt.z - prevZ);
+      prevX = pt.x;
+      prevZ = pt.z;
+    }
+    const nextPt = pts[0];
+    const dx = nextPt.x - refX;
+    const dz = nextPt.z - refZ;
+    const distNext = Math.round(Math.hypot(dx, dz));
+    const headingDir = Math.abs(dx) >= Math.abs(dz) ? (dx >= 0 ? "East" : "West") : dz >= 0 ? "South" : "North";
+    const nextTurnLabel =
+      distNext < 16
+        ? `Arrive near ${this.navDest.label}`
+        : `Head ${headingDir} ${distNext}m toward ${this.navDest.label}`;
+    return {
+      targetLandmarkId: this.navDest.landmarkId,
+      targetLabel: this.navDest.label,
+      routePoints: pts,
+      remainingMeters: Math.round(remDist),
+      nextTurnLabel,
+      isOffRoute: distNext > 65,
+    };
+  }
+
   public teleportTo(x: number, z: number, rotY = 0) {
     if (this.activeInteriorSpec) {
       this.exitInterior();
@@ -4351,7 +4599,7 @@ export class TamaleEngine {
     if (this.drivingVehicle) {
       this.exitVehicle();
     }
-    this.playerPos.set(x, 0, z);
+    this.playerPos.set(x, getTamaleGroundHeight(x, z, 0), z);
     this.playerRotY = rotY;
     setCharacterPose(this.playerRig, "foot");
     this.playerRig.root.visible = true;
@@ -4359,13 +4607,15 @@ export class TamaleEngine {
     this.playerRig.root.rotation.y = rotY;
   }
 
-  private resolveCollisions(nx: number, nz: number, radius: number): { x: number; z: number } {
+  private resolveCollisions(nx: number, nz: number, radius: number, entityY = 0): { x: number; z: number } {
     const res = this.collisionWorld.resolveCircle2D(
       nx,
       nz,
       radius,
       COLLIDER_MASK_ALL_WITH_VEHICLES,
-      this.getDynamicVehicles()
+      this.getDynamicVehicles(),
+      undefined,
+      entityY
     );
     return { x: res.x, z: res.z };
   }
@@ -4393,7 +4643,9 @@ export class TamaleEngine {
       nz,
       radius,
       COLLIDER_MASK_ALL_WITH_VEHICLES,
-      this.getDynamicVehicles()
+      this.getDynamicVehicles(),
+      undefined,
+      this.playerPos.y
     );
     return { x: res.x, z: res.z };
   }
@@ -4424,6 +4676,12 @@ export class TamaleEngine {
     if (this.drivingVehicle) {
       const veh = this.drivingVehicle;
       const isMoto = veh.kind === "motorcycle";
+      const isThreeWheel = veh.kind === "pragya" || veh.kind === "cargo_trike";
+      const isEnclosedCab =
+        veh.kind === "taxi" ||
+        veh.kind === "pickup_truck" ||
+        veh.kind === "box_truck" ||
+        veh.kind === "flatbed_truck";
 
       const keyThrottle =
         (this.isActionPressed("forward") ? 1 : 0) - (this.isActionPressed("backward") ? 1 : 0);
@@ -4441,17 +4699,36 @@ export class TamaleEngine {
       const steer = keySteer !== 0 ? keySteer : this.vehicleInput.steer;
       const handbrake = this.isActionPressed("jump") || this.vehicleInput.handbrake;
 
+      // Advance active cargo transfer if parked; cancel if player drives away
+      if (this.cargoLoadProgress !== null) {
+        if (Math.abs(throttle) > 0.25 || Math.abs(veh.speed) > 1.4) {
+          this.cargoLoadProgress = null;
+          this.cargoLoadMode = null;
+          this.cargoLoadCallback = null;
+          this.callbacks.onLawEventToast?.("Cargo transfer cancelled: stay parked until loading finishes.");
+        } else {
+          this.cargoLoadProgress = Math.min(1, this.cargoLoadProgress + dt / 2.2);
+          if (this.cargoLoadProgress >= 1) {
+            const cb = this.cargoLoadCallback;
+            this.cargoLoadProgress = null;
+            this.cargoLoadMode = null;
+            this.cargoLoadCallback = null;
+            cb?.();
+          }
+        }
+      }
+
       const wetTraction =
         this.weather === "rain" || this.weather === "thunderstorm"
           ? 0.88
           : this.weather === "light_rain"
           ? 0.94
           : 1.0;
-      const maxSpeed = (isMoto ? 24.5 : 16.5) * wetTraction;
-      const reverseMax = isMoto ? -4.5 : -6.8;
-      const accelRate = (isMoto ? 25 : 16.5) * wetTraction;
-      const brakeRate = (isMoto ? 24 : 18) * wetTraction;
-      const turnRate = (isMoto ? 2.75 : 1.95) * wetTraction;
+      const maxSpeed = veh.maxSpeed * wetTraction;
+      const reverseMax = veh.reverseMax;
+      const accelRate = veh.accelRate * wetTraction;
+      const brakeRate = veh.brakeRate * wetTraction;
+      const turnRate = veh.turnRate * wetTraction;
 
       if (handbrake) {
         veh.speed = THREE.MathUtils.damp(veh.speed, 0, isMoto ? 7.5 : 5.5, dt);
@@ -4464,18 +4741,26 @@ export class TamaleEngine {
         veh.speed = THREE.MathUtils.damp(veh.speed, 0, isMoto ? 2.8 : 3.6, dt);
       }
 
+      if (veh.brakeLightMat) {
+        const braking = handbrake || throttle < -0.05;
+        veh.brakeLightMat.emissiveIntensity = braking ? 2.15 : 0.24;
+      }
+
       if (Math.abs(veh.speed) > 0.3) {
         const dirSign = veh.speed >= 0 ? 1 : -1;
         const speedRatio = Math.min(1, Math.abs(veh.speed) / (isMoto ? 6 : 4.5));
         veh.rotY += steer * dirSign * turnRate * (0.55 + 0.45 * speedRatio) * dt;
       }
 
-      // Motorcycle leans into curves; Pragya has subtle suspension body roll
+      // Motorcycle leans into curves; three-wheelers & trucks have subtle suspension body roll
       const targetLean = isMoto
         ? -steer * Math.min(1, Math.abs(veh.speed) / 8) * 0.28
-        : steer * Math.min(1, Math.abs(veh.speed) / 10) * 0.075;
+        : steer * Math.min(1, Math.abs(veh.speed) / 10) * (isThreeWheel ? 0.08 : 0.045);
       veh.group.rotation.z = THREE.MathUtils.damp(veh.group.rotation.z, targetLean, 8, dt);
 
+      const prevX = veh.x;
+      const prevZ = veh.z;
+      const prevSpeed = veh.speed;
       const nextX = veh.x + Math.sin(veh.rotY) * veh.speed * dt;
       const nextZ = veh.z + Math.cos(veh.rotY) * veh.speed * dt;
       const dynVehicles = this.getDynamicVehicles();
@@ -4484,60 +4769,105 @@ export class TamaleEngine {
         veh.z,
         nextX,
         nextZ,
-        isMoto ? 0.82 : 1.15,
+        veh.collisionRadius,
         COLLIDER_MASK_ALL_WITH_VEHICLES,
         dynVehicles,
-        veh.id
+        veh.id,
+        veh.y
       );
       veh.x = resolved.x;
       veh.z = resolved.z;
-      if (resolved.collided && Math.abs(veh.speed) > 1.8) {
-        veh.speed *= 0.48;
+
+      if (resolved.collided) {
+        const impulse = resolveVehicleCrashImpulse(
+          prevSpeed,
+          veh.rotY,
+          nextX,
+          nextZ,
+          resolved.x,
+          resolved.z,
+          veh.massKg
+        );
+        veh.speed = impulse.nextSpeed;
+        if (impulse.damagePct > 0) {
+          veh.healthPct = Math.max(15, veh.healthPct - impulse.damagePct);
+          this.audio.playCrashThud(impulse.impactMagnitude);
+          if (veh.attachedCargoMesh && this.activeCargoVehicleId === veh.id) {
+            const cargoDmg = Math.max(2, Math.round(impulse.damagePct * 0.75));
+            this.activeCargoIntegrity = Math.max(20, this.activeCargoIntegrity - cargoDmg);
+            this.callbacks.onCargoDamaged?.(this.activeCargoIntegrity, "Impact jarred cargo in bed!");
+          }
+          if (impulse.severeCrash) {
+            this.lawEnforcement.reportSevereCollision(
+              Math.round(Math.abs(prevSpeed) * 3.2),
+              getDistrictAt(veh.x, veh.z)
+            );
+          }
+        }
       }
 
       // Trigger realistic horn reaction if bumping close to active traffic
       for (const tv of this.traffic) {
         if (!tv.group.visible) continue;
         const dist = Math.hypot(veh.x - tv.x, veh.z - tv.z);
-        if (dist < (isMoto ? 2.2 : 2.7)) {
+        if (dist < veh.collisionRadius + 1.4) {
           if (tv.hornCooldown <= 0) {
             tv.hornCooldown = 3.0;
-            this.audio.playTrafficHorn(
-              tv.kind === "bicycle" ? "moto" : tv.kind === "cargo" ? "pragya" : tv.kind,
-              tv.x,
-              tv.z
-            );
+            const tvHorn: "moto" | "pragya" | "taxi" | "car" =
+              tv.kind === "bicycle" || tv.kind === "moto"
+                ? "moto"
+                : tv.kind === "cargo" || tv.kind === "pragya"
+                ? "pragya"
+                : tv.kind === "minibus" || tv.kind === "pickup_truck" || tv.kind === "taxi"
+                ? "taxi"
+                : "car";
+            this.audio.playTrafficHorn(tvHorn, tv.x, tv.z);
           }
         }
       }
 
-      const vehGroundY = getTamaleGroundHeight(veh.x, veh.z, 0);
-      veh.group.position.set(veh.x, vehGroundY, veh.z);
+      veh.y = getTamaleGroundHeight(veh.x, veh.z, veh.y);
+      veh.group.position.set(veh.x, veh.y, veh.z);
       veh.group.rotation.y = veh.rotY;
+
+      const speedKmh = Math.round(Math.abs(veh.speed) * 3.2);
+      const districtNow = getDistrictAt(veh.x, veh.z);
+      const redViolation = this.trafficSignals.checkPlayerRedLightViolation(
+        prevX,
+        prevZ,
+        veh.x,
+        veh.z,
+        speedKmh,
+        veh.y
+      );
+      if (redViolation) {
+        this.lawEnforcement.reportRedLightViolation(redViolation.label);
+      }
+      this.lawEnforcement.evaluateSpeeding(veh.x, veh.z, veh.y, speedKmh, true, districtNow);
 
       for (const w of veh.wheels) {
         w.rotation.x += veh.speed * dt * 2.4;
       }
 
-      // Keep visible driver seated cleanly on Pragya saddle / Motorcycle seat
-      const driverLocalZ = isMoto ? -0.1 : 0.08;
-      const driverLocalY = vehGroundY + (isMoto ? 0.22 : 0.16);
+      // Keep visible driver seated cleanly on open vehicles; hide inside opaque truck/taxi cabs
+      const driverLocalZ = isMoto ? -0.1 : veh.kind === "cargo_trike" ? 0.55 : 0.08;
+      const driverLocalY = veh.y + (isMoto ? 0.22 : 0.16);
       const driverX = veh.x + Math.sin(veh.rotY) * driverLocalZ;
       const driverZ = veh.z + Math.cos(veh.rotY) * driverLocalZ;
-      this.playerRig.root.visible = true;
+      this.playerRig.root.visible = !isEnclosedCab;
       this.playerRig.root.position.set(driverX, driverLocalY, driverZ);
       this.playerRig.root.rotation.y = veh.rotY;
       this.playerRig.root.rotation.z = veh.group.rotation.z;
 
-      // If transporting a live passenger on a transport_passenger gig, seat them behind the driver
+      // If transporting a live passenger on a transport_passenger gig, seat them cleanly
       if (
         this.gigPassengerRig &&
         this.activeTaskRuntime?.job.executionMode === "transport_passenger" &&
         this.activeTaskRuntime.stage === "go_to_destination"
       ) {
         const paxLocalZ = isMoto ? -0.52 : -0.78;
-        const paxLocalY = vehGroundY + (isMoto ? 0.24 : 0.16);
-        this.gigPassengerRig.root.visible = true;
+        const paxLocalY = veh.y + (isMoto ? 0.24 : 0.16);
+        this.gigPassengerRig.root.visible = !isEnclosedCab;
         setCharacterPose(this.gigPassengerRig, isMoto ? "motorcycle" : "pragya");
         this.gigPassengerRig.root.position.set(
           veh.x + Math.sin(veh.rotY) * paxLocalZ,
@@ -4548,7 +4878,7 @@ export class TamaleEngine {
         this.gigPassengerRig.root.rotation.z = veh.group.rotation.z;
       }
 
-      this.playerPos.set(veh.x, vehGroundY, veh.z);
+      this.playerPos.set(veh.x, veh.y, veh.z);
       this.playerRotY = veh.rotY;
       this.playerMoving = Math.abs(veh.speed) > 0.3;
       this.playerRunning = false;
@@ -4926,7 +5256,9 @@ export class TamaleEngine {
         nz,
         0.42,
         COLLIDER_MASK_ALL_WITH_VEHICLES,
-        dynVehicles
+        dynVehicles,
+        undefined,
+        0
       );
       const actualMoved = Math.hypot(resolved.x - agent.x, resolved.z - agent.z);
       if (step > 0.005 && actualMoved < step * 0.22) {
@@ -4953,11 +5285,7 @@ export class TamaleEngine {
 
       if (animateDetail) {
         agent.walkPhase += dt * (agent.role === "child" ? 10.5 : 7.5);
-        const swing = Math.sin(agent.walkPhase) * (agent.role === "child" ? 0.56 : 0.44);
-        agent.rig.leftLegPivot.rotation.x = swing;
-        agent.rig.rightLegPivot.rotation.x = -swing;
-        agent.rig.leftArmPivot.rotation.x = -swing * 0.8;
-        agent.rig.rightArmPivot.rotation.x = swing * 0.8;
+        animateCharacterRigWalk(agent.rig, agent.walkPhase, agent.role === "child" ? 0.56 : 0.44);
       }
     }
 
@@ -5066,15 +5394,25 @@ export class TamaleEngine {
       tv.group.visible = active && distFromPlayer <= this.trafficUpdateRadius;
       if (!active) continue;
 
+      const hornKindForTv = (k: TrafficVehicleKind): "moto" | "pragya" | "taxi" | "car" =>
+        k === "bicycle" || k === "moto"
+          ? "moto"
+          : k === "cargo" || k === "pragya"
+          ? "pragya"
+          : k === "minibus" || k === "pickup_truck" || k === "taxi"
+          ? "taxi"
+          : "car";
+
       tv.hornCooldown = Math.max(0, tv.hornCooldown - dt);
       tv.passByCooldown = Math.max(0, tv.passByCooldown - dt);
       tv.stopCooldown = Math.max(0, tv.stopCooldown - dt);
 
-      // Curbside passenger pickup / dropoff pause for Pragyas, taxis & passenger bikes
+      // Curbside passenger pickup / dropoff pause for Pragyas, taxis & minibuses
       if (tv.stopTimer > 0) {
         tv.stopTimer -= dt;
         tv.currentSpeed = THREE.MathUtils.damp(tv.currentSpeed, 0, 6, dt);
         tv.targetLaneOffset = 1.05;
+        if (tv.brakeLightMat) tv.brakeLightMat.emissiveIntensity = 1.6;
         if (tv.chassisGroup) {
           tv.leanAngle = THREE.MathUtils.damp(tv.leanAngle, 0, 8, dt);
           tv.chassisGroup.rotation.z = tv.leanAngle;
@@ -5092,9 +5430,32 @@ export class TamaleEngine {
         this.audio.playVehiclePassBy(tv.x, tv.z, tv.currentSpeed, tv.kind === "moto" || tv.kind === "pragya");
       }
 
-      // Check for vehicles ahead in same lane OR cross-street vehicles + parked drivable vehicles
       let blockedByVehicleAhead = false;
       let targetSpeed = tv.baseSpeed * trafficPaceFactor;
+
+      // Ground-level traffic signals
+      const tvGroundY = getTamaleGroundHeight(tv.x, tv.z, 0);
+      if (tvGroundY < 1.5) {
+        const posAlong = tv.axis === "x" ? tv.x : tv.z;
+        if (this.trafficSignals.shouldTrafficStop(tv.axis, tv.roadCoord, posAlong, tv.dir)) {
+          blockedByVehicleAhead = true;
+          targetSpeed = 0;
+        }
+      }
+
+      // Yield around active roadside breakdown incidents
+      if (targetSpeed > 0) {
+        for (const inc of this.lawEnforcement.incidents) {
+          if (inc.cleared) continue;
+          const forwardGap = tv.axis === "x" ? (inc.x - tv.x) * tv.dir : (inc.z - tv.z) * tv.dir;
+          const lateralGap = tv.axis === "x" ? Math.abs(inc.z - tv.z) : Math.abs(inc.x - tv.x);
+          if (forwardGap > 0.5 && forwardGap < 10.0 && lateralGap < 3.4) {
+            tv.targetLaneOffset = -1.65;
+            targetSpeed = Math.min(targetSpeed, 4.5);
+          }
+        }
+      }
+
       for (let j = 0; j < this.traffic.length; j++) {
         if (i === j || !this.traffic[j].group.visible) continue;
         const other = this.traffic[j];
@@ -5102,7 +5463,6 @@ export class TamaleEngine {
           const forwardGap = tv.axis === "x" ? (other.x - tv.x) * tv.dir : (other.z - tv.z) * tv.dir;
           if (forwardGap > 0.5 && forwardGap < 9.0) {
             if (tv.kind === "moto" && other.currentSpeed < tv.baseSpeed * 0.85) {
-              // Motorcycles weave smoothly into inner gap to overtake slower Pragyas/cargo trikes
               tv.targetLaneOffset = -1.45;
               targetSpeed = Math.max(targetSpeed * 0.92, other.currentSpeed + 2.2);
             } else {
@@ -5111,16 +5471,11 @@ export class TamaleEngine {
               if (forwardGap < 5.0) targetSpeed = 0;
               if (forwardGap < 6.0 && distToPlayer < 30 && tv.hornCooldown <= 0 && !this.paused) {
                 tv.hornCooldown = 5.5;
-                this.audio.playTrafficHorn(
-                  tv.kind === "bicycle" ? "moto" : tv.kind === "cargo" ? "pragya" : tv.kind,
-                  tv.x,
-                  tv.z
-                );
+                this.audio.playTrafficHorn(hornKindForTv(tv.kind), tv.x, tv.z);
               }
             }
           }
         } else if (other.axis !== tv.axis) {
-          // Cross-traffic yield at Tamale intersections
           const forwardGap = tv.axis === "x" ? (other.x - tv.x) * tv.dir : (other.z - tv.z) * tv.dir;
           const lateralGap = tv.axis === "x" ? Math.abs(other.z - tv.z) : Math.abs(other.x - tv.x);
           if (forwardGap > 0.4 && forwardGap < 5.2 && lateralGap < 3.4) {
@@ -5130,8 +5485,9 @@ export class TamaleEngine {
         }
       }
 
-      // Yield / brake behind parked or player-driven Pragyas & motorcycles on the roadway
+      // Yield / brake behind parked or player-driven vehicles on the roadway
       for (const dv of this.drivables) {
+        if (dv.impounded) continue;
         const forwardGap = tv.axis === "x" ? (dv.x - tv.x) * tv.dir : (dv.z - tv.z) * tv.dir;
         const lateralGap = tv.axis === "x" ? Math.abs(dv.z - tv.z) : Math.abs(dv.x - tv.x);
         if (forwardGap > 0.4 && forwardGap < 7.5 && lateralGap < 1.85) {
@@ -5144,7 +5500,6 @@ export class TamaleEngine {
         }
       }
 
-      // Slow smoothly near Central Market, Aboabo, Lamashegu & Interchange
       const nearMarket =
         Math.hypot(tv.x + 44, tv.z + 30) < 32 ||
         Math.hypot(tv.x + 132, tv.z - 28) < 28 ||
@@ -5153,7 +5508,6 @@ export class TamaleEngine {
         targetSpeed = Math.min(targetSpeed, tv.kind === "moto" ? 8.2 : 5.6);
       }
 
-      // Yield for player or crossing pedestrians + friendly horn beep
       if (distToPlayer < 7.0) {
         const aheadDot =
           tv.axis === "x"
@@ -5163,20 +5517,15 @@ export class TamaleEngine {
           targetSpeed = Math.min(targetSpeed, distToPlayer < 4.2 ? 0.5 : 2.6);
           if (tv.hornCooldown <= 0 && !this.paused && tv.kind !== "bicycle") {
             tv.hornCooldown = 4.2;
-            this.audio.playTrafficHorn(
-              tv.kind === "cargo" ? "pragya" : tv.kind,
-              tv.x,
-              tv.z
-            );
+            this.audio.playTrafficHorn(hornKindForTv(tv.kind), tv.x, tv.z);
           }
         }
       }
 
-      // Curbside stop opportunity near markets / mosque / hospital
       if (
         !blockedByVehicleAhead &&
         tv.stopCooldown <= 0 &&
-        (tv.kind === "pragya" || tv.kind === "taxi") &&
+        (tv.kind === "pragya" || tv.kind === "taxi" || tv.kind === "minibus") &&
         (nearMarket || Math.hypot(tv.x, tv.z) < 26 || Math.hypot(tv.x - 34, tv.z - 46) < 24)
       ) {
         tv.stopTimer = 3.2 + Math.random() * 2.4;
@@ -5184,6 +5533,9 @@ export class TamaleEngine {
       }
 
       tv.currentSpeed = THREE.MathUtils.damp(tv.currentSpeed, targetSpeed, 4.5, dt);
+      if (tv.brakeLightMat) {
+        tv.brakeLightMat.emissiveIntensity = targetSpeed < 1.2 || tv.currentSpeed < 1.0 ? 1.55 : 0.24;
+      }
       tv.laneOffset = THREE.MathUtils.damp(tv.laneOffset, tv.targetLaneOffset, 4.2, dt);
 
       const step = tv.currentSpeed * dt;
@@ -5193,14 +5545,12 @@ export class TamaleEngine {
         tv.z += tv.dir * step;
       }
 
-      // Check intersection turning onto physically connected crossroads in tamaleRoadGraph
       const crossList = getCrossRoadsAlong(tv.axis, tv.roadCoord);
       const mainCoord = tv.axis === "x" ? tv.x : tv.z;
       let turnedThisFrame = false;
       for (const cross of crossList) {
         if (Math.abs(mainCoord - cross) < 0.75 && tv.lastCrossCoord !== cross) {
           tv.lastCrossCoord = cross;
-          // 28% chance to turn cleanly onto intersecting avenue if away from Interchange center
           const atCenterRoundabout = Math.abs(tv.x) < 4.5 && Math.abs(tv.z) < 4.5;
           if (!atCenterRoundabout && Math.random() < 0.28) {
             const newAxis: "x" | "z" = tv.axis === "x" ? "z" : "x";
@@ -5222,7 +5572,6 @@ export class TamaleEngine {
         tv.lastCrossCoord = null;
       }
 
-      // Wrap smoothly at actual road segment boundaries
       const roadBounds = getRoadExtentBounds(tv.axis, tv.roadCoord);
       if (tv.axis === "x") {
         if (tv.x > roadBounds.max) tv.x = roadBounds.min;
@@ -5232,7 +5581,6 @@ export class TamaleEngine {
         if (tv.z < roadBounds.min) tv.z = roadBounds.max;
       }
 
-      // Keep vehicle aligned cleanly on its right-hand lane + weave offset
       const shift = getLaneShift(tv.roadCoord) + tv.laneOffset;
       const targetLaneX = tv.axis === "x" ? tv.x : tv.roadCoord - tv.dir * shift;
       const targetLaneZ = tv.axis === "x" ? tv.roadCoord + tv.dir * shift : tv.z;
@@ -5256,7 +5604,6 @@ export class TamaleEngine {
       const turnDelta = rotDiff * Math.min(1, dt * 6.5);
       tv.rotY += turnDelta;
 
-      // Dynamic lean for motorcycles & bicycles when cornering or weaving
       if (tv.chassisGroup) {
         const leanTarget = THREE.MathUtils.clamp(-turnDelta * 5.2 - (tv.targetLaneOffset - tv.laneOffset) * 0.16, -0.34, 0.34);
         tv.leanAngle = THREE.MathUtils.damp(tv.leanAngle, leanTarget, 7, dt);
@@ -5293,13 +5640,18 @@ export class TamaleEngine {
         const pulse = 0.92 + Math.sin(elapsed * 3.4 + i) * 0.08;
         marker.ring.scale.set(pulse, pulse, 1);
       }
+      for (let i = 0; i < this.activeInteriorScene.danceRigs.length; i++) {
+        animateCharacterRigDance(this.activeInteriorScene.danceRigs[i], elapsed, i * 1.35);
+      }
+      for (let i = 0; i < this.activeInteriorScene.clubLights.length; i++) {
+        this.activeInteriorScene.clubLights[i].intensity = 3.2 + Math.sin(elapsed * 5.4 + i * 2.1) * 1.4;
+      }
       this.sunLight.intensity = 0;
       this.hemiLight.intensity = 0.72;
       for (const light of this.nightLightPool) {
         light.intensity = 0;
       }
-      const roomBg = new THREE.Color("#181410");
-      (this.scene.background as THREE.Color).lerp(roomBg, Math.min(1, dt * 6));
+      (this.scene.background as THREE.Color).lerp(_roomBgColor, Math.min(1, dt * 6));
       const fog = this.scene.fog as THREE.FogExp2;
       fog.density = 0.002;
       fog.color.copy(this.scene.background as THREE.Color);
@@ -5329,6 +5681,18 @@ export class TamaleEngine {
       return;
     }
 
+    this.trafficSignals.update(dt);
+    this.lawEnforcement.update(
+      dt,
+      this.playerPos.x,
+      this.playerPos.z,
+      this.trafficSignals,
+      this.collisionWorld
+    );
+    if (this.policeBeaconMat) {
+      this.policeBeaconMat.emissiveIntensity = Math.sin(elapsed * 7.5) > 0 ? 2.4 : 0.35;
+    }
+
     const sunAngle = ((hour - 6) / 12) * Math.PI;
     const sunY = Math.sin(sunAngle) * 76;
     const sunX = Math.cos(sunAngle) * 76;
@@ -5346,58 +5710,57 @@ export class TamaleEngine {
     }
     this.lightningFlashIntensity = Math.max(0, this.lightningFlashIntensity - dt * 4.5);
 
-    const skyColor = new THREE.Color();
     if (this.weather === "harmattan") {
-      skyColor.set(isNight ? "#1a1822" : "#dcc09a");
+      _skyColor.set(isNight ? "#1a1822" : "#dcc09a");
       this.sunLight.intensity = isNight ? 0.28 : 1.15;
       this.sunLight.color.set("#ffdbb5");
       (this.scene.fog as THREE.FogExp2).density = 0.0125;
     } else if (this.weather === "cloudy") {
-      skyColor.set(isNight ? "#111827" : isDuskOrDawn ? "#b89685" : "#9db1c4");
+      _skyColor.set(isNight ? "#111827" : isDuskOrDawn ? "#b89685" : "#9db1c4");
       this.sunLight.intensity = isNight ? 0.26 : 1.08;
       this.sunLight.color.set("#e2e8f0");
       (this.scene.fog as THREE.FogExp2).density = 0.0068;
     } else if (this.weather === "heat") {
-      skyColor.set(isNight ? "#161925" : isDuskOrDawn ? "#f59e0b" : "#f5deb3");
+      _skyColor.set(isNight ? "#161925" : isDuskOrDawn ? "#f59e0b" : "#f5deb3");
       this.sunLight.intensity = isNight ? 0.28 : 2.15;
       this.sunLight.color.set("#ffe4a3");
       (this.scene.fog as THREE.FogExp2).density = 0.0058;
     } else if (this.weather === "light_rain") {
-      skyColor.set(isNight ? "#101724" : "#8fa1b3");
+      _skyColor.set(isNight ? "#101724" : "#8fa1b3");
       this.sunLight.intensity = isNight ? 0.26 : 0.96;
       this.sunLight.color.set("#dbeafe");
       (this.scene.fog as THREE.FogExp2).density = 0.0085;
     } else if (this.weather === "rain") {
-      skyColor.set(isNight ? "#101622" : "#7b8c9e");
+      _skyColor.set(isNight ? "#101622" : "#7b8c9e");
       this.sunLight.intensity = isNight ? 0.25 : 0.78;
       this.sunLight.color.set("#cbd5e1");
       (this.scene.fog as THREE.FogExp2).density = 0.011;
     } else if (this.weather === "thunderstorm") {
-      skyColor.set(isNight ? "#080d17" : "#4b5968");
+      _skyColor.set(isNight ? "#080d17" : "#4b5968");
       if (this.lightningFlashIntensity > 0.05) {
-        skyColor.lerp(new THREE.Color("#dbeafe"), this.lightningFlashIntensity * 0.65);
+        _skyColor.lerp(_lightningFlashColor, this.lightningFlashIntensity * 0.65);
       }
       this.sunLight.intensity = (isNight ? 0.22 : 0.56) + this.lightningFlashIntensity * 2.1;
       this.sunLight.color.set("#cbd5e1");
       (this.scene.fog as THREE.FogExp2).density = 0.0145;
     } else if (isNight) {
-      skyColor.set("#0f172a");
+      _skyColor.set("#0f172a");
       this.sunLight.intensity = 0.28;
       this.sunLight.color.set("#93c5fd");
       (this.scene.fog as THREE.FogExp2).density = 0.007;
     } else if (isDuskOrDawn) {
-      skyColor.set("#f2a66d");
+      _skyColor.set("#f2a66d");
       this.sunLight.intensity = 1.35;
       this.sunLight.color.set("#ffbe76");
       (this.scene.fog as THREE.FogExp2).density = 0.0065;
     } else {
-      skyColor.set("#c7e2f5");
+      _skyColor.set("#c7e2f5");
       this.sunLight.intensity = 1.92;
       this.sunLight.color.set("#fff2d6");
       (this.scene.fog as THREE.FogExp2).density = 0.0044;
     }
 
-    (this.scene.background as THREE.Color).lerp(skyColor, Math.min(1, dt * 2.5));
+    (this.scene.background as THREE.Color).lerp(_skyColor, Math.min(1, dt * 2.5));
     (this.scene.fog as THREE.FogExp2).color.copy(this.scene.background as THREE.Color);
     this.hemiLight.intensity = isNight
       ? 0.35
@@ -5729,6 +6092,29 @@ export class TamaleEngine {
     if (elapsed - this.lastHudSync < 0.14) return;
     this.lastHudSync = elapsed;
 
+    const refPos = this.activeInteriorSpec ? this.exteriorReturnPos : this.playerPos;
+    if (
+      this.navDest &&
+      Math.hypot(refPos.x - this.navLastRouteFrom.x, refPos.z - this.navLastRouteFrom.z) > 10
+    ) {
+      this.navRoutePoints = this.plotRoadRoute(refPos.x, refPos.z, this.navDest.x, this.navDest.z);
+      this.navLastRouteFrom = { x: refPos.x, z: refPos.z };
+    }
+
+    const navSnapshot = this.getNavigationSnapshot();
+    const policeCruiserPositions = this.lawEnforcement.cruisers.map((c) => ({ x: c.x, z: c.z }));
+    const roadIncidentPositions = this.lawEnforcement.incidents
+      .filter((i) => !i.cleared)
+      .map((i) => ({ id: i.id, title: i.title, x: i.x, z: i.z }));
+    const impoundedVehicleId = this.lawEnforcement.getImpoundedVehicleId();
+    const policePursuitActive = this.lawEnforcement.isPursuing();
+    const cargoIntegrityPct =
+      this.activeTaskRuntime?.job.executionMode === "cargo_haul" && this.activeTaskRuntime.cargoLoaded
+        ? Math.round(this.activeCargoIntegrity)
+        : null;
+    const cargoLoadProgressPct =
+      this.cargoLoadProgress !== null ? Math.round(this.cargoLoadProgress * 100) : null;
+
     const npcSnapshots = this.npcController.getSnapshots();
     if (this.activeInteriorSpec) {
       const spec = this.activeInteriorSpec;
@@ -5752,7 +6138,7 @@ export class TamaleEngine {
               id: st.id,
               label: st.label,
               sublabel: st.dagbaniLabel,
-              interactionVerb: "use_station",
+              interactionVerb: st.kind === "club_game_table" ? "play_minigame" : "use_station",
               stationKind: st.kind,
               shopId: spec.shopId,
             };
@@ -5768,10 +6154,20 @@ export class TamaleEngine {
         isDriving: false,
         drivingLabel: null,
         drivingKind: null,
+        drivingMaxCargoKg: 0,
+        vehicleHealthPct: 100,
         isRidingService: false,
         nearby: indoorClosest,
         nearbyVehicle: null,
         nearbyChatter: null,
+        nearbySignal: null,
+        policePursuitActive,
+        impoundedVehicleId,
+        navSnapshot,
+        cargoIntegrityPct,
+        cargoLoadProgressPct,
+        policeCruiserPositions,
+        roadIncidentPositions,
         nearestGuidance: getNearestLandmarkGuidance(
           this.exteriorReturnPos.x,
           this.exteriorReturnPos.z,
@@ -5826,7 +6222,7 @@ export class TamaleEngine {
       }
     }
 
-    // 2. Active City Task / Job stage check (works on foot OR driving for pickup/dropoff)
+    // 2. Active City Task / Job stage check
     if (!closest && this.activeTaskRuntime) {
       const task = this.activeTaskRuntime;
       const targetId =
@@ -5837,7 +6233,37 @@ export class TamaleEngine {
       if (targetLm) {
         const d = Math.hypot(this.playerPos.x - targetLm.x, this.playerPos.z - targetLm.z);
         if (d < Math.max(12.5, targetLm.radius * 0.72)) {
-          if (task.job.executionMode === "transport_passenger") {
+          if (task.job.executionMode === "cargo_haul") {
+            const reqClasses = task.job.requiredVehicleClasses ?? [];
+            const minKg = task.job.cargoWeightKg ?? 100;
+            const veh = this.drivingVehicle;
+            const vehicleOk = Boolean(
+              veh && (reqClasses.length === 0 || reqClasses.includes(veh.kind)) && veh.maxCargoKg >= minKg
+            );
+            if (task.stage === "go_to_pickup") {
+              closest = {
+                kind: "job_action",
+                id: task.job.id,
+                label: vehicleOk
+                  ? `Load ${task.job.cargoTitle ?? "Cargo"} (${minKg} kg)`
+                  : `Need Freight Vehicle (${reqClasses.join(", ") || `${minKg}kg+`})`,
+                sublabel: vehicleOk
+                  ? `Park & hold to load cargo for ${task.job.targetLandmarkName}`
+                  : `Enter a pickup, Motor King, box truck, or flatbed to load`,
+                interactionVerb: "load_cargo",
+                jobActionMode: vehicleOk ? "load_cargo" : undefined,
+              };
+            } else {
+              closest = {
+                kind: "job_action",
+                id: task.job.id,
+                label: `Unload ${task.job.cargoTitle ?? "Cargo"} at ${targetLm.name}`,
+                sublabel: `Integrity ${cargoIntegrityPct ?? 100}% · Earn ~GH₵ ${task.job.rewardCedis}`,
+                interactionVerb: "unload_cargo",
+                jobActionMode: "unload_cargo",
+              };
+            }
+          } else if (task.job.executionMode === "transport_passenger") {
             if (task.stage === "go_to_pickup") {
               closest = {
                 kind: "job_action",
@@ -5942,6 +6368,28 @@ export class TamaleEngine {
     }
 
     if (!this.drivingVehicle && !this.servicePassengerRiding) {
+      // MTTD roadside incidents & officers on duty
+      const lawItem = this.lawEnforcement.findNearestInteractable(this.playerPos.x, this.playerPos.z, 4.6);
+      if (!closest && lawItem && lawItem.dist < bestDist) {
+        bestDist = lawItem.dist;
+        closest =
+          lawItem.kind === "accident_scene"
+            ? {
+                kind: "accident_scene",
+                id: lawItem.id,
+                label: `Assist Driver: ${lawItem.label}`,
+                sublabel: "Roadside hazard check & lane clear (+GH₵ & XP)",
+                interactionVerb: "repair",
+              }
+            : {
+                kind: "police_officer",
+                id: lawItem.id,
+                label: `Speak with ${lawItem.label}`,
+                sublabel: "Check Tamale MTTD traffic record",
+                interactionVerb: "talk",
+              };
+      }
+
       for (const snap of npcSnapshots) {
         if (!snap.canTalk) continue;
         const d = Math.hypot(this.playerPos.x - snap.x, this.playerPos.z - snap.z);
@@ -5959,7 +6407,6 @@ export class TamaleEngine {
         }
       }
 
-      // Interactive street hawkers & food sellers
       for (const agent of this.crowdAgents) {
         if (!agent.rig.root.visible || agent.role !== "vendor" || !agent.vendorShopId) continue;
         const d = Math.hypot(this.playerPos.x - agent.x, this.playerPos.z - agent.z);
@@ -5977,14 +6424,29 @@ export class TamaleEngine {
       }
 
       for (const veh of this.drivables) {
+        if (veh.impounded) continue;
         const d = Math.hypot(this.playerPos.x - veh.x, this.playerPos.z - veh.z);
         if (d < bestVehDist) {
           bestVehDist = d;
+          const vehSub =
+            veh.kind === "motorcycle"
+              ? "Motorcycle · Agile 2-wheel ride"
+              : veh.kind === "pragya"
+              ? "Pragya · City tricycle"
+              : veh.kind === "cargo_trike"
+              ? `Motor King · ${veh.maxCargoKg}kg cargo bed`
+              : veh.kind === "taxi"
+              ? "Tamale Taxi · Fast city saloon"
+              : veh.kind === "pickup_truck"
+              ? `Utility Pickup · ${veh.maxCargoKg}kg haul`
+              : veh.kind === "box_truck"
+              ? `Box Freight Truck · ${veh.maxCargoKg}kg freight`
+              : `Heavy Flatbed · ${veh.maxCargoKg}kg timber & grain`;
           closestVeh = {
             kind: "vehicle",
             id: veh.id,
             label: `Enter ${veh.label}`,
-            sublabel: veh.kind === "motorcycle" ? "Motorcycle · Fast agile ride" : "Pragya · City tricycle",
+            sublabel: vehSub,
             interactionVerb: "vehicle",
             vehicleKind: veh.kind,
           };
@@ -6061,6 +6523,7 @@ export class TamaleEngine {
       }
     }
 
+    const nearbySignal = this.trafficSignals.getNearbySignalState(this.playerPos.x, this.playerPos.z, 26);
     const guidanceTargetId = this.activeErrandLandmarkId || this.activeGigLandmarkId;
     this.callbacks.onHudUpdate({
       district: getDistrictAt(this.playerPos.x, this.playerPos.z),
@@ -6068,10 +6531,20 @@ export class TamaleEngine {
       isDriving: Boolean(this.drivingVehicle),
       drivingLabel: this.drivingVehicle ? this.drivingVehicle.label : null,
       drivingKind: this.drivingVehicle ? this.drivingVehicle.kind : null,
+      drivingMaxCargoKg: this.drivingVehicle ? this.drivingVehicle.maxCargoKg : 0,
+      vehicleHealthPct: this.drivingVehicle ? Math.round(this.drivingVehicle.healthPct) : 100,
       isRidingService: this.servicePassengerRiding,
       nearby: closest,
       nearbyVehicle: closestVeh,
       nearbyChatter,
+      nearbySignal,
+      policePursuitActive,
+      impoundedVehicleId,
+      navSnapshot,
+      cargoIntegrityPct,
+      cargoLoadProgressPct,
+      policeCruiserPositions,
+      roadIncidentPositions,
       nearestGuidance: getNearestLandmarkGuidance(
         this.playerPos.x,
         this.playerPos.z,

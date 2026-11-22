@@ -5,7 +5,7 @@ import {
   NpcRuntimeSnapshot,
   NpcScheduleSlot,
 } from "../types/game";
-import { CharacterRig } from "./models";
+import { animateCharacterRigWalk, CharacterRig } from "./models";
 
 interface Waypoint {
   x: number;
@@ -207,8 +207,12 @@ export class NpcScheduleController {
   private resetLimbs(rig: CharacterRig) {
     rig.leftLegPivot.rotation.x = 0;
     rig.rightLegPivot.rotation.x = 0;
+    rig.leftShinPivot.rotation.x = 0;
+    rig.rightShinPivot.rotation.x = 0;
     rig.leftArmPivot.rotation.x = 0;
     rig.rightArmPivot.rotation.x = 0;
+    rig.leftForearmPivot.rotation.x = -0.18;
+    rig.rightForearmPivot.rotation.x = -0.18;
   }
 
   public update(dt: number, gameMinutes: number, playerPos: { x: number; z: number }) {
@@ -358,11 +362,7 @@ export class NpcScheduleController {
 
   private animateWalk(ent: ScheduledNpcEntity, dt: number, rate: number) {
     ent.walkPhase += dt * rate;
-    const swing = Math.sin(ent.walkPhase) * 0.38;
-    ent.rig.leftLegPivot.rotation.x = swing;
-    ent.rig.rightLegPivot.rotation.x = -swing;
-    ent.rig.leftArmPivot.rotation.x = -swing * 0.7;
-    ent.rig.rightArmPivot.rotation.x = swing * 0.7;
+    animateCharacterRigWalk(ent.rig, ent.walkPhase, 0.44);
   }
 
   public getSnapshot(npcId: string): NpcRuntimeSnapshot | undefined {

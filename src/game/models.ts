@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { HairstyleOption, HeadwearStyle, OutfitStyle } from "../types/game";
+import { CargoPropKind, HairstyleOption, HeadwearStyle, OutfitStyle } from "../types/game";
 import { createShopSignTexture, ProceduralTextureSet } from "./textures";
 
 export interface CharacterRig {
@@ -8,8 +8,12 @@ export interface CharacterRig {
   headGroup: THREE.Group;
   leftArmPivot: THREE.Group;
   rightArmPivot: THREE.Group;
+  leftForearmPivot: THREE.Group;
+  rightForearmPivot: THREE.Group;
   leftLegPivot: THREE.Group;
   rightLegPivot: THREE.Group;
+  leftShinPivot: THREE.Group;
+  rightShinPivot: THREE.Group;
   shadowPlane: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
 }
 
@@ -32,6 +36,7 @@ export interface CharacterAppearance {
   skinTone: string;
   carryProp?: NpcCarryProp;
   ownShadowMaterial?: boolean;
+  policeUniform?: boolean;
 }
 
 const CHAR_STD_MAT_CACHE = new Map<string, THREE.MeshStandardMaterial>();
@@ -51,25 +56,36 @@ let SHARED_NPC_SHADOW_MAT: THREE.MeshBasicMaterial | null = null;
 
 const CHAR_GEOS = {
   shadowPlane: new THREE.PlaneGeometry(1.15, 1.15),
-  upperLeg: new THREE.CylinderGeometry(0.11, 0.092, 0.72, 10),
-  foot: new THREE.BoxGeometry(0.16, 0.09, 0.28),
-  torsoWide: new THREE.BoxGeometry(0.54, 0.64, 0.28),
-  torsoStd: new THREE.BoxGeometry(0.46, 0.64, 0.28),
-  batakariFlare: new THREE.CylinderGeometry(0.28, 0.36, 0.38, 12),
+  thigh: new THREE.CylinderGeometry(0.105, 0.082, 0.38, 10),
+  shin: new THREE.CylinderGeometry(0.08, 0.062, 0.36, 10),
+  foot: new THREE.BoxGeometry(0.15, 0.085, 0.27),
+  pelvis: new THREE.CylinderGeometry(0.18, 0.16, 0.16, 10),
+  torsoWide: new THREE.CylinderGeometry(0.27, 0.24, 0.56, 12),
+  torsoStd: new THREE.CylinderGeometry(0.22, 0.185, 0.56, 12),
+  shoulderCap: new THREE.SphereGeometry(0.092, 8, 8),
+  batakariFlare: new THREE.CylinderGeometry(0.24, 0.35, 0.4, 12),
   batakariEmbroidery: new THREE.BoxGeometry(0.2, 0.22, 0.03),
-  kabaSkirt: new THREE.CylinderGeometry(0.24, 0.28, 0.52, 12),
-  collar: new THREE.CylinderGeometry(0.14, 0.16, 0.08, 10),
-  sleeve: new THREE.CylinderGeometry(0.095, 0.085, 0.24, 10),
-  forearm: new THREE.CylinderGeometry(0.072, 0.062, 0.38, 10),
-  neck: new THREE.CylinderGeometry(0.08, 0.09, 0.14, 10),
-  head: new THREE.SphereGeometry(0.18, 12, 10),
-  eye: new THREE.SphereGeometry(0.022, 6, 6),
-  kufi: new THREE.CylinderGeometry(0.175, 0.185, 0.15, 12),
-  headwrapTorus: new THREE.TorusGeometry(0.155, 0.07, 8, 14),
-  headwrapCrown: new THREE.SphereGeometry(0.165, 10, 8),
-  braidCap: new THREE.SphereGeometry(0.185, 10, 8),
-  braidStrand: new THREE.CylinderGeometry(0.022, 0.018, 0.24, 6),
-  shortHair: new THREE.SphereGeometry(0.182, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.58),
+  kabaSkirt: new THREE.CylinderGeometry(0.21, 0.28, 0.54, 12),
+  collar: new THREE.CylinderGeometry(0.125, 0.155, 0.085, 10),
+  belt: new THREE.CylinderGeometry(0.205, 0.205, 0.06, 12),
+  sleeve: new THREE.CylinderGeometry(0.082, 0.068, 0.27, 10),
+  forearm: new THREE.CylinderGeometry(0.062, 0.048, 0.28, 10),
+  hand: new THREE.SphereGeometry(0.052, 8, 8),
+  neck: new THREE.CylinderGeometry(0.072, 0.084, 0.14, 10),
+  head: new THREE.SphereGeometry(0.165, 14, 12),
+  jaw: new THREE.BoxGeometry(0.16, 0.11, 0.15),
+  noseBridge: new THREE.BoxGeometry(0.036, 0.068, 0.052),
+  browRidge: new THREE.BoxGeometry(0.18, 0.028, 0.04),
+  ear: new THREE.SphereGeometry(0.034, 6, 6),
+  eye: new THREE.SphereGeometry(0.021, 6, 6),
+  kufi: new THREE.CylinderGeometry(0.162, 0.172, 0.14, 12),
+  policeCapCrown: new THREE.CylinderGeometry(0.185, 0.165, 0.1, 12),
+  policeCapVisor: new THREE.CylinderGeometry(0.17, 0.17, 0.025, 12, 1, false, -Math.PI * 0.42, Math.PI * 0.84),
+  headwrapTorus: new THREE.TorusGeometry(0.15, 0.065, 8, 14),
+  headwrapCrown: new THREE.SphereGeometry(0.16, 10, 8),
+  braidCap: new THREE.SphereGeometry(0.172, 10, 8),
+  braidStrand: new THREE.CylinderGeometry(0.022, 0.017, 0.24, 6),
+  shortHair: new THREE.SphereGeometry(0.17, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.58),
   // Carry prop geometries
   headpanBowl: new THREE.CylinderGeometry(0.29, 0.18, 0.16, 12),
   headpanCloth: new THREE.TorusGeometry(0.14, 0.04, 6, 12),
@@ -120,44 +136,51 @@ export function createCharacterRig(
     () =>
       new THREE.MeshStandardMaterial({
         color: appearance.skinTone,
-        roughness: 0.66,
+        roughness: 0.64,
         metalness: 0.02,
       })
   );
 
+  const primaryCol = appearance.policeUniform ? "#1e3a8a" : appearance.primaryColor;
+  const accentCol = appearance.policeUniform ? "#eab308" : appearance.accentColor;
+
   const outfitMat =
-    appearance.outfit === "batakari"
+    appearance.outfit === "batakari" && !appearance.policeUniform
       ? getCachedCharMat(
-          `batakari:${appearance.primaryColor}`,
+          `batakari:${primaryCol}`,
           () =>
             new THREE.MeshStandardMaterial({
               map: textures.batakariCloth,
-              color: appearance.primaryColor,
+              color: primaryCol,
               roughness: 0.86,
               metalness: 0.02,
             })
         )
       : getCachedCharMat(
-          `outfit:${appearance.primaryColor}`,
+          `outfit:${primaryCol}`,
           () =>
             new THREE.MeshStandardMaterial({
-              color: appearance.primaryColor,
-              roughness: 0.78,
-              metalness: 0.04,
+              color: primaryCol,
+              roughness: 0.76,
+              metalness: 0.05,
             })
         );
 
   const accentMat = getCachedCharMat(
-    `accent:${appearance.accentColor}`,
+    `accent:${accentCol}`,
     () =>
       new THREE.MeshStandardMaterial({
-        color: appearance.accentColor,
-        roughness: 0.72,
-        metalness: 0.05,
+        color: accentCol,
+        roughness: 0.68,
+        metalness: appearance.policeUniform ? 0.35 : 0.06,
       })
   );
 
-  const trouserColor = appearance.outfit === "kaba" ? appearance.primaryColor : "#272b33";
+  const trouserColor = appearance.policeUniform
+    ? "#0f172a"
+    : appearance.outfit === "kaba"
+    ? primaryCol
+    : "#272b33";
   const trouserMat = getCachedCharMat(
     `trouser:${trouserColor}`,
     () =>
@@ -168,147 +191,251 @@ export function createCharacterRig(
   );
 
   const shoeMat = getCachedCharMat(
-    "shoe:#221a15",
+    "shoe:#1c1917",
     () =>
       new THREE.MeshStandardMaterial({
-        color: "#221a15",
-        roughness: 0.55,
-        metalness: 0.1,
+        color: "#1c1917",
+        roughness: 0.48,
+        metalness: 0.14,
       })
   );
 
   const makeLeg = (offsetX: number) => {
-    const pivot = new THREE.Group();
-    pivot.position.set(offsetX, 0.78, 0);
+    const hipPivot = new THREE.Group();
+    hipPivot.position.set(offsetX, 0.8, 0);
 
-    const upperLeg = new THREE.Mesh(CHAR_GEOS.upperLeg, trouserMat);
-    upperLeg.position.y = -0.36;
-    upperLeg.castShadow = true;
-    pivot.add(upperLeg);
+    const thigh = new THREE.Mesh(CHAR_GEOS.thigh, trouserMat);
+    thigh.position.y = -0.19;
+    thigh.castShadow = true;
+    hipPivot.add(thigh);
+
+    const kneePivot = new THREE.Group();
+    kneePivot.position.set(0, -0.37, 0);
+    hipPivot.add(kneePivot);
+
+    const shin = new THREE.Mesh(CHAR_GEOS.shin, trouserMat);
+    shin.position.y = -0.18;
+    shin.castShadow = true;
+    kneePivot.add(shin);
 
     const foot = new THREE.Mesh(CHAR_GEOS.foot, shoeMat);
-    foot.position.set(0, -0.735, 0.05);
+    foot.position.set(0, -0.385, 0.05);
     foot.castShadow = true;
-    pivot.add(foot);
+    kneePivot.add(foot);
 
-    return pivot;
+    return { hipPivot, kneePivot };
   };
 
-  const leftLegPivot = makeLeg(-0.14);
-  const rightLegPivot = makeLeg(0.14);
+  const leftLeg = makeLeg(-0.13);
+  const rightLeg = makeLeg(0.13);
+  const leftLegPivot = leftLeg.hipPivot;
+  const rightLegPivot = rightLeg.hipPivot;
+  const leftShinPivot = leftLeg.kneePivot;
+  const rightShinPivot = rightLeg.kneePivot;
   bodyGroup.add(leftLegPivot, rightLegPivot);
 
-  const torsoWidth = appearance.outfit === "batakari" ? 0.54 : 0.46;
-  const torso = new THREE.Mesh(
-    appearance.outfit === "batakari" ? CHAR_GEOS.torsoWide : CHAR_GEOS.torsoStd,
-    outfitMat
-  );
-  torso.position.y = 1.12;
+  const pelvis = new THREE.Mesh(CHAR_GEOS.pelvis, trouserMat);
+  pelvis.position.y = 0.84;
+  bodyGroup.add(pelvis);
+
+  const isBatakari = appearance.outfit === "batakari" && !appearance.policeUniform;
+  const torso = new THREE.Mesh(isBatakari ? CHAR_GEOS.torsoWide : CHAR_GEOS.torsoStd, outfitMat);
+  torso.scale.set(1.12, 1, 0.72);
+  torso.position.y = 1.15;
   torso.castShadow = true;
   torso.receiveShadow = true;
   bodyGroup.add(torso);
 
-  if (appearance.outfit === "batakari") {
+  if (isBatakari) {
     const flare = new THREE.Mesh(CHAR_GEOS.batakariFlare, outfitMat);
-    flare.position.y = 0.72;
+    flare.position.y = 0.74;
     flare.castShadow = true;
     bodyGroup.add(flare);
 
     const embroidery = new THREE.Mesh(CHAR_GEOS.batakariEmbroidery, accentMat);
-    embroidery.position.set(0, 1.18, 0.145);
+    embroidery.position.set(0, 1.2, 0.16);
     bodyGroup.add(embroidery);
-  } else if (appearance.outfit === "kaba") {
+  } else if (appearance.outfit === "kaba" && !appearance.policeUniform) {
     const wrapSkirt = new THREE.Mesh(CHAR_GEOS.kabaSkirt, accentMat);
-    wrapSkirt.position.y = 0.58;
+    wrapSkirt.position.y = 0.6;
     wrapSkirt.castShadow = true;
     bodyGroup.add(wrapSkirt);
   } else {
     const collar = new THREE.Mesh(CHAR_GEOS.collar, accentMat);
     collar.position.y = 1.44;
     bodyGroup.add(collar);
+
+    if (appearance.outfit === "workwear") {
+      const workBand = new THREE.Mesh(CHAR_GEOS.batakariEmbroidery, accentMat);
+      workBand.scale.set(2.2, 0.28, 1.0);
+      workBand.position.set(0, 1.08, 0.16);
+      bodyGroup.add(workBand);
+    } else if (appearance.outfit === "formal") {
+      const tie = new THREE.Mesh(CHAR_GEOS.batakariEmbroidery, accentMat);
+      tie.scale.set(0.45, 1.05, 1.0);
+      tie.position.set(0, 1.24, 0.16);
+      bodyGroup.add(tie);
+    } else if (appearance.outfit === "sportswear") {
+      const stripe = new THREE.Mesh(CHAR_GEOS.batakariEmbroidery, accentMat);
+      stripe.scale.set(1.9, 0.22, 1.0);
+      stripe.position.set(0, 1.28, 0.16);
+      bodyGroup.add(stripe);
+    } else if (appearance.outfit === "nightlife") {
+      const lapel = new THREE.Mesh(CHAR_GEOS.batakariEmbroidery, accentMat);
+      lapel.scale.set(1.2, 0.9, 1.0);
+      lapel.position.set(0, 1.24, 0.158);
+      bodyGroup.add(lapel);
+    }
+  }
+
+  if (appearance.policeUniform) {
+    const belt = new THREE.Mesh(
+      CHAR_GEOS.belt,
+      getCachedCharMat("police:belt", () => new THREE.MeshStandardMaterial({ color: "#111827", roughness: 0.4, metalness: 0.3 }))
+    );
+    belt.scale.set(1.06, 1, 0.78);
+    belt.position.y = 0.89;
+    const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.04), accentMat);
+    buckle.position.set(0, 0.89, 0.16);
+    const badge = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.07, 0.025), accentMat);
+    badge.position.set(-0.09, 1.24, 0.16);
+    bodyGroup.add(belt, buckle, badge);
   }
 
   const makeArm = (offsetX: number) => {
-    const pivot = new THREE.Group();
-    pivot.position.set(offsetX, 1.38, 0);
+    const shoulderPivot = new THREE.Group();
+    shoulderPivot.position.set(offsetX, 1.38, 0);
+
+    const shoulderCap = new THREE.Mesh(CHAR_GEOS.shoulderCap, outfitMat);
+    shoulderCap.castShadow = true;
+    shoulderPivot.add(shoulderCap);
 
     const sleeve = new THREE.Mesh(CHAR_GEOS.sleeve, outfitMat);
-    sleeve.position.y = -0.1;
+    sleeve.position.y = -0.14;
     sleeve.castShadow = true;
-    pivot.add(sleeve);
+    shoulderPivot.add(sleeve);
+
+    const elbowPivot = new THREE.Group();
+    elbowPivot.position.set(0, -0.27, 0);
+    shoulderPivot.add(elbowPivot);
 
     const forearm = new THREE.Mesh(CHAR_GEOS.forearm, skinMat);
-    forearm.position.y = -0.38;
+    forearm.position.y = -0.14;
     forearm.castShadow = true;
-    pivot.add(forearm);
+    elbowPivot.add(forearm);
 
-    return pivot;
+    const hand = new THREE.Mesh(CHAR_GEOS.hand, skinMat);
+    hand.position.y = -0.29;
+    elbowPivot.add(hand);
+
+    return { shoulderPivot, elbowPivot };
   };
 
-  const leftArmPivot = makeArm(-(torsoWidth / 2 + 0.08));
-  const rightArmPivot = makeArm(torsoWidth / 2 + 0.08);
+  const shoulderOffset = isBatakari ? 0.32 : 0.27;
+  const leftArm = makeArm(-shoulderOffset);
+  const rightArm = makeArm(shoulderOffset);
+  const leftArmPivot = leftArm.shoulderPivot;
+  const rightArmPivot = rightArm.shoulderPivot;
+  const leftForearmPivot = leftArm.elbowPivot;
+  const rightForearmPivot = rightArm.elbowPivot;
   bodyGroup.add(leftArmPivot, rightArmPivot);
 
   const headGroup = new THREE.Group();
-  headGroup.position.set(0, 1.56, 0);
+  headGroup.position.set(0, 1.54, 0);
 
   const neck = new THREE.Mesh(CHAR_GEOS.neck, skinMat);
-  neck.position.y = -0.06;
+  neck.position.y = -0.05;
   headGroup.add(neck);
 
   const head = new THREE.Mesh(CHAR_GEOS.head, skinMat);
-  head.position.y = 0.1;
+  head.position.y = 0.12;
+  head.scale.set(0.95, 1.08, 1.0);
   head.castShadow = true;
   headGroup.add(head);
 
+  // Subtle facial structure: jawline, nose bridge, brow ridge & ears
+  const jaw = new THREE.Mesh(CHAR_GEOS.jaw, skinMat);
+  jaw.position.set(0, 0.04, 0.035);
+  const nose = new THREE.Mesh(CHAR_GEOS.noseBridge, skinMat);
+  nose.position.set(0, 0.11, 0.148);
+  nose.rotation.x = -0.18;
+  const brow = new THREE.Mesh(CHAR_GEOS.browRidge, skinMat);
+  brow.position.set(0, 0.155, 0.135);
+  const leftEar = new THREE.Mesh(CHAR_GEOS.ear, skinMat);
+  leftEar.scale.set(0.65, 1.15, 0.8);
+  leftEar.position.set(-0.155, 0.115, 0.0);
+  const rightEar = new THREE.Mesh(CHAR_GEOS.ear, skinMat);
+  rightEar.scale.set(0.65, 1.15, 0.8);
+  rightEar.position.set(0.155, 0.115, 0.0);
+  headGroup.add(jaw, nose, brow, leftEar, rightEar);
+
   const eyeMat = getCachedCharMat(
     "eye:#151210",
-    () => new THREE.MeshStandardMaterial({ color: "#151210", roughness: 0.3 })
+    () => new THREE.MeshStandardMaterial({ color: "#151210", roughness: 0.25 })
   );
   const leftEye = new THREE.Mesh(CHAR_GEOS.eye, eyeMat);
-  leftEye.position.set(-0.06, 0.12, 0.155);
+  leftEye.position.set(-0.055, 0.132, 0.145);
   const rightEye = new THREE.Mesh(CHAR_GEOS.eye, eyeMat);
-  rightEye.position.set(0.06, 0.12, 0.155);
+  rightEye.position.set(0.055, 0.132, 0.145);
   headGroup.add(leftEye, rightEye);
 
   const hairMat = getCachedCharMat(
     "hair:#1a1512",
     () => new THREE.MeshStandardMaterial({ color: "#1a1512", roughness: 0.9 })
   );
-  if (appearance.headwear === "kufi") {
+
+  if (appearance.policeUniform) {
+    const capBodyMat = getCachedCharMat(
+      "police:cap",
+      () => new THREE.MeshStandardMaterial({ color: "#0f172a", roughness: 0.45 })
+    );
+    const visorMat = getCachedCharMat(
+      "police:visor",
+      () => new THREE.MeshStandardMaterial({ color: "#020617", roughness: 0.2, metalness: 0.3 })
+    );
+    const capCrown = new THREE.Mesh(CHAR_GEOS.policeCapCrown, capBodyMat);
+    capCrown.position.y = 0.245;
+    capCrown.castShadow = true;
+    const capBand = new THREE.Mesh(new THREE.CylinderGeometry(0.168, 0.168, 0.035, 12), accentMat);
+    capBand.position.y = 0.2;
+    const visor = new THREE.Mesh(CHAR_GEOS.policeCapVisor, visorMat);
+    visor.position.set(0, 0.19, 0.075);
+    visor.rotation.x = 0.15;
+    headGroup.add(capCrown, capBand, visor);
+  } else if (appearance.headwear === "kufi") {
     const cap = new THREE.Mesh(CHAR_GEOS.kufi, accentMat);
-    cap.position.y = 0.22;
+    cap.position.y = 0.23;
     cap.castShadow = true;
     headGroup.add(cap);
   } else if (appearance.headwear === "headwrap") {
     const wrap = new THREE.Mesh(CHAR_GEOS.headwrapTorus, accentMat);
     wrap.rotation.x = Math.PI / 2 - 0.15;
-    wrap.position.y = 0.2;
+    wrap.position.y = 0.21;
     wrap.castShadow = true;
     headGroup.add(wrap);
     const crown = new THREE.Mesh(CHAR_GEOS.headwrapCrown, accentMat);
-    crown.position.y = 0.21;
+    crown.position.y = 0.22;
     headGroup.add(crown);
   } else if (appearance.headwear === "braids") {
     const capHair = new THREE.Mesh(CHAR_GEOS.braidCap, hairMat);
-    capHair.position.set(0, 0.14, -0.02);
+    capHair.position.set(0, 0.155, -0.02);
     headGroup.add(capHair);
     for (let i = -2; i <= 2; i++) {
       const braid = new THREE.Mesh(CHAR_GEOS.braidStrand, hairMat);
-      braid.position.set(i * 0.055, 0.02, -0.15);
+      braid.position.set(i * 0.052, 0.03, -0.14);
       braid.rotation.x = 0.22;
       headGroup.add(braid);
     }
   } else {
     const shortHair = new THREE.Mesh(CHAR_GEOS.shortHair, hairMat);
-    shortHair.position.y = 0.115;
+    shortHair.position.y = 0.132;
     if (appearance.hairstyle === "afro_trim") {
       shortHair.scale.set(1.16, 1.24, 1.16);
     } else if (appearance.hairstyle === "braided_crown") {
       shortHair.scale.set(1.06, 1.14, 1.06);
       const crownRing = new THREE.Mesh(CHAR_GEOS.headwrapTorus, hairMat);
       crownRing.rotation.x = Math.PI / 2 - 0.12;
-      crownRing.position.y = 0.19;
+      crownRing.position.y = 0.205;
       headGroup.add(crownRing);
     } else if (appearance.hairstyle === "waves") {
       shortHair.scale.set(1.02, 0.94, 1.04);
@@ -323,7 +450,7 @@ export function createCharacterRig(
   if (prop === "headpan" || prop === "basket" || prop === "water_pack") {
     const pad = new THREE.Mesh(CHAR_GEOS.headpanCloth, accentMat);
     pad.rotation.x = Math.PI / 2;
-    pad.position.y = 0.29;
+    pad.position.y = 0.3;
     headGroup.add(pad);
 
     if (prop === "water_pack") {
@@ -332,7 +459,7 @@ export function createCharacterRig(
         () => new THREE.MeshStandardMaterial({ color: "#0284c7", roughness: 0.4 })
       );
       const pack = new THREE.Mesh(CHAR_GEOS.waterBundle, coolerMat);
-      pack.position.y = 0.4;
+      pack.position.y = 0.41;
       pack.castShadow = true;
       headGroup.add(pack);
     } else {
@@ -347,7 +474,7 @@ export function createCharacterRig(
               () => new THREE.MeshStandardMaterial({ color: "#b45309", roughness: 0.88 })
             );
       const pan = new THREE.Mesh(CHAR_GEOS.headpanBowl, panMat);
-      pan.position.y = 0.38;
+      pan.position.y = 0.39;
       pan.castShadow = true;
       headGroup.add(pan);
 
@@ -360,7 +487,7 @@ export function createCharacterRig(
           })
       );
       const mound = new THREE.Mesh(CHAR_GEOS.headpanGoods, goodsMat);
-      mound.position.y = 0.46;
+      mound.position.y = 0.47;
       mound.scale.set(1.2, 0.75, 1.2);
       headGroup.add(mound);
     }
@@ -370,7 +497,7 @@ export function createCharacterRig(
       () => new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.82 })
     );
     const bag = new THREE.Mesh(CHAR_GEOS.backpack, bagMat);
-    bag.position.set(0, 1.15, -0.21);
+    bag.position.set(0, 1.16, -0.2);
     bag.castShadow = true;
     bodyGroup.add(bag);
   } else if (prop === "parcel_box") {
@@ -379,7 +506,7 @@ export function createCharacterRig(
       () => new THREE.MeshStandardMaterial({ color: "#c2854c", roughness: 0.86 })
     );
     const box = new THREE.Mesh(CHAR_GEOS.parcelBox, boxMat);
-    box.position.set(0, 1.05, 0.28);
+    box.position.set(0, 1.04, 0.27);
     box.castShadow = true;
     bodyGroup.add(box);
   } else if (prop === "umbrella_hand") {
@@ -388,8 +515,8 @@ export function createCharacterRig(
       () => new THREE.MeshStandardMaterial({ color: "#be123c", roughness: 0.78 })
     );
     const tote = new THREE.Mesh(CHAR_GEOS.handBag, toteMat);
-    tote.position.set(0, -0.58, 0.04);
-    rightArmPivot.add(tote);
+    tote.position.set(0, -0.34, 0.04);
+    rightForearmPivot.add(tote);
   } else if (prop === "apron") {
     const apronMat = getCachedCharMat(
       "prop:apron",
@@ -408,22 +535,51 @@ export function createCharacterRig(
     headGroup,
     leftArmPivot,
     rightArmPivot,
+    leftForearmPivot,
+    rightForearmPivot,
     leftLegPivot,
     rightLegPivot,
+    leftShinPivot,
+    rightShinPivot,
     shadowPlane,
   };
 }
 
 export function setCharacterPose(
   rig: CharacterRig,
-  mode: "foot" | "pragya" | "motorcycle" | "bench"
+  mode:
+    | "foot"
+    | "pragya"
+    | "motorcycle"
+    | "bench"
+    | "taxi"
+    | "cargo_trike"
+    | "pickup_truck"
+    | "box_truck"
+    | "flatbed_truck"
+    | "police_car"
+    | "dance"
+    | "carry"
 ) {
   if (mode === "foot") {
     rig.bodyGroup.position.y = 0;
-    rig.leftLegPivot.rotation.x = 0;
-    rig.rightLegPivot.rotation.x = 0;
-    rig.leftArmPivot.rotation.x = 0;
-    rig.rightArmPivot.rotation.x = 0;
+    rig.leftLegPivot.rotation.set(0, 0, 0);
+    rig.rightLegPivot.rotation.set(0, 0, 0);
+    rig.leftShinPivot.rotation.set(0, 0, 0);
+    rig.rightShinPivot.rotation.set(0, 0, 0);
+    rig.leftArmPivot.rotation.set(0, 0, 0);
+    rig.rightArmPivot.rotation.set(0, 0, 0);
+    rig.leftForearmPivot.rotation.set(-0.18, 0, 0);
+    rig.rightForearmPivot.rotation.set(-0.18, 0, 0);
+    rig.shadowPlane.visible = true;
+    return;
+  }
+  if (mode === "carry") {
+    rig.bodyGroup.position.y = 0;
+    rig.leftArmPivot.rotation.set(-0.62, 0, -0.1);
+    rig.rightArmPivot.rotation.set(-0.62, 0, 0.1);
+    rig.leftForearmPivot.rotation.set(-0.75, 0, 0);
+    rig.rightForearmPivot.rotation.set(-0.75, 0, 0);
     rig.shadowPlane.visible = true;
     return;
   }
@@ -431,27 +587,84 @@ export function setCharacterPose(
     rig.bodyGroup.position.y = -0.34;
     rig.leftLegPivot.rotation.x = -Math.PI * 0.45;
     rig.rightLegPivot.rotation.x = -Math.PI * 0.45;
-    rig.leftArmPivot.rotation.x = -0.3;
-    rig.rightArmPivot.rotation.x = -0.3;
+    rig.leftShinPivot.rotation.x = Math.PI * 0.44;
+    rig.rightShinPivot.rotation.x = Math.PI * 0.44;
+    rig.leftArmPivot.rotation.x = -0.28;
+    rig.rightArmPivot.rotation.x = -0.28;
+    rig.leftForearmPivot.rotation.x = -0.52;
+    rig.rightForearmPivot.rotation.x = -0.52;
     rig.shadowPlane.visible = true;
     return;
   }
-  if (mode === "pragya") {
-    rig.bodyGroup.position.y = -0.36;
+  if (mode === "dance") {
+    rig.bodyGroup.position.y = 0;
+    rig.shadowPlane.visible = true;
+    return;
+  }
+  if (mode === "pragya" || mode === "cargo_trike") {
+    rig.bodyGroup.position.y = -0.35;
     rig.leftLegPivot.rotation.x = -Math.PI * 0.44;
     rig.rightLegPivot.rotation.x = -Math.PI * 0.44;
+    rig.leftShinPivot.rotation.x = Math.PI * 0.45;
+    rig.rightShinPivot.rotation.x = Math.PI * 0.45;
+    rig.leftArmPivot.rotation.x = -0.78;
+    rig.rightArmPivot.rotation.x = -0.78;
+    rig.leftForearmPivot.rotation.x = -0.45;
+    rig.rightForearmPivot.rotation.x = -0.45;
+    rig.shadowPlane.visible = false;
+    return;
+  }
+  if (mode === "taxi" || mode === "pickup_truck" || mode === "box_truck" || mode === "flatbed_truck" || mode === "police_car") {
+    rig.bodyGroup.position.y = -0.36;
+    rig.leftLegPivot.rotation.x = -Math.PI * 0.46;
+    rig.rightLegPivot.rotation.x = -Math.PI * 0.46;
+    rig.leftShinPivot.rotation.x = Math.PI * 0.44;
+    rig.rightShinPivot.rotation.x = Math.PI * 0.44;
     rig.leftArmPivot.rotation.x = -0.82;
     rig.rightArmPivot.rotation.x = -0.82;
+    rig.leftForearmPivot.rotation.x = -0.42;
+    rig.rightForearmPivot.rotation.x = -0.42;
     rig.shadowPlane.visible = false;
     return;
   }
   // motorcycle rider/passenger straddle
-  rig.bodyGroup.position.y = -0.3;
-  rig.leftLegPivot.rotation.x = -Math.PI * 0.34;
-  rig.rightLegPivot.rotation.x = -Math.PI * 0.34;
-  rig.leftArmPivot.rotation.x = -0.78;
-  rig.rightArmPivot.rotation.x = -0.78;
+  rig.bodyGroup.position.y = -0.28;
+  rig.leftLegPivot.rotation.x = -Math.PI * 0.32;
+  rig.rightLegPivot.rotation.x = -Math.PI * 0.32;
+  rig.leftShinPivot.rotation.x = Math.PI * 0.38;
+  rig.rightShinPivot.rotation.x = Math.PI * 0.38;
+  rig.leftArmPivot.rotation.x = -0.76;
+  rig.rightArmPivot.rotation.x = -0.76;
+  rig.leftForearmPivot.rotation.x = -0.35;
+  rig.rightForearmPivot.rotation.x = -0.35;
   rig.shadowPlane.visible = false;
+}
+
+export function animateCharacterRigWalk(rig: CharacterRig, phase: number, amp = 0.48) {
+  const s = Math.sin(phase);
+  rig.leftLegPivot.rotation.x = s * amp;
+  rig.rightLegPivot.rotation.x = -s * amp;
+  rig.leftShinPivot.rotation.x = Math.max(0, -s * amp * 0.85) + 0.08;
+  rig.rightShinPivot.rotation.x = Math.max(0, s * amp * 0.85) + 0.08;
+  rig.leftArmPivot.rotation.x = -s * amp * 0.82;
+  rig.rightArmPivot.rotation.x = s * amp * 0.82;
+  rig.leftForearmPivot.rotation.x = -0.28 - Math.max(0, -s) * 0.25;
+  rig.rightForearmPivot.rotation.x = -0.28 - Math.max(0, s) * 0.25;
+}
+
+export function animateCharacterRigDance(rig: CharacterRig, time: number, seed = 0) {
+  const beat = time * 4.6 + seed;
+  rig.bodyGroup.position.y = Math.abs(Math.sin(beat)) * 0.09;
+  rig.bodyGroup.rotation.y = Math.sin(beat * 0.5) * 0.16;
+  rig.headGroup.rotation.z = Math.sin(beat) * 0.08;
+  rig.leftArmPivot.rotation.set(-0.9 + Math.sin(beat) * 0.45, 0, -0.35);
+  rig.rightArmPivot.rotation.set(-0.9 - Math.sin(beat) * 0.45, 0, 0.35);
+  rig.leftForearmPivot.rotation.x = -0.85 + Math.cos(beat) * 0.3;
+  rig.rightForearmPivot.rotation.x = -0.85 - Math.cos(beat) * 0.3;
+  rig.leftLegPivot.rotation.x = Math.sin(beat) * 0.22;
+  rig.rightLegPivot.rotation.x = -Math.sin(beat) * 0.22;
+  rig.leftShinPivot.rotation.x = 0.18 + Math.max(0, Math.cos(beat)) * 0.28;
+  rig.rightShinPivot.rotation.x = 0.18 + Math.max(0, -Math.cos(beat)) * 0.28;
 }
 
 /**
@@ -461,7 +674,12 @@ export function createPragyaMesh(
   bodyColor = "#0284c7",
   canopyColor = "#6b4f3a",
   textures: ProceduralTextureSet
-): { group: THREE.Group; headlightMat: THREE.MeshStandardMaterial; wheels: THREE.Mesh[] } {
+): {
+  group: THREE.Group;
+  headlightMat: THREE.MeshStandardMaterial;
+  brakeLightMat: THREE.MeshStandardMaterial;
+  wheels: THREE.Mesh[];
+} {
   const group = new THREE.Group();
   const wheels: THREE.Mesh[] = [];
 
@@ -643,7 +861,20 @@ export function createPragyaMesh(
     group.add(pillar);
   }
 
-  return { group, headlightMat, wheels };
+  const brakeLightMat = new THREE.MeshStandardMaterial({
+    color: "#991b1b",
+    emissive: "#ef4444",
+    emissiveIntensity: 0.22,
+  });
+
+  // Twin rear brake/tail lamps on rear mudguard flanks
+  for (const bx of [-0.48, 0.48]) {
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.08, 0.05), brakeLightMat);
+    tl.position.set(bx, 0.52, -1.16);
+    group.add(tl);
+  }
+
+  return { group, headlightMat, brakeLightMat, wheels };
 }
 
 /**
@@ -651,8 +882,17 @@ export function createPragyaMesh(
  */
 export function createCargoTrikeMesh(
   textures: ProceduralTextureSet
-): { group: THREE.Group; headlightMat: THREE.MeshStandardMaterial } {
+): {
+  group: THREE.Group;
+  headlightMat: THREE.MeshStandardMaterial;
+  brakeLightMat: THREE.MeshStandardMaterial;
+  wheels: THREE.Mesh[];
+  cargoMountGroup: THREE.Group;
+} {
   const group = new THREE.Group();
+  const wheels: THREE.Mesh[] = [];
+  const cargoMountGroup = new THREE.Group();
+  cargoMountGroup.position.set(0, 0.56, -0.52);
 
   const shadow = new THREE.Mesh(
     new THREE.PlaneGeometry(2.4, 3.3),
@@ -667,48 +907,88 @@ export function createCargoTrikeMesh(
   shadow.position.y = 0.02;
   group.add(shadow);
 
-  const blueMat = new THREE.MeshStandardMaterial({ color: "#1d4ed8", roughness: 0.42, metalness: 0.3 });
+  const blueMat = new THREE.MeshStandardMaterial({ color: "#1d4ed8", roughness: 0.38, metalness: 0.35 });
+  const frameMat = new THREE.MeshStandardMaterial({ color: "#334155", roughness: 0.4, metalness: 0.72 });
   const tireMat = new THREE.MeshStandardMaterial({ color: "#18181b", roughness: 0.9 });
+  const rimMat = new THREE.MeshStandardMaterial({ color: "#cbd5e1", roughness: 0.28, metalness: 0.8 });
   const headlightMat = new THREE.MeshStandardMaterial({
     color: "#fef9c3",
     emissive: "#fde047",
-    emissiveIntensity: 0.2,
+    emissiveIntensity: 0.25,
+  });
+  const brakeLightMat = new THREE.MeshStandardMaterial({
+    color: "#991b1b",
+    emissive: "#ef4444",
+    emissiveIntensity: 0.22,
   });
 
   const wheelGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.16, 14);
   wheelGeo.rotateZ(Math.PI / 2);
+  const rimGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.17, 10);
+  rimGeo.rotateZ(Math.PI / 2);
   for (const [wx, wz] of [[0, 1.05], [-0.68, -0.82], [0.68, -0.82]]) {
     const w = new THREE.Mesh(wheelGeo, tireMat);
     w.position.set(wx, 0.28, wz);
     w.castShadow = true;
+    w.add(new THREE.Mesh(rimGeo, rimMat));
     group.add(w);
+    wheels.push(w);
   }
 
-  // Open blue steel cargo bed
-  const bed = new THREE.Mesh(new THREE.BoxGeometry(1.32, 0.46, 1.55), blueMat);
-  bed.position.set(0, 0.62, -0.48);
-  bed.castShadow = true;
-  group.add(bed);
+  // Open ribbed blue steel cargo bed (floor + 3 side rails so placed cargo looks nestled inside)
+  const bedFloor = new THREE.Mesh(new THREE.BoxGeometry(1.34, 0.14, 1.62), frameMat);
+  bedFloor.position.set(0, 0.46, -0.52);
+  bedFloor.castShadow = true;
+  group.add(bedFloor);
 
-  // Rider saddle & front moto fork
+  for (const sx of [-0.64, 0.64]) {
+    const side = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.38, 1.62), blueMat);
+    side.position.set(sx, 0.7, -0.52);
+    side.castShadow = true;
+    group.add(side);
+  }
+  const frontGate = new THREE.Mesh(new THREE.BoxGeometry(1.34, 0.4, 0.07), blueMat);
+  frontGate.position.set(0, 0.7, 0.27);
+  const tailGate = new THREE.Mesh(new THREE.BoxGeometry(1.34, 0.36, 0.07), blueMat);
+  tailGate.position.set(0, 0.68, -1.3);
+  group.add(frontGate, tailGate);
+
+  // Rear brake lights + handlebar + saddle
+  for (const bx of [-0.46, 0.46]) {
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.09, 0.05), brakeLightMat);
+    tail.position.set(bx, 0.56, -1.34);
+    group.add(tail);
+  }
+
   const saddle = new THREE.Mesh(
     new THREE.BoxGeometry(0.32, 0.16, 0.55),
     new THREE.MeshStandardMaterial({ color: "#27272a", roughness: 0.85 })
   );
-  saddle.position.set(0, 0.82, 0.45);
-  group.add(saddle);
+  saddle.position.set(0, 0.82, 0.55);
+  const fork = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.78, 8), frameMat);
+  fork.position.set(0, 0.68, 0.96);
+  fork.rotation.x = -0.25;
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.72, 8), frameMat);
+  bar.rotation.z = Math.PI / 2;
+  bar.position.set(0, 1.04, 0.86);
+  group.add(saddle, fork, bar);
 
   const hl = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 10), headlightMat);
-  hl.position.set(0, 0.92, 1.08);
-  group.add(hl);
+  hl.position.set(0, 0.92, 1.1);
+  group.add(hl, cargoMountGroup);
 
-  return { group, headlightMat };
+  return { group, headlightMat, brakeLightMat, wheels, cargoMountGroup };
 }
 
 export function createMotorcycleMesh(
   tankColor = "#dc2626",
   textures: ProceduralTextureSet
-): { group: THREE.Group; headlightMat: THREE.MeshStandardMaterial; wheels: THREE.Mesh[] } {
+): {
+  group: THREE.Group;
+  headlightMat: THREE.MeshStandardMaterial;
+  brakeLightMat: THREE.MeshStandardMaterial;
+  wheels: THREE.Mesh[];
+} {
   const group = new THREE.Group();
   const wheels: THREE.Mesh[] = [];
 
@@ -727,23 +1007,32 @@ export function createMotorcycleMesh(
 
   const tireMat = new THREE.MeshStandardMaterial({ color: "#18181b", roughness: 0.9 });
   const chromeMat = new THREE.MeshStandardMaterial({ color: "#cbd5e1", roughness: 0.2, metalness: 0.9 });
-  const tankMat = new THREE.MeshStandardMaterial({ color: tankColor, roughness: 0.3, metalness: 0.4 });
+  const tankMat = new THREE.MeshStandardMaterial({ color: tankColor, roughness: 0.28, metalness: 0.45 });
   const seatMat = new THREE.MeshStandardMaterial({ color: "#27272a", roughness: 0.85 });
   const headlightMat = new THREE.MeshStandardMaterial({
     color: "#fef9c3",
     emissive: "#fde047",
     emissiveIntensity: 0.25,
   });
+  const brakeLightMat = new THREE.MeshStandardMaterial({
+    color: "#991b1b",
+    emissive: "#ef4444",
+    emissiveIntensity: 0.25,
+  });
 
   const wheelGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.11, 16);
   wheelGeo.rotateZ(Math.PI / 2);
+  const rimGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.12, 12);
+  rimGeo.rotateZ(Math.PI / 2);
 
   const frontW = new THREE.Mesh(wheelGeo, tireMat);
   frontW.position.set(0, 0.32, 0.72);
   frontW.castShadow = true;
+  frontW.add(new THREE.Mesh(rimGeo, chromeMat));
   const rearW = new THREE.Mesh(wheelGeo, tireMat);
   rearW.position.set(0, 0.32, -0.68);
   rearW.castShadow = true;
+  rearW.add(new THREE.Mesh(rimGeo, chromeMat));
   wheels.push(frontW, rearW);
   group.add(frontW, rearW);
 
@@ -761,6 +1050,11 @@ export function createMotorcycleMesh(
   seat.position.set(0, 0.78, -0.34);
   group.add(seat);
 
+  const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.78, 8), chromeMat);
+  exhaust.rotation.x = Math.PI / 2;
+  exhaust.position.set(0.16, 0.38, -0.45);
+  group.add(exhaust);
+
   const fork = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.76, 8), chromeMat);
   fork.position.set(0, 0.66, 0.62);
   fork.rotation.x = -0.3;
@@ -773,15 +1067,23 @@ export function createMotorcycleMesh(
 
   const headlight = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 10), headlightMat);
   headlight.position.set(0, 0.9, 0.68);
-  group.add(headlight);
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.08, 0.05), brakeLightMat);
+  tail.position.set(0, 0.76, -0.82);
+  group.add(headlight, tail);
 
-  return { group, headlightMat, wheels };
+  return { group, headlightMat, brakeLightMat, wheels };
 }
 
 export function createTaxiMesh(
   textures: ProceduralTextureSet
-): { group: THREE.Group; headlightMat: THREE.MeshStandardMaterial } {
+): {
+  group: THREE.Group;
+  headlightMat: THREE.MeshStandardMaterial;
+  brakeLightMat: THREE.MeshStandardMaterial;
+  wheels: THREE.Mesh[];
+} {
   const group = new THREE.Group();
+  const wheels: THREE.Mesh[] = [];
 
   const shadow = new THREE.Mesh(
     new THREE.PlaneGeometry(2.8, 4.8),
@@ -797,46 +1099,67 @@ export function createTaxiMesh(
   group.add(shadow);
 
   // Classic Ghana yellow-fender & white-body taxi livery
-  const yellowMat = new THREE.MeshStandardMaterial({ color: "#eab308", roughness: 0.34, metalness: 0.28 });
-  const whiteMat = new THREE.MeshStandardMaterial({ color: "#f8fafc", roughness: 0.36, metalness: 0.2 });
-  const glassMat = new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.12, metalness: 0.65 });
+  const yellowMat = new THREE.MeshStandardMaterial({ color: "#eab308", roughness: 0.32, metalness: 0.28 });
+  const whiteMat = new THREE.MeshStandardMaterial({ color: "#f8fafc", roughness: 0.34, metalness: 0.22 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: "#18181b", roughness: 0.65 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.12, metalness: 0.7 });
   const tireMat = new THREE.MeshStandardMaterial({ color: "#18181b", roughness: 0.9 });
+  const rimMat = new THREE.MeshStandardMaterial({ color: "#cbd5e1", roughness: 0.26, metalness: 0.85 });
   const headlightMat = new THREE.MeshStandardMaterial({
     color: "#fef9c3",
     emissive: "#fde047",
-    emissiveIntensity: 0.2,
+    emissiveIntensity: 0.22,
+  });
+  const brakeLightMat = new THREE.MeshStandardMaterial({
+    color: "#991b1b",
+    emissive: "#ef4444",
+    emissiveIntensity: 0.24,
   });
 
-  // Hood & rear fender (yellow)
-  const frontEnd = new THREE.Mesh(new THREE.BoxGeometry(1.76, 0.62, 1.2), yellowMat);
-  frontEnd.position.set(0, 0.58, 1.45);
+  // Hood & rear fender (yellow) + mid-doors (white)
+  const frontEnd = new THREE.Mesh(new THREE.BoxGeometry(1.76, 0.58, 1.2), yellowMat);
+  frontEnd.position.set(0, 0.56, 1.45);
   frontEnd.castShadow = true;
-  const rearEnd = new THREE.Mesh(new THREE.BoxGeometry(1.76, 0.64, 1.15), yellowMat);
-  rearEnd.position.set(0, 0.59, -1.45);
+  const rearEnd = new THREE.Mesh(new THREE.BoxGeometry(1.76, 0.62, 1.15), yellowMat);
+  rearEnd.position.set(0, 0.58, -1.45);
   rearEnd.castShadow = true;
-  const midDoors = new THREE.Mesh(new THREE.BoxGeometry(1.74, 0.62, 1.75), whiteMat);
-  midDoors.position.set(0, 0.58, 0);
+  const midDoors = new THREE.Mesh(new THREE.BoxGeometry(1.74, 0.6, 1.75), whiteMat);
+  midDoors.position.set(0, 0.57, 0);
   midDoors.castShadow = true;
-  group.add(frontEnd, rearEnd, midDoors);
+  const frontBumper = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.2, 0.18), trimMat);
+  frontBumper.position.set(0, 0.34, 2.06);
+  const rearBumper = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.2, 0.18), trimMat);
+  rearBumper.position.set(0, 0.34, -2.06);
+  const grille = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.22, 0.06), trimMat);
+  grille.position.set(0, 0.56, 2.06);
+  group.add(frontEnd, rearEnd, midDoors, frontBumper, rearBumper, grille);
 
   const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.54, 1.95), glassMat);
-  cabin.position.set(0, 1.14, -0.1);
+  cabin.position.set(0, 1.12, -0.1);
   cabin.castShadow = true;
   group.add(cabin);
 
   const roof = new THREE.Mesh(new THREE.BoxGeometry(1.52, 0.08, 1.9), whiteMat);
-  roof.position.set(0, 1.43, -0.1);
+  roof.position.set(0, 1.41, -0.1);
   group.add(roof);
+
+  for (const mx of [-0.88, 0.88]) {
+    const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.09, 0.1), trimMat);
+    mirror.position.set(mx, 0.96, 0.65);
+    group.add(mirror);
+  }
 
   const taxiSign = new THREE.Mesh(
     new THREE.BoxGeometry(0.48, 0.14, 0.2),
     new THREE.MeshStandardMaterial({ color: "#fef08a", emissive: "#facc15", emissiveIntensity: 0.35 })
   );
-  taxiSign.position.set(0, 1.53, 0.22);
+  taxiSign.position.set(0, 1.51, 0.22);
   group.add(taxiSign);
 
   const wheelGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.22, 16);
   wheelGeo.rotateZ(Math.PI / 2);
+  const rimGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.23, 10);
+  rimGeo.rotateZ(Math.PI / 2);
   for (const [x, y, z] of [
     [-0.86, 0.32, 1.25],
     [0.86, 0.32, 1.25],
@@ -846,16 +1169,20 @@ export function createTaxiMesh(
     const w = new THREE.Mesh(wheelGeo, tireMat);
     w.position.set(x, y, z);
     w.castShadow = true;
+    w.add(new THREE.Mesh(rimGeo, rimMat));
     group.add(w);
+    wheels.push(w);
   }
 
-  for (const sx of [-0.58, 0.58]) {
+  for (const sx of [-0.6, 0.6]) {
     const hl = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.14, 0.08), headlightMat);
-    hl.position.set(sx, 0.64, 2.06);
-    group.add(hl);
+    hl.position.set(sx, 0.62, 2.06);
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.14, 0.06), brakeLightMat);
+    tl.position.set(sx, 0.64, -2.04);
+    group.add(hl, tl);
   }
 
-  return { group, headlightMat };
+  return { group, headlightMat, brakeLightMat, wheels };
 }
 
 export interface MotorcycleRiderOptions {
@@ -880,6 +1207,7 @@ export function createMotorcycleWithRiderMesh(
   group: THREE.Group;
   chassisGroup: THREE.Group;
   headlightMat: THREE.MeshStandardMaterial;
+  brakeLightMat: THREE.MeshStandardMaterial;
   wheels: THREE.Mesh[];
 } {
   const group = new THREE.Group();
@@ -989,14 +1317,12 @@ export function createMotorcycleWithRiderMesh(
     const shirtMat = new THREE.MeshStandardMaterial({ color: shirtHex, roughness: 0.78 });
     const pantsMat = new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.85 });
 
-    // Torso
     const torso = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.52, 0.22), shirtMat);
     torso.position.set(0, 0.28, 0);
     torso.rotation.x = leanX;
     torso.castShadow = true;
     person.add(torso);
 
-    // Legs straddling seat
     for (const sx of [-0.18, 0.18]) {
       const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.065, 0.36, 8), pantsMat);
       thigh.position.set(sx, -0.02, 0.12);
@@ -1014,7 +1340,6 @@ export function createMotorcycleWithRiderMesh(
       person.add(arm);
     }
 
-    // Head + Helmet or Kufi/Hair
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.145, 10, 10), skinMat);
     head.position.set(0, 0.64, Math.sin(leanX) * 0.22);
     head.castShadow = true;
@@ -1035,7 +1360,6 @@ export function createMotorcycleWithRiderMesh(
     chassisGroup.add(person);
   };
 
-  // Main rider gripping handlebars
   addSeatedFigure(
     -0.06,
     options.riderOutfitColor ?? "#1d4ed8",
@@ -1044,7 +1368,6 @@ export function createMotorcycleWithRiderMesh(
     options.hasHelmet ?? style === "delivery"
   );
 
-  // Optional pillion passenger behind rider
   if (options.hasPassenger) {
     addSeatedFigure(
       -0.44,
@@ -1055,7 +1378,6 @@ export function createMotorcycleWithRiderMesh(
     );
   }
 
-  // Optional delivery box or strapped market goods on rear carrier
   if (options.hasGoods || style === "delivery") {
     const rack = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.06, 0.46), chromeMat);
     rack.position.set(0, 0.84, -0.72);
@@ -1071,7 +1393,7 @@ export function createMotorcycleWithRiderMesh(
     chassisGroup.add(crate);
   }
 
-  return { group, chassisGroup, headlightMat, wheels };
+  return { group, chassisGroup, headlightMat, brakeLightMat: taillightMat, wheels };
 }
 
 /**
@@ -1080,7 +1402,12 @@ export function createMotorcycleWithRiderMesh(
 export function createPrivateCarMesh(
   bodyColor: string,
   textures: ProceduralTextureSet
-): { group: THREE.Group; headlightMat: THREE.MeshStandardMaterial; wheels: THREE.Mesh[] } {
+): {
+  group: THREE.Group;
+  headlightMat: THREE.MeshStandardMaterial;
+  brakeLightMat: THREE.MeshStandardMaterial;
+  wheels: THREE.Mesh[];
+} {
   const group = new THREE.Group();
   const wheels: THREE.Mesh[] = [];
 
@@ -1098,28 +1425,44 @@ export function createPrivateCarMesh(
   group.add(shadow);
 
   const paintMat = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.28, metalness: 0.38 });
-  const glassMat = new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.14, metalness: 0.65 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.65 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.14, metalness: 0.68 });
   const tireMat = new THREE.MeshStandardMaterial({ color: "#18181b", roughness: 0.9 });
   const rimMat = new THREE.MeshStandardMaterial({ color: "#cbd5e1", roughness: 0.3, metalness: 0.8 });
   const headlightMat = new THREE.MeshStandardMaterial({
     color: "#fef9c3",
     emissive: "#fde047",
-    emissiveIntensity: 0.2,
+    emissiveIntensity: 0.22,
+  });
+  const brakeLightMat = new THREE.MeshStandardMaterial({
+    color: "#991b1b",
+    emissive: "#ef4444",
+    emissiveIntensity: 0.24,
   });
 
-  const lowerBody = new THREE.Mesh(new THREE.BoxGeometry(1.78, 0.6, 4.18), paintMat);
+  const lowerBody = new THREE.Mesh(new THREE.BoxGeometry(1.78, 0.58, 4.18), paintMat);
   lowerBody.position.set(0, 0.56, 0);
   lowerBody.castShadow = true;
-  group.add(lowerBody);
+  const bumperF = new THREE.Mesh(new THREE.BoxGeometry(1.82, 0.18, 0.16), trimMat);
+  bumperF.position.set(0, 0.34, 2.08);
+  const bumperR = new THREE.Mesh(new THREE.BoxGeometry(1.82, 0.18, 0.16), trimMat);
+  bumperR.position.set(0, 0.34, -2.08);
+  group.add(lowerBody, bumperF, bumperR);
 
   const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.52, 2.05), glassMat);
-  cabin.position.set(0, 1.1, -0.15);
+  cabin.position.set(0, 1.09, -0.15);
   cabin.castShadow = true;
   group.add(cabin);
 
   const roof = new THREE.Mesh(new THREE.BoxGeometry(1.52, 0.08, 1.95), paintMat);
-  roof.position.set(0, 1.38, -0.15);
+  roof.position.set(0, 1.37, -0.15);
   group.add(roof);
+
+  for (const mx of [-0.89, 0.89]) {
+    const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.09, 0.1), paintMat);
+    mirror.position.set(mx, 0.94, 0.65);
+    group.add(mirror);
+  }
 
   const wheelGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.22, 14);
   wheelGeo.rotateZ(Math.PI / 2);
@@ -1142,10 +1485,617 @@ export function createPrivateCarMesh(
   for (const sx of [-0.58, 0.58]) {
     const hl = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.14, 0.08), headlightMat);
     hl.position.set(sx, 0.62, 2.1);
-    group.add(hl);
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.14, 0.06), brakeLightMat);
+    tl.position.set(sx, 0.64, -2.08);
+    group.add(hl, tl);
   }
 
-  return { group, headlightMat, wheels };
+  return { group, headlightMat, brakeLightMat, wheels };
+}
+
+/**
+ * Authentic Ghanaian Minibus Trotro (Sprinter/Urvan commuter bus with roof luggage rack & destination sign)
+ */
+export function createMinibusTrotroMesh(
+  bodyColor = "#f8fafc",
+  textures: ProceduralTextureSet
+): {
+  group: THREE.Group;
+  headlightMat: THREE.MeshStandardMaterial;
+  brakeLightMat: THREE.MeshStandardMaterial;
+  wheels: THREE.Mesh[];
+} {
+  const group = new THREE.Group();
+  const wheels: THREE.Mesh[] = [];
+
+  const shadow = new THREE.Mesh(
+    new THREE.PlaneGeometry(3.0, 5.8),
+    new THREE.MeshBasicMaterial({
+      map: textures.contactShadow,
+      transparent: true,
+      depthWrite: false,
+      opacity: 0.56,
+    })
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.02;
+  group.add(shadow);
+
+  const paintMat = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.42, metalness: 0.2 });
+  const stripeMat = new THREE.MeshStandardMaterial({ color: "#0284c7", roughness: 0.45 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.68 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: "#0f172a", roughness: 0.15, metalness: 0.65 });
+  const tireMat = new THREE.MeshStandardMaterial({ color: "#18181b", roughness: 0.9 });
+  const rimMat = new THREE.MeshStandardMaterial({ color: "#cbd5e1", roughness: 0.3, metalness: 0.78 });
+  const headlightMat = new THREE.MeshStandardMaterial({
+    color: "#fef9c3",
+    emissive: "#fde047",
+    emissiveIntensity: 0.24,
+  });
+  const brakeLightMat = new THREE.MeshStandardMaterial({
+    color: "#991b1b",
+    emissive: "#ef4444",
+    emissiveIntensity: 0.25,
+  });
+
+  const lower = new THREE.Mesh(new THREE.BoxGeometry(1.94, 0.9, 4.9), paintMat);
+  lower.position.set(0, 0.78, 0);
+  lower.castShadow = true;
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(1.97, 0.18, 4.92), stripeMat);
+  stripe.position.set(0, 0.88, 0);
+  const upperCabin = new THREE.Mesh(new THREE.BoxGeometry(1.88, 0.78, 4.55), glassMat);
+  upperCabin.position.set(0, 1.6, -0.14);
+  upperCabin.castShadow = true;
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.14, 4.65), paintMat);
+  roof.position.set(0, 2.04, -0.12);
+  const rack = new THREE.Mesh(new THREE.BoxGeometry(1.65, 0.14, 2.8), trimMat);
+  rack.position.set(0, 2.18, -0.45);
+  group.add(lower, stripe, upperCabin, roof, rack);
+
+  const destTex = createShopSignTexture("TAMALE · CENTRAL MARKET", "ABOABO - LAMASHEGU", "#0f172a", "#facc15");
+  const destBoard = new THREE.Mesh(
+    new THREE.BoxGeometry(1.2, 0.26, 0.08),
+    new THREE.MeshStandardMaterial({ map: destTex, roughness: 0.4 })
+  );
+  destBoard.position.set(0, 1.98, 2.22);
+  group.add(destBoard);
+
+  const wheelGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.24, 14);
+  wheelGeo.rotateZ(Math.PI / 2);
+  const rimGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.25, 10);
+  rimGeo.rotateZ(Math.PI / 2);
+  for (const [wx, wz] of [[-0.94, 1.55], [0.94, 1.55], [-0.94, -1.55], [0.94, -1.55]]) {
+    const w = new THREE.Mesh(wheelGeo, tireMat);
+    w.position.set(wx, 0.36, wz);
+    w.castShadow = true;
+    w.add(new THREE.Mesh(rimGeo, rimMat));
+    group.add(w);
+    wheels.push(w);
+  }
+
+  for (const sx of [-0.68, 0.68]) {
+    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.16, 0.08), headlightMat);
+    hl.position.set(sx, 0.72, 2.46);
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.28, 0.07), brakeLightMat);
+    tl.position.set(sx, 0.84, -2.46);
+    group.add(hl, tl);
+  }
+
+  return { group, headlightMat, brakeLightMat, wheels };
+}
+
+/**
+ * Ghana Police Service Tamale Patrol Cruiser with active red/blue rooftop lightbar
+ */
+export function createPoliceCarMesh(
+  textures: ProceduralTextureSet
+): {
+  group: THREE.Group;
+  headlightMat: THREE.MeshStandardMaterial;
+  brakeLightMat: THREE.MeshStandardMaterial;
+  lightbarRedMat: THREE.MeshStandardMaterial;
+  lightbarBlueMat: THREE.MeshStandardMaterial;
+  wheels: THREE.Mesh[];
+} {
+  const group = new THREE.Group();
+  const wheels: THREE.Mesh[] = [];
+
+  const shadow = new THREE.Mesh(
+    new THREE.PlaneGeometry(2.9, 5.0),
+    new THREE.MeshBasicMaterial({
+      map: textures.contactShadow,
+      transparent: true,
+      depthWrite: false,
+      opacity: 0.56,
+    })
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.02;
+  group.add(shadow);
+
+  const whiteMat = new THREE.MeshStandardMaterial({ color: "#f8fafc", roughness: 0.28, metalness: 0.25 });
+  const navyMat = new THREE.MeshStandardMaterial({ color: "#1e3a8a", roughness: 0.32, metalness: 0.35 });
+  const goldMat = new THREE.MeshStandardMaterial({ color: "#eab308", roughness: 0.38, metalness: 0.4 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: "#0f172a", roughness: 0.6 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.12, metalness: 0.72 });
+  const tireMat = new THREE.MeshStandardMaterial({ color: "#18181b", roughness: 0.9 });
+  const rimMat = new THREE.MeshStandardMaterial({ color: "#cbd5e1", roughness: 0.25, metalness: 0.85 });
+  const headlightMat = new THREE.MeshStandardMaterial({
+    color: "#fef9c3",
+    emissive: "#fde047",
+    emissiveIntensity: 0.35,
+  });
+  const brakeLightMat = new THREE.MeshStandardMaterial({
+    color: "#991b1b",
+    emissive: "#ef4444",
+    emissiveIntensity: 0.28,
+  });
+  const lightbarRedMat = new THREE.MeshStandardMaterial({
+    color: "#ef4444",
+    emissive: "#ef4444",
+    emissiveIntensity: 0.8,
+  });
+  const lightbarBlueMat = new THREE.MeshStandardMaterial({
+    color: "#3b82f6",
+    emissive: "#3b82f6",
+    emissiveIntensity: 0.8,
+  });
+
+  const frontHood = new THREE.Mesh(new THREE.BoxGeometry(1.84, 0.62, 1.35), navyMat);
+  frontHood.position.set(0, 0.58, 1.48);
+  frontHood.castShadow = true;
+  const doors = new THREE.Mesh(new THREE.BoxGeometry(1.82, 0.62, 1.72), whiteMat);
+  doors.position.set(0, 0.58, -0.05);
+  doors.castShadow = true;
+  const rearTrunk = new THREE.Mesh(new THREE.BoxGeometry(1.84, 0.64, 1.25), navyMat);
+  rearTrunk.position.set(0, 0.59, -1.52);
+  rearTrunk.castShadow = true;
+  const goldStripe = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.08, 4.28), goldMat);
+  goldStripe.position.set(0, 0.74, -0.02);
+  const bullbar = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.32, 0.16), trimMat);
+  bullbar.position.set(0, 0.45, 2.22);
+  group.add(frontHood, doors, rearTrunk, goldStripe, bullbar);
+
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.56, 0.56, 2.02), glassMat);
+  cabin.position.set(0, 1.15, -0.15);
+  cabin.castShadow = true;
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(1.58, 0.09, 1.94), whiteMat);
+  roof.position.set(0, 1.46, -0.15);
+  group.add(cabin, roof);
+
+  // Police sign + red/blue emergency lightbar
+  const plateTex = createShopSignTexture("GHANA POLICE", "TAMALE PATROL", "#1e3a8a", "#facc15");
+  for (const sx of [-0.92, 0.92]) {
+    const doorSign = new THREE.Mesh(
+      new THREE.BoxGeometry(0.03, 0.26, 0.96),
+      new THREE.MeshStandardMaterial({ map: plateTex, roughness: 0.4 })
+    );
+    doorSign.position.set(sx, 0.56, -0.05);
+    group.add(doorSign);
+  }
+  const barBase = new THREE.Mesh(new THREE.BoxGeometry(1.18, 0.1, 0.24), trimMat);
+  barBase.position.set(0, 1.54, -0.02);
+  const redPod = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.12, 0.22), lightbarRedMat);
+  redPod.position.set(-0.32, 1.58, -0.02);
+  const bluePod = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.12, 0.22), lightbarBlueMat);
+  bluePod.position.set(0.32, 1.58, -0.02);
+  group.add(barBase, redPod, bluePod);
+
+  const wheelGeo = new THREE.CylinderGeometry(0.34, 0.34, 0.24, 14);
+  wheelGeo.rotateZ(Math.PI / 2);
+  const rimGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.25, 10);
+  rimGeo.rotateZ(Math.PI / 2);
+  for (const [x, z] of [[-0.89, 1.34], [0.89, 1.34], [-0.89, -1.34], [0.89, -1.34]]) {
+    const w = new THREE.Mesh(wheelGeo, tireMat);
+    w.position.set(x, 0.34, z);
+    w.castShadow = true;
+    w.add(new THREE.Mesh(rimGeo, rimMat));
+    group.add(w);
+    wheels.push(w);
+  }
+
+  for (const sx of [-0.62, 0.62]) {
+    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.14, 0.08), headlightMat);
+    hl.position.set(sx, 0.64, 2.16);
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.14, 0.06), brakeLightMat);
+    tl.position.set(sx, 0.66, -2.14);
+    group.add(hl, tl);
+  }
+
+  return { group, headlightMat, brakeLightMat, lightbarRedMat, lightbarBlueMat, wheels };
+}
+
+/**
+ * Tamale Utility Pickup Truck (double-cab with open rear cargo bed & mountable cargo anchor)
+ */
+export function createPickupTruckMesh(
+  bodyColor = "#0f766e",
+  textures: ProceduralTextureSet
+): {
+  group: THREE.Group;
+  headlightMat: THREE.MeshStandardMaterial;
+  brakeLightMat: THREE.MeshStandardMaterial;
+  wheels: THREE.Mesh[];
+  cargoMountGroup: THREE.Group;
+} {
+  const group = new THREE.Group();
+  const wheels: THREE.Mesh[] = [];
+  const cargoMountGroup = new THREE.Group();
+  cargoMountGroup.position.set(0, 0.72, -1.12);
+
+  const shadow = new THREE.Mesh(
+    new THREE.PlaneGeometry(3.0, 5.4),
+    new THREE.MeshBasicMaterial({
+      map: textures.contactShadow,
+      transparent: true,
+      depthWrite: false,
+      opacity: 0.56,
+    })
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.02;
+  group.add(shadow);
+
+  const paintMat = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.34, metalness: 0.36 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.7 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: "#0f172a", roughness: 0.14, metalness: 0.68 });
+  const tireMat = new THREE.MeshStandardMaterial({ color: "#18181b", roughness: 0.9 });
+  const rimMat = new THREE.MeshStandardMaterial({ color: "#cbd5e1", roughness: 0.28, metalness: 0.82 });
+  const headlightMat = new THREE.MeshStandardMaterial({
+    color: "#fef9c3",
+    emissive: "#fde047",
+    emissiveIntensity: 0.25,
+  });
+  const brakeLightMat = new THREE.MeshStandardMaterial({
+    color: "#991b1b",
+    emissive: "#ef4444",
+    emissiveIntensity: 0.24,
+  });
+
+  // Front engine hood + cab
+  const hood = new THREE.Mesh(new THREE.BoxGeometry(1.92, 0.68, 1.35), paintMat);
+  hood.position.set(0, 0.72, 1.62);
+  hood.castShadow = true;
+  const cabBody = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.68, 1.45), paintMat);
+  cabBody.position.set(0, 0.72, 0.24);
+  cabBody.castShadow = true;
+  const cabGlass = new THREE.Mesh(new THREE.BoxGeometry(1.66, 0.54, 1.32), glassMat);
+  cabGlass.position.set(0, 1.32, 0.24);
+  const cabRoof = new THREE.Mesh(new THREE.BoxGeometry(1.68, 0.1, 1.28), paintMat);
+  cabRoof.position.set(0, 1.62, 0.24);
+  const grille = new THREE.Mesh(new THREE.BoxGeometry(1.08, 0.34, 0.08), trimMat);
+  grille.position.set(0, 0.72, 2.31);
+  const bumper = new THREE.Mesh(new THREE.BoxGeometry(1.96, 0.22, 0.2), trimMat);
+  bumper.position.set(0, 0.42, 2.32);
+  group.add(hood, cabBody, cabGlass, cabRoof, grille, bumper);
+
+  // Open rear pickup bed (floor + 3 side walls + tailgate)
+  const bedFloor = new THREE.Mesh(new THREE.BoxGeometry(1.88, 0.22, 1.92), trimMat);
+  bedFloor.position.set(0, 0.6, -1.16);
+  bedFloor.castShadow = true;
+  group.add(bedFloor);
+  for (const sx of [-0.88, 0.88]) {
+    const bedWall = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.56, 1.92), paintMat);
+    bedWall.position.set(sx, 0.96, -1.16);
+    bedWall.castShadow = true;
+    group.add(bedWall);
+  }
+  const tailgate = new THREE.Mesh(new THREE.BoxGeometry(1.88, 0.54, 0.12), paintMat);
+  tailgate.position.set(0, 0.95, -2.08);
+  tailgate.castShadow = true;
+  group.add(tailgate);
+
+  const wheelGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.26, 16);
+  wheelGeo.rotateZ(Math.PI / 2);
+  const rimGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.27, 10);
+  rimGeo.rotateZ(Math.PI / 2);
+  for (const [wx, wz] of [[-0.95, 1.48], [0.95, 1.48], [-0.95, -1.32], [0.95, -1.32]]) {
+    const w = new THREE.Mesh(wheelGeo, tireMat);
+    w.position.set(wx, 0.4, wz);
+    w.castShadow = true;
+    w.add(new THREE.Mesh(rimGeo, rimMat));
+    group.add(w);
+    wheels.push(w);
+  }
+
+  for (const sx of [-0.66, 0.66]) {
+    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.16, 0.08), headlightMat);
+    hl.position.set(sx, 0.78, 2.31);
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.24, 0.06), brakeLightMat);
+    tl.position.set(sx * 1.15, 0.92, -2.15);
+    group.add(hl, tl);
+  }
+
+  group.add(cargoMountGroup);
+  return { group, headlightMat, brakeLightMat, wheels, cargoMountGroup };
+}
+
+/**
+ * Tamale Freight Box Truck (cabover truck + branded Northern Logistics enclosed cargo body)
+ */
+export function createBoxTruckMesh(
+  bodyColor = "#f8fafc",
+  textures: ProceduralTextureSet
+): {
+  group: THREE.Group;
+  headlightMat: THREE.MeshStandardMaterial;
+  brakeLightMat: THREE.MeshStandardMaterial;
+  wheels: THREE.Mesh[];
+  cargoMountGroup: THREE.Group;
+} {
+  const group = new THREE.Group();
+  const wheels: THREE.Mesh[] = [];
+  const cargoMountGroup = new THREE.Group();
+  cargoMountGroup.position.set(0, 1.0, -0.75);
+
+  const shadow = new THREE.Mesh(
+    new THREE.PlaneGeometry(3.3, 6.9),
+    new THREE.MeshBasicMaterial({
+      map: textures.contactShadow,
+      transparent: true,
+      depthWrite: false,
+      opacity: 0.6,
+    })
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.02;
+  group.add(shadow);
+
+  const cabMat = new THREE.MeshStandardMaterial({ color: "#0369a1", roughness: 0.36, metalness: 0.35 });
+  const boxMat = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.48, metalness: 0.18 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.75 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: "#0f172a", roughness: 0.14, metalness: 0.7 });
+  const tireMat = new THREE.MeshStandardMaterial({ color: "#18181b", roughness: 0.9 });
+  const rimMat = new THREE.MeshStandardMaterial({ color: "#cbd5e1", roughness: 0.28, metalness: 0.8 });
+  const headlightMat = new THREE.MeshStandardMaterial({
+    color: "#fef9c3",
+    emissive: "#fde047",
+    emissiveIntensity: 0.25,
+  });
+  const brakeLightMat = new THREE.MeshStandardMaterial({
+    color: "#991b1b",
+    emissive: "#ef4444",
+    emissiveIntensity: 0.25,
+  });
+
+  // Cabover front cab + steel ladder chassis
+  const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.28, 5.9), trimMat);
+  chassis.position.set(0, 0.74, -0.1);
+  const cab = new THREE.Mesh(new THREE.BoxGeometry(2.14, 1.65, 1.65), cabMat);
+  cab.position.set(0, 1.56, 2.02);
+  cab.castShadow = true;
+  const windshield = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.66, 0.1), glassMat);
+  windshield.position.set(0, 1.85, 2.84);
+  const bumper = new THREE.Mesh(new THREE.BoxGeometry(2.18, 0.28, 0.24), trimMat);
+  bumper.position.set(0, 0.58, 2.88);
+  group.add(chassis, cab, windshield, bumper);
+
+  // Enclosed Box Cargo Container + Branded Side Plaques
+  const cargoBox = new THREE.Mesh(new THREE.BoxGeometry(2.26, 2.1, 4.1), boxMat);
+  cargoBox.position.set(0, 1.92, -0.95);
+  cargoBox.castShadow = true;
+  cargoBox.receiveShadow = true;
+  group.add(cargoBox);
+
+  const logoTex = createShopSignTexture("NORTHERN FREIGHT", "TAMALE CARGO LOGISTICS", "#0369a1", "#fef08a");
+  for (const sx of [-1.14, 1.14]) {
+    const plaque = new THREE.Mesh(
+      new THREE.BoxGeometry(0.04, 1.15, 3.0),
+      new THREE.MeshStandardMaterial({ map: logoTex, roughness: 0.45 })
+    );
+    plaque.position.set(sx, 2.0, -0.95);
+    group.add(plaque);
+  }
+  const shutter = new THREE.Mesh(new THREE.BoxGeometry(1.95, 1.75, 0.08), trimMat);
+  shutter.position.set(0, 1.85, -3.0);
+  group.add(shutter);
+
+  const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.3, 16);
+  wheelGeo.rotateZ(Math.PI / 2);
+  const rimGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.31, 10);
+  rimGeo.rotateZ(Math.PI / 2);
+  for (const [wx, wz] of [[-1.02, 1.9], [1.02, 1.9], [-1.04, -1.85], [1.04, -1.85]]) {
+    const w = new THREE.Mesh(wheelGeo, tireMat);
+    w.position.set(wx, 0.45, wz);
+    w.castShadow = true;
+    w.add(new THREE.Mesh(rimGeo, rimMat));
+    group.add(w);
+    wheels.push(w);
+  }
+
+  for (const sx of [-0.76, 0.76]) {
+    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.18, 0.08), headlightMat);
+    hl.position.set(sx, 0.94, 2.86);
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.16, 0.07), brakeLightMat);
+    tl.position.set(sx, 0.82, -3.04);
+    group.add(hl, tl);
+  }
+
+  group.add(cargoMountGroup);
+  return { group, headlightMat, brakeLightMat, wheels, cargoMountGroup };
+}
+
+/**
+ * Heavy Tamale Flatbed Timber & Grain Haulage Truck with wooden side stake rails + visible cargo bed
+ */
+export function createFlatbedTruckMesh(
+  cabColor = "#b45309",
+  textures: ProceduralTextureSet
+): {
+  group: THREE.Group;
+  headlightMat: THREE.MeshStandardMaterial;
+  brakeLightMat: THREE.MeshStandardMaterial;
+  wheels: THREE.Mesh[];
+  cargoMountGroup: THREE.Group;
+} {
+  const group = new THREE.Group();
+  const wheels: THREE.Mesh[] = [];
+  const cargoMountGroup = new THREE.Group();
+  cargoMountGroup.position.set(0, 1.0, -1.1);
+
+  const shadow = new THREE.Mesh(
+    new THREE.PlaneGeometry(3.4, 7.3),
+    new THREE.MeshBasicMaterial({
+      map: textures.contactShadow,
+      transparent: true,
+      depthWrite: false,
+      opacity: 0.6,
+    })
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.02;
+  group.add(shadow);
+
+  const cabMat = new THREE.MeshStandardMaterial({ color: cabColor, roughness: 0.36, metalness: 0.38 });
+  const deckMat = new THREE.MeshStandardMaterial({ color: "#78350f", roughness: 0.88 });
+  const railMat = new THREE.MeshStandardMaterial({ color: "#92400e", roughness: 0.82 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.72 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: "#0f172a", roughness: 0.15, metalness: 0.7 });
+  const tireMat = new THREE.MeshStandardMaterial({ color: "#18181b", roughness: 0.9 });
+  const rimMat = new THREE.MeshStandardMaterial({ color: "#cbd5e1", roughness: 0.28, metalness: 0.8 });
+  const headlightMat = new THREE.MeshStandardMaterial({
+    color: "#fef9c3",
+    emissive: "#fde047",
+    emissiveIntensity: 0.25,
+  });
+  const brakeLightMat = new THREE.MeshStandardMaterial({
+    color: "#991b1b",
+    emissive: "#ef4444",
+    emissiveIntensity: 0.25,
+  });
+
+  const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.3, 6.4), trimMat);
+  chassis.position.set(0, 0.72, -0.15);
+  const cab = new THREE.Mesh(new THREE.BoxGeometry(2.14, 1.62, 1.75), cabMat);
+  cab.position.set(0, 1.56, 2.15);
+  cab.castShadow = true;
+  const windshield = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.62, 0.1), glassMat);
+  windshield.position.set(0, 1.85, 3.04);
+  const bumper = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.28, 0.24), trimMat);
+  bumper.position.set(0, 0.56, 3.12);
+  group.add(chassis, cab, windshield, bumper);
+
+  // Open timber/heavy flatbed deck + wooden side stake slats
+  const flatbedDeck = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.2, 4.35), deckMat);
+  flatbedDeck.position.set(0, 0.92, -1.1);
+  flatbedDeck.castShadow = true;
+  flatbedDeck.receiveShadow = true;
+  group.add(flatbedDeck);
+
+  for (const sx of [-1.1, 1.1]) {
+    for (let pz = -3.0; pz <= 0.8; pz += 0.95) {
+      const stake = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.72, 0.1), trimMat);
+      stake.position.set(sx, 1.32, pz);
+      group.add(stake);
+    }
+    const topRail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, 4.25), railMat);
+    topRail.position.set(sx, 1.52, -1.1);
+    const midRail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, 4.25), railMat);
+    midRail.position.set(sx, 1.24, -1.1);
+    group.add(topRail, midRail);
+  }
+
+  const wheelGeo = new THREE.CylinderGeometry(0.46, 0.46, 0.3, 16);
+  wheelGeo.rotateZ(Math.PI / 2);
+  const rimGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.31, 10);
+  rimGeo.rotateZ(Math.PI / 2);
+  for (const [wx, wz] of [
+    [-1.02, 2.08], [1.02, 2.08],
+    [-1.06, -1.2], [1.06, -1.2],
+    [-1.06, -2.35], [1.06, -2.35],
+  ]) {
+    const w = new THREE.Mesh(wheelGeo, tireMat);
+    w.position.set(wx, 0.46, wz);
+    w.castShadow = true;
+    w.add(new THREE.Mesh(rimGeo, rimMat));
+    group.add(w);
+    wheels.push(w);
+  }
+
+  for (const sx of [-0.76, 0.76]) {
+    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.18, 0.08), headlightMat);
+    hl.position.set(sx, 0.92, 3.06);
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.16, 0.07), brakeLightMat);
+    tl.position.set(sx, 0.82, -3.28);
+    group.add(hl, tl);
+  }
+
+  group.add(cargoMountGroup);
+  return { group, headlightMat, brakeLightMat, wheels, cargoMountGroup };
+}
+
+/**
+ * Detailed Multi-Part Cargo Bundle meshes mounted onto Cargo Trikes / Pickups / Flatbed Trucks
+ */
+export function createCargoBundleMesh(cargoKind: CargoPropKind): THREE.Group {
+  const group = new THREE.Group();
+  const sackMat = new THREE.MeshStandardMaterial({ color: "#e7d7b8", roughness: 0.9 });
+  const cementMat = new THREE.MeshStandardMaterial({ color: "#94a3b8", roughness: 0.88 });
+  const yamMat = new THREE.MeshStandardMaterial({ color: "#7c5234", roughness: 0.94 });
+  const woodMat = new THREE.MeshStandardMaterial({ color: "#a1622e", roughness: 0.86 });
+  const blueWaterMat = new THREE.MeshStandardMaterial({ color: "#0284c7", roughness: 0.42 });
+  const crateMat = new THREE.MeshStandardMaterial({ color: "#b45309", roughness: 0.78 });
+  const strapMat = new THREE.MeshStandardMaterial({ color: "#eab308", roughness: 0.65 });
+
+  if (cargoKind === "timber_beams") {
+    for (let row = 0; row < 2; row++) {
+      for (let col = -1; col <= 1; col++) {
+        const beam = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.24, 2.2), woodMat);
+        beam.position.set(col * 0.34, 0.14 + row * 0.26, 0);
+        beam.castShadow = true;
+        group.add(beam);
+      }
+    }
+    for (const sz of [-0.65, 0.65]) {
+      const strap = new THREE.Mesh(new THREE.BoxGeometry(1.12, 0.56, 0.06), strapMat);
+      strap.position.set(0, 0.28, sz);
+      group.add(strap);
+    }
+  } else if (cargoKind === "cement_bags" || cargoKind === "rice_sacks") {
+    const mat = cargoKind === "cement_bags" ? cementMat : sackMat;
+    for (let layer = 0; layer < 2; layer++) {
+      for (let ix = -1; ix <= 1; ix += 2) {
+        for (let iz = -1; iz <= 1; iz++) {
+          const bag = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.22, 0.38), mat);
+          bag.position.set(ix * 0.28, 0.12 + layer * 0.23, iz * 0.42);
+          bag.rotation.y = (ix + iz) * 0.04;
+          bag.castShadow = true;
+          group.add(bag);
+        }
+      }
+    }
+  } else if (cargoKind === "yam_bundles") {
+    for (let i = 0; i < 8; i++) {
+      const tuber = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.72, 8), yamMat);
+      tuber.rotation.x = Math.PI / 2;
+      tuber.rotation.z = ((i % 3) - 1) * 0.14;
+      tuber.position.set(((i % 4) - 1.5) * 0.24, 0.14 + Math.floor(i / 4) * 0.22, ((i % 2) - 0.5) * 0.25);
+      tuber.castShadow = true;
+      group.add(tuber);
+    }
+  } else if (cargoKind === "water_packs") {
+    for (let ix = -1; ix <= 1; ix += 2) {
+      for (let iz = -1; iz <= 1; iz += 2) {
+        const pack = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.32, 0.48), blueWaterMat);
+        pack.position.set(ix * 0.28, 0.16, iz * 0.28);
+        pack.castShadow = true;
+        group.add(pack);
+      }
+    }
+  } else {
+    // market_crates or mixed_parcels
+    for (let i = 0; i < 4; i++) {
+      const crate = new THREE.Mesh(
+        new THREE.BoxGeometry(0.48, 0.36, 0.48),
+        i % 2 === 0 ? crateMat : sackMat
+      );
+      crate.position.set((i % 2 === 0 ? -0.28 : 0.28), 0.18 + Math.floor(i / 2) * 0.36, (i % 2 === 0 ? 0.22 : -0.22));
+      crate.castShadow = true;
+      group.add(crate);
+    }
+  }
+
+  return group;
 }
 
 /**
@@ -1672,20 +2622,25 @@ export function createTamaleInterchangeGroup(
     group.add(capBeam);
   }
 
-  // Sloped concrete approach ramps on West & East ends (outside [-33, +33])
+  // Sloped concrete approach ramps on West & East ends (cleanly meeting viaduct deck at ±33 & ground at ±60.6)
   for (const dir of [-1, 1]) {
     const rampLen = 28;
     const rampGroup = new THREE.Group();
-    rampGroup.position.set(dir * (spanLength / 2 + rampLen / 2 - 0.4), deckY / 2, 0);
-    rampGroup.rotation.z = dir * Math.atan2(deckY, rampLen);
+    rampGroup.position.set(dir * (spanLength / 2 + rampLen / 2 - 0.4), deckY / 2 - 0.34, 0);
+    rampGroup.rotation.z = -dir * Math.atan2(deckY + 0.65, rampLen);
 
     const rampBody = new THREE.Mesh(new THREE.BoxGeometry(rampLen, 1.35, 10.4), concreteMat);
     rampBody.castShadow = true;
     rampBody.receiveShadow = true;
     rampGroup.add(rampBody);
 
+    const rampRoad = new THREE.Mesh(new THREE.PlaneGeometry(rampLen, 9.5), roadDeckMat);
+    rampRoad.rotation.x = -Math.PI / 2;
+    rampRoad.position.y = 0.685;
+    rampGroup.add(rampRoad);
+
     for (const side of [-1, 1]) {
-      const rp = new THREE.Mesh(new THREE.BoxGeometry(rampLen, 0.75, 0.38), concreteMat);
+      const rp = new THREE.Mesh(new THREE.BoxGeometry(rampLen, 0.78, 0.38), concreteMat);
       rp.position.set(0, 1.0, side * 5.0);
       rampGroup.add(rp);
     }
@@ -2390,7 +3345,8 @@ export type ShopArchitecturalStyle =
   | "electronics"
   | "boutique"
   | "bank_momo"
-  | "ice_cream";
+  | "ice_cream"
+  | "nightclub";
 
 /**
  * Detailed Tamale Commercial Shopfront (windows, shutters, zinc gable roof, signboard, architectural style props)
@@ -2594,6 +3550,30 @@ export function createShopBuilding(
     );
     atmScreen.position.set(-width * 0.36, 1.25, depth / 2 + 0.42);
     group.add(atm, atmScreen);
+  } else if (style === "nightclub") {
+    const neonMat = new THREE.MeshStandardMaterial({
+      color: awningColor,
+      emissive: awningColor,
+      emissiveIntensity: 1.4,
+      roughness: 0.2,
+    });
+    const marqueeBar = new THREE.Mesh(new THREE.BoxGeometry(width * 0.88, 0.14, 0.16), neonMat);
+    marqueeBar.position.set(0, 2.84, depth / 2 + 1.65);
+    const vipStep = new THREE.Mesh(
+      new THREE.BoxGeometry(2.6, 0.08, 1.25),
+      new THREE.MeshStandardMaterial({ color: "#991b1b", roughness: 0.85 })
+    );
+    vipStep.position.set(0, 0.04, depth / 2 + 0.65);
+    const speakerMat = new THREE.MeshStandardMaterial({ color: "#0f172a", roughness: 0.65 });
+    for (const sx of [-1.85, 1.85]) {
+      const spk = new THREE.Mesh(new THREE.BoxGeometry(0.55, 1.05, 0.45), speakerMat);
+      spk.position.set(sx, 0.54, depth / 2 + 0.4);
+      const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.06, 12), neonMat);
+      cone.rotation.x = Math.PI / 2;
+      cone.position.set(sx, 0.68, depth / 2 + 0.63);
+      group.add(spk, cone);
+    }
+    group.add(marqueeBar, vipStep);
   }
 
   return group;
@@ -3606,6 +4586,74 @@ export function createPolytankAndSolarAddon(includeSolar = true): THREE.Group {
     group.add(mount, solar);
   }
   return group;
+}
+
+/**
+ * Tamale Police Divisional Headquarters (Ghana Police Service navy/white fascia, vehicle bay, blue beacon & flag)
+ */
+export function createPoliceStationGroup(textures: ProceduralTextureSet): {
+  group: THREE.Group;
+  beaconMat: THREE.MeshStandardMaterial;
+} {
+  const group = new THREE.Group();
+  const wallMat = new THREE.MeshStandardMaterial({ map: textures.concreteWall, color: "#f8fafc", roughness: 0.78 });
+  const navyMat = new THREE.MeshStandardMaterial({ color: "#1e3a8a", roughness: 0.52, metalness: 0.2 });
+  const roofMat = new THREE.MeshStandardMaterial({ map: textures.zincRoof, color: "#0f172a", roughness: 0.45, metalness: 0.52 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.16, metalness: 0.6 });
+  const beaconMat = new THREE.MeshStandardMaterial({
+    color: "#38bdf8",
+    emissive: "#2563eb",
+    emissiveIntensity: 1.15,
+  });
+
+  const apron = new THREE.Mesh(
+    new THREE.BoxGeometry(16.5, 0.14, 15.5),
+    new THREE.MeshStandardMaterial({ map: textures.paverBrick, color: "#cbd5e1", roughness: 0.88 })
+  );
+  apron.position.y = 0.07;
+  apron.receiveShadow = true;
+  group.add(apron);
+
+  const mainHall = new THREE.Mesh(new THREE.BoxGeometry(10.6, 5.2, 13.6), wallMat);
+  mainHall.position.set(0, 2.7, 0);
+  mainHall.castShadow = true;
+  mainHall.receiveShadow = true;
+  group.add(mainHall);
+
+  const band = new THREE.Mesh(new THREE.BoxGeometry(10.75, 0.85, 13.75), navyMat);
+  band.position.set(0, 0.75, 0);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(11.4, 0.26, 14.4), roofMat);
+  roof.position.set(0, 5.4, 0);
+  roof.castShadow = true;
+  group.add(band, roof);
+
+  // West-facing Charge Office entrance portico + double glass doors
+  const portico = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.25, 4.6), navyMat);
+  portico.position.set(-5.9, 3.25, 0);
+  portico.castShadow = true;
+  const door = new THREE.Mesh(new THREE.BoxGeometry(0.14, 2.45, 2.2), glassMat);
+  door.position.set(-5.32, 1.32, 0);
+  const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 10), beaconMat);
+  beacon.position.set(-6.6, 3.65, 0);
+  group.add(portico, door, beacon);
+
+  const signTex = createShopSignTexture("GHANA POLICE SERVICE", "TAMALE DIVISIONAL HQ", "#1e3a8a", "#facc15");
+  const sign = new THREE.Mesh(
+    new THREE.BoxGeometry(0.14, 0.95, 5.8),
+    new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.42 })
+  );
+  sign.position.set(-5.4, 4.45, 0);
+  group.add(sign);
+
+  // Flagpole on station forecourt
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.07, 6.2, 8),
+    new THREE.MeshStandardMaterial({ color: "#cbd5e1", metalness: 0.8, roughness: 0.3 })
+  );
+  pole.position.set(-6.8, 3.1, -4.5);
+  group.add(pole);
+
+  return { group, beaconMat };
 }
 
 
