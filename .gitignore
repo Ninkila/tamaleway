@@ -6,3 +6,7 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Server runtime artefacts
+data/*.tmp
+data/*.corrupt-*
