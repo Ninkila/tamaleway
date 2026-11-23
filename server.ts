@@ -13,9 +13,81 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
-app.use(express.json({ limit: "12mb" }));
+// Cloud Run / reverse proxies: trust the first hop so req.ip is the real client IP.
+app.set("trust proxy", 1);
+app.disable("x-powered-by");
+
+// Basic security headers (no X-Frame-Options: the app may be embedded by AI Studio).
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+  next();
+});
+
+// Only voice transcription needs a large body (base64 audio); everything else stays small.
+app.use("/api/npc/transcribe", express.json({ limit: "12mb" }));
+app.use(express.json({ limit: "100kb" }));
+
+// ---------------------------------------------------------------------------
+// Simple in-memory fixed-window rate limiter (per client IP, per bucket).
+// ---------------------------------------------------------------------------
+type RateBucket = { count: number; resetAt: number };
+const rateBuckets = new Map<string, RateBucket>();
+
+function rateLimit(name: string, maxRequests: number, windowMs: number): express.RequestHandler {
+  return (req, res, next) => {
+    const key = `${name}:${req.ip ?? "unknown"}`;
+    const now = Date.now();
+    const bucket = rateBuckets.get(key);
+    if (!bucket || bucket.resetAt <= now) {
+      rateBuckets.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+    if (bucket.count >= maxRequests) {
+      const retryAfterSec = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+      res.setHeader("Retry-After", String(retryAfterSec));
+      return res.status(429).json({ error: "Too many requests. Please slow down and try again shortly." });
+    }
+    bucket.count += 1;
+    return next();
+  };
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, bucket] of rateBuckets) {
+    if (bucket.resetAt <= now) rateBuckets.delete(key);
+  }
+}, 60_000).unref();
+
+const aiRateLimit = rateLimit("ai", 30, 60_000); // 30 AI calls / minute / IP
+const submitRateLimit = rateLimit("submit", 5, 10 * 60_000); // 5 submissions / 10 min / IP
+const reviewRateLimit = rateLimit("review", 60, 60_000);
+
+/** Trim a value to a bounded string, or return the fallback. */
+function cleanText(value: unknown, maxLength: number, fallback = ""): string {
+  if (typeof value !== "string") return fallback;
+  const trimmed = value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").trim();
+  return trimmed ? trimmed.slice(0, maxLength) : fallback;
+}
+
+function cleanMediaUrl(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
+    const href = url.toString();
+    return href.length <= 300 ? href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const MAX_STORED_SUBMISSIONS = 1000;
+const MAX_PENDING_SUBMISSIONS = 300;
 app.use(
   "/assets/references",
   express.static(path.resolve(__dirname, "assets", "references"))
@@ -186,22 +258,26 @@ function getGeminiClient(apiVersion: "v1beta" | "v1" = "v1beta"): GoogleGenAI | 
   });
 }
 
-app.post("/api/npc/chat", async (req, res) => {
-  const {
-    npcName,
-    npcRole,
-    npcDistrict,
-    npcPersonality,
-    languageMode,
-    timePeriod,
-    playerMessage,
-    history,
-    friendshipLevel,
-  } = req.body ?? {};
-
-  if (!playerMessage || typeof playerMessage !== "string") {
+app.post("/api/npc/chat", aiRateLimit, async (req, res) => {
+  const body = req.body ?? {};
+  const playerMessage = cleanText(body.playerMessage, 500);
+  if (!playerMessage) {
     return res.status(400).json({ error: "playerMessage is required." });
   }
+  const npcName = cleanText(body.npcName, 60);
+  const npcRole = cleanText(body.npcRole, 80);
+  const npcDistrict = cleanText(body.npcDistrict, 80);
+  const npcPersonality = cleanText(body.npcPersonality, 400);
+  const languageMode = cleanText(body.languageMode, 20);
+  const timePeriod = cleanText(body.timePeriod, 20);
+  const friendshipRaw = Number(body.friendshipLevel);
+  const friendshipLevel = Number.isFinite(friendshipRaw) ? Math.max(0, Math.min(999, Math.round(friendshipRaw))) : 1;
+  const history = Array.isArray(body.history)
+    ? body.history.slice(-6).map((m: { speaker?: unknown; text?: unknown }) => ({
+        speaker: cleanText(m?.speaker, 40, "Speaker"),
+        text: cleanText(m?.text, 300),
+      }))
+    : [];
 
   const ai = getGeminiClient();
   if (!ai) {
@@ -288,7 +364,7 @@ Respond in character in JSON with:
 });
 
 // Transcribe player voice audio for NPC dialogue (uses gemini-3.5-transcribe)
-app.post("/api/npc/transcribe", async (req, res) => {
+app.post("/api/npc/transcribe", aiRateLimit, async (req, res) => {
   const { audioBase64, mimeType } = req.body ?? {};
   if (!audioBase64 || typeof audioBase64 !== "string") {
     return res.status(400).json({ error: "audioBase64 is required." });
@@ -406,7 +482,7 @@ function toDagbaniTtsPhonetics(text: string): string {
 }
 
 // Generate spoken WAV audio with local Dagomba / Northern Ghanaian voice persona
-app.post("/api/npc/tts", async (req, res) => {
+app.post("/api/npc/tts", aiRateLimit, async (req, res) => {
   const { text, voiceName, style } = req.body ?? {};
   if (!text || typeof text !== "string" || !text.trim()) {
     return res.status(400).json({ error: "text is required." });
@@ -547,7 +623,7 @@ app.get("/api/contributions", async (_req, res) => {
   }
 });
 
-app.post("/api/contributions", async (req, res) => {
+app.post("/api/contributions", submitRateLimit, async (req, res) => {
   const {
     contributorName,
     contributorAffiliation,
@@ -590,6 +666,8 @@ app.post("/api/contributions", async (req, res) => {
   try {
     const newEntry = await withSubmissionsLock(async () => {
       const list = await readSubmissions();
+      const pendingCount = list.filter((s) => s.status === "pending_review").length;
+      if (pendingCount >= MAX_PENDING_SUBMISSIONS) return null;
       const entry: StoredSubmission = {
         id: `sub_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`,
         contributorName: contributorName.trim().slice(0, 80),
@@ -606,16 +684,16 @@ app.post("/api/contributions", async (req, res) => {
             ? dagbaniTerm.trim().slice(0, 120)
             : undefined,
         sourceAndPermission: sourceAndPermission.trim().slice(0, 240),
-        mediaUrl:
-          typeof mediaUrl === "string" && /^https?:\/\//i.test(mediaUrl.trim())
-            ? mediaUrl.trim().slice(0, 300)
-            : undefined,
+        mediaUrl: cleanMediaUrl(mediaUrl),
         status: "pending_review",
         submittedAt: new Date().toISOString(),
       };
-      await writeSubmissions([entry, ...list]);
+      await writeSubmissions([entry, ...list].slice(0, MAX_STORED_SUBMISSIONS));
       return entry;
     });
+    if (!newEntry) {
+      return res.status(503).json({ error: "The review queue is full right now. Please try again later." });
+    }
     return res.status(201).json({ submission: newEntry });
   } catch (err) {
     console.error("Create contribution error:", err);
@@ -623,7 +701,7 @@ app.post("/api/contributions", async (req, res) => {
   }
 });
 
-app.patch("/api/contributions/:id/review", async (req, res) => {
+app.patch("/api/contributions/:id/review", reviewRateLimit, async (req, res) => {
   if (!process.env.CURATOR_TOKEN?.trim()) {
     return res.status(503).json({ error: "Curator review is not configured on this server." });
   }
