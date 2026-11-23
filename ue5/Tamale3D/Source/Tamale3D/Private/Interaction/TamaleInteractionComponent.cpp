@@ -45,7 +45,7 @@ void UTamaleInteractionComponent::PerformScan()
         Start,
         End,
         FQuat::Identity,
-        ECC_Visibility,
+        ECC_GameTraceChannel1, // "TamaleInteract" (DefaultEngine.ini)
         FCollisionShape::MakeSphere(ScanRadiusCm),
         Params
     );

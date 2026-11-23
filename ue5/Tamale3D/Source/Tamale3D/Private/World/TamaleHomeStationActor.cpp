@@ -20,7 +20,7 @@ ATamaleHomeStationActor::ATamaleHomeStationActor()
     InteractVolume->SetupAttachment(RootScene);
     InteractVolume->SetBoxExtent(FVector(85.0f, 85.0f, 95.0f));
     InteractVolume->SetCollisionResponseToAllChannels(ECR_Ignore);
-    InteractVolume->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+    InteractVolume->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Block); // "TamaleInteract"
 }
 
 FText ATamaleHomeStationActor::GetInteractionPrompt_Implementation(AActor* Interactor) const

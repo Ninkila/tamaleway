@@ -20,6 +20,7 @@ ATamaleNpcCharacter::ATamaleNpcCharacter()
     PrimaryActorTick.TickInterval = 0.25f; // Low CPU footprint per NPC
 
     AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+    GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Block); // "TamaleInteract"
     GetCapsuleComponent()->InitCapsuleSize(34.0f, 88.0f);
     GetCharacterMovement()->MaxWalkSpeed = 145.0f;
     GetCharacterMovement()->bOrientRotationToMovement = true;
