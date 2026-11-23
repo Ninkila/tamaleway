@@ -1,0 +1,27 @@
+# Normalize text files to LF in the repository; Windows checkouts may use CRLF locally.
+* text=auto
+
+# Scripts that must keep LF
+*.sh text eol=lf
+
+# Windows-only project files
+*.sln text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.mp3 binary
+*.wav binary
+*.ogg binary
+*.glb binary
+*.fbx binary
+*.uasset binary
+*.umap binary
+*.ubulk binary
+*.uexp binary
