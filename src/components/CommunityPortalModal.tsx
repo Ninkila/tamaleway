@@ -8,6 +8,8 @@ interface CommunityPortalModalProps {
   onSubmissionNotice?: (msg: string) => void;
 }
 
+const CURATOR_KEY_STORAGE = "tamale3d.curatorKey";
+
 const CATEGORY_OPTIONS: Array<{ id: SubmissionCategory; label: string }> = [
   { id: "location", label: "Neighbourhood / Place Detail" },
   { id: "architectural_reference", label: "House / Architecture Reference" },
@@ -41,6 +43,23 @@ export const CommunityPortalModal: React.FC<CommunityPortalModalProps> = ({
   // Curator review state
   const [reviewerNoteMap, setReviewerNoteMap] = useState<Record<string, string>>({});
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [curatorKey, setCuratorKey] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem(CURATOR_KEY_STORAGE) ?? "";
+    } catch {
+      return "";
+    }
+  });
+
+  const updateCuratorKey = (value: string) => {
+    setCuratorKey(value);
+    try {
+      if (value) sessionStorage.setItem(CURATOR_KEY_STORAGE, value);
+      else sessionStorage.removeItem(CURATOR_KEY_STORAGE);
+    } catch {
+      /* storage unavailable — key lives in memory only */
+    }
+  };
 
   const loadSubmissions = useCallback(async () => {
     setLoading(true);
@@ -110,7 +129,10 @@ export const CommunityPortalModal: React.FC<CommunityPortalModalProps> = ({
     try {
       const res = await fetch(`/api/contributions/${encodeURIComponent(id)}/review`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${curatorKey.trim()}`,
+        },
         body: JSON.stringify({
           status,
           reviewerNote:
@@ -120,7 +142,10 @@ export const CommunityPortalModal: React.FC<CommunityPortalModalProps> = ({
               : "Please clarify location coordinates or source attribution."),
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401 || res.status === 403) {
+        throw new Error("Curator key missing or incorrect. Enter a valid key to review submissions.");
+      }
       if (!res.ok) throw new Error(data.error || "Review update failed");
       setSubmissions((prev) => prev.map((s) => (s.id === id ? data.submission : s)));
       onSubmissionNotice?.(
@@ -332,6 +357,21 @@ export const CommunityPortalModal: React.FC<CommunityPortalModalProps> = ({
 
           {tab === "queue" && (
             <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2 bg-[#12100e] border border-white/10 rounded-xl px-3 py-2">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <label htmlFor="curator-key" className="text-[11px] text-[#b5ada0]">
+                  Curator key
+                </label>
+                <input
+                  id="curator-key"
+                  type="password"
+                  autoComplete="off"
+                  value={curatorKey}
+                  onChange={(e) => updateCuratorKey(e.target.value)}
+                  placeholder="Required to approve or request revisions"
+                  className="flex-1 min-w-[200px] px-2.5 py-1.5 bg-[#0c0b09] border border-white/12 rounded text-xs text-[#f8f5ef] focus:outline-none focus:border-amber-500"
+                />
+              </div>
               {loading ? (
                 <div className="text-xs text-[#b5ada0] py-8 text-center">
                   Loading community submissions...
@@ -424,7 +464,7 @@ export const CommunityPortalModal: React.FC<CommunityPortalModalProps> = ({
                         />
                         <button
                           type="button"
-                          disabled={reviewingId === sub.id}
+                          disabled={reviewingId === sub.id || !curatorKey.trim()}
                           onClick={() => handleReview(sub.id, "approved")}
                           className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded cursor-pointer disabled:opacity-50"
                         >
@@ -432,7 +472,7 @@ export const CommunityPortalModal: React.FC<CommunityPortalModalProps> = ({
                         </button>
                         <button
                           type="button"
-                          disabled={reviewingId === sub.id}
+                          disabled={reviewingId === sub.id || !curatorKey.trim()}
                           onClick={() => handleReview(sub.id, "needs_revision")}
                           className="px-3 py-1.5 bg-[#2a221d] hover:bg-[#3a2e27] text-[#e6dfd3] border border-white/10 text-xs rounded cursor-pointer disabled:opacity-50"
                         >

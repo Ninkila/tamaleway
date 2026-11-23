@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import crypto from "crypto";
 import { GoogleGenAI, Type } from "@google/genai";
 
 dotenv.config();
@@ -93,22 +94,64 @@ const DEFAULT_SUBMISSIONS: StoredSubmission[] = [
   },
 ];
 
+class SubmissionsFileCorruptError extends Error {}
+
 async function readSubmissions(): Promise<StoredSubmission[]> {
+  let raw: string;
   try {
-    const raw = await fs.readFile(SUBMISSIONS_FILE, "utf8");
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed;
-  } catch {
-    await fs.mkdir(SUBMISSIONS_DIR, { recursive: true });
-    await fs.writeFile(SUBMISSIONS_FILE, JSON.stringify(DEFAULT_SUBMISSIONS, null, 2), "utf8");
-    return [...DEFAULT_SUBMISSIONS];
+    raw = await fs.readFile(SUBMISSIONS_FILE, "utf8");
+  } catch (err) {
+    // Only seed defaults when the file genuinely doesn't exist yet.
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      await writeSubmissions(DEFAULT_SUBMISSIONS);
+      return [...DEFAULT_SUBMISSIONS];
+    }
+    throw err;
   }
-  return [...DEFAULT_SUBMISSIONS];
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    // Never overwrite a file we can't parse — keep a copy and refuse to continue.
+    const backup = `${SUBMISSIONS_FILE}.corrupt-${Date.now()}`;
+    await fs.copyFile(SUBMISSIONS_FILE, backup).catch(() => undefined);
+    throw new SubmissionsFileCorruptError(
+      `Submissions file is not valid JSON; a copy was saved to ${path.basename(backup)}.`
+    );
+  }
+  if (!Array.isArray(parsed)) {
+    throw new SubmissionsFileCorruptError("Submissions file does not contain a JSON array.");
+  }
+  return parsed as StoredSubmission[];
 }
 
 async function writeSubmissions(list: StoredSubmission[]): Promise<void> {
   await fs.mkdir(SUBMISSIONS_DIR, { recursive: true });
-  await fs.writeFile(SUBMISSIONS_FILE, JSON.stringify(list, null, 2), "utf8");
+  // Write to a temp file then rename, so a crash mid-write can't leave half a file behind.
+  const tmp = `${SUBMISSIONS_FILE}.${process.pid}.${Date.now()}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify(list, null, 2), "utf8");
+  await fs.rename(tmp, SUBMISSIONS_FILE);
+}
+
+// Serialise read-modify-write cycles so concurrent requests can't overwrite each other.
+let submissionsLock: Promise<unknown> = Promise.resolve();
+function withSubmissionsLock<T>(task: () => Promise<T>): Promise<T> {
+  const run = submissionsLock.then(task, task);
+  submissionsLock = run.catch(() => undefined);
+  return run;
+}
+
+// Curator auth: reviews require CURATOR_TOKEN sent as "Authorization: Bearer <token>".
+function isCuratorRequest(req: express.Request): boolean {
+  const expected = process.env.CURATOR_TOKEN?.trim();
+  if (!expected) return false; // no token configured => reviews disabled
+  const header = req.get("authorization") ?? "";
+  const match = /^Bearer\s+(.+)$/i.exec(header);
+  if (!match) return false;
+  const given = Buffer.from(match[1].trim());
+  const want = Buffer.from(expected);
+  return given.length === want.length && crypto.timingSafeEqual(given, want);
 }
 
 const VERIFIED_DAGBANI_LEXICON = `
@@ -496,7 +539,7 @@ app.post("/api/npc/tts", async (req, res) => {
 
 app.get("/api/contributions", async (_req, res) => {
   try {
-    const submissions = await readSubmissions();
+    const submissions = await withSubmissionsLock(readSubmissions);
     return res.json({ submissions });
   } catch (err) {
     console.error("Read contributions error:", err);
@@ -545,32 +588,34 @@ app.post("/api/contributions", async (req, res) => {
   }
 
   try {
-    const list = await readSubmissions();
-    const newEntry: StoredSubmission = {
-      id: `sub_${Date.now().toString(36)}`,
-      contributorName: contributorName.trim().slice(0, 80),
-      contributorAffiliation:
-        typeof contributorAffiliation === "string" && contributorAffiliation.trim()
-          ? contributorAffiliation.trim().slice(0, 100)
-          : "Tamale Community Contributor",
-      category,
-      title: title.trim().slice(0, 140),
-      community: community.trim().slice(0, 80),
-      description: description.trim().slice(0, 1200),
-      dagbaniTerm:
-        typeof dagbaniTerm === "string" && dagbaniTerm.trim()
-          ? dagbaniTerm.trim().slice(0, 120)
-          : undefined,
-      sourceAndPermission: sourceAndPermission.trim().slice(0, 240),
-      mediaUrl:
-        typeof mediaUrl === "string" && /^https?:\/\//i.test(mediaUrl.trim())
-          ? mediaUrl.trim().slice(0, 300)
-          : undefined,
-      status: "pending_review",
-      submittedAt: new Date().toISOString(),
-    };
-    const updated = [newEntry, ...list];
-    await writeSubmissions(updated);
+    const newEntry = await withSubmissionsLock(async () => {
+      const list = await readSubmissions();
+      const entry: StoredSubmission = {
+        id: `sub_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`,
+        contributorName: contributorName.trim().slice(0, 80),
+        contributorAffiliation:
+          typeof contributorAffiliation === "string" && contributorAffiliation.trim()
+            ? contributorAffiliation.trim().slice(0, 100)
+            : "Tamale Community Contributor",
+        category,
+        title: title.trim().slice(0, 140),
+        community: community.trim().slice(0, 80),
+        description: description.trim().slice(0, 1200),
+        dagbaniTerm:
+          typeof dagbaniTerm === "string" && dagbaniTerm.trim()
+            ? dagbaniTerm.trim().slice(0, 120)
+            : undefined,
+        sourceAndPermission: sourceAndPermission.trim().slice(0, 240),
+        mediaUrl:
+          typeof mediaUrl === "string" && /^https?:\/\//i.test(mediaUrl.trim())
+            ? mediaUrl.trim().slice(0, 300)
+            : undefined,
+        status: "pending_review",
+        submittedAt: new Date().toISOString(),
+      };
+      await writeSubmissions([entry, ...list]);
+      return entry;
+    });
     return res.status(201).json({ submission: newEntry });
   } catch (err) {
     console.error("Create contribution error:", err);
@@ -579,6 +624,13 @@ app.post("/api/contributions", async (req, res) => {
 });
 
 app.patch("/api/contributions/:id/review", async (req, res) => {
+  if (!process.env.CURATOR_TOKEN?.trim()) {
+    return res.status(503).json({ error: "Curator review is not configured on this server." });
+  }
+  if (!isCuratorRequest(req)) {
+    return res.status(401).json({ error: "Curator authorisation required." });
+  }
+
   const { id } = req.params;
   const { status, reviewerNote } = req.body ?? {};
   if (status !== "approved" && status !== "needs_revision") {
@@ -586,24 +638,28 @@ app.patch("/api/contributions/:id/review", async (req, res) => {
   }
 
   try {
-    const list = await readSubmissions();
-    const idx = list.findIndex((s) => s.id === id);
-    if (idx === -1) {
+    const updatedItem = await withSubmissionsLock(async () => {
+      const list = await readSubmissions();
+      const idx = list.findIndex((s) => s.id === id);
+      if (idx === -1) return null;
+      const reviewed: StoredSubmission = {
+        ...list[idx],
+        status,
+        reviewerNote:
+          typeof reviewerNote === "string" && reviewerNote.trim()
+            ? reviewerNote.trim().slice(0, 240)
+            : status === "approved"
+            ? "Verified by Tamale 3D curator."
+            : "Clarification requested before publishing.",
+        reviewedAt: new Date().toISOString(),
+      };
+      list[idx] = reviewed;
+      await writeSubmissions(list);
+      return reviewed;
+    });
+    if (!updatedItem) {
       return res.status(404).json({ error: "Submission not found." });
     }
-    const updatedItem: StoredSubmission = {
-      ...list[idx],
-      status,
-      reviewerNote:
-        typeof reviewerNote === "string" && reviewerNote.trim()
-          ? reviewerNote.trim().slice(0, 240)
-          : status === "approved"
-          ? "Verified by Tamale 3D curator."
-          : "Clarification requested before publishing.",
-      reviewedAt: new Date().toISOString(),
-    };
-    list[idx] = updatedItem;
-    await writeSubmissions(list);
     return res.json({ submission: updatedItem });
   } catch (err) {
     console.error("Review contribution error:", err);
