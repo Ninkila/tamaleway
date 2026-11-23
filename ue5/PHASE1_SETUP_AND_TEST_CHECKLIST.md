@@ -1,3 +1,5 @@
+> **Superseded (2026-11-23):** current status lives in `ue5/Documentation/MIGRATION_MASTER_TRACKER.md`; build & test steps in `ue5/Documentation/BUILD_AND_TEST.md`. Kept for history.
+
 # TAMALE 3D — UE5 Phase 1 Milestone Setup & Physical Test Checklist
 
 ## 1. Prerequisites on Target Windows 11 Machine

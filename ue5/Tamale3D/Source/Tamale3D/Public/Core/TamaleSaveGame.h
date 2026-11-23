@@ -16,8 +16,12 @@ class TAMALE3D_API UTamaleSaveGame : public USaveGame
     GENERATED_BODY()
 
 public:
+    /** v1: initial. v2: adds GlobalDayCount (the calendar day is world-wide, not per character). */
     UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Save")
-    int32 SaveSchemaVersion = 1;
+    int32 SaveSchemaVersion = 2;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Save")
+    int32 GlobalDayCount = 1;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Save")
     FName ActiveCharacterId = FName(TEXT("yakubu_pragya"));

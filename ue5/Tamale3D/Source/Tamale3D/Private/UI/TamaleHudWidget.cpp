@@ -76,7 +76,7 @@ void UTamaleHudWidget::HandleClockUpdated(float CurrentMinutes, ETamaleTimePerio
     {
         if (const UTamaleTimeOfDaySubsystem* TimeSys = World->GetSubsystem<UTamaleTimeOfDaySubsystem>())
         {
-            TxtClockAndDay->SetText(FText::FromString(FString::Printf(TEXT("Day %d · %s"), TimeSys->GetDayCount(), *TimeSys->GetFormattedClock())));
+            TxtClockAndDay->SetText(FText::FromString(FString::Printf(TEXT("Day %d - %s"), TimeSys->GetDayCount(), *TimeSys->GetFormattedClock())));
         }
     }
 }

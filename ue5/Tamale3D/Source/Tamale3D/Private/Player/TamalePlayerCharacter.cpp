@@ -1,7 +1,14 @@
 #include "Player/TamalePlayerCharacter.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Core/TamaleGameInstance.h"
+#include "Data/TamaleDataRegistrySubsystem.h"
+#include "Engine/StaticMesh.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "NavigationInvokerComponent.h"
+#include "UObject/ConstructorHelpers.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Interaction/TamaleInteractionComponent.h"
@@ -47,12 +54,58 @@ ATamalePlayerCharacter::ATamalePlayerCharacter()
 
     NeedsComponent = CreateDefaultSubobject<UTamaleNeedsComponent>(TEXT("NeedsComponent"));
     InteractionComponent = CreateDefaultSubobject<UTamaleInteractionComponent>(TEXT("InteractionComponent"));
+
+    NavigationInvoker = CreateDefaultSubobject<UNavigationInvokerComponent>(TEXT("NavigationInvoker"));
+    NavigationInvoker->SetGenerationRadii(6000.0f, 7500.0f);
+
+    // Placeholder body: ~1.72 m tall, feet on the capsule bottom (capsule half-height 90).
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+
+    PlaceholderBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderBody"));
+    PlaceholderBody->SetupAttachment(GetCapsuleComponent());
+    PlaceholderBody->SetStaticMesh(CylinderMesh.Object);
+    PlaceholderBody->SetRelativeLocation(FVector(0.0f, 0.0f, -20.0f));
+    PlaceholderBody->SetRelativeScale3D(FVector(0.55f, 0.42f, 1.4f));
+    PlaceholderBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    PlaceholderBody->SetCanEverAffectNavigation(false);
+
+    PlaceholderHead = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderHead"));
+    PlaceholderHead->SetupAttachment(GetCapsuleComponent());
+    PlaceholderHead->SetStaticMesh(SphereMesh.Object);
+    PlaceholderHead->SetRelativeLocation(FVector(6.0f, 0.0f, 66.0f));
+    PlaceholderHead->SetRelativeScale3D(FVector(0.26f));
+    PlaceholderHead->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    PlaceholderHead->SetCanEverAffectNavigation(false);
 }
 
 void ATamalePlayerCharacter::BeginPlay()
 {
     Super::BeginPlay();
+
+    const bool bHasRealMesh = GetMesh() && GetMesh()->GetSkeletalMeshAsset();
+    if (PlaceholderBody) PlaceholderBody->SetHiddenInGame(bHasRealMesh);
+    if (PlaceholderHead) PlaceholderHead->SetHiddenInGame(bHasRealMesh);
+
+    if (UTamaleGameInstance* GI = Cast<UTamaleGameInstance>(GetGameInstance()))
+    {
+        GI->OnActiveCharacterSwitched.AddDynamic(this, &ATamalePlayerCharacter::HandleActiveCharacterSwitched);
+    }
     SyncFromGameInstanceState();
+}
+
+void ATamalePlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    if (UTamaleGameInstance* GI = Cast<UTamaleGameInstance>(GetGameInstance()))
+    {
+        GI->OnActiveCharacterSwitched.RemoveDynamic(this, &ATamalePlayerCharacter::HandleActiveCharacterSwitched);
+    }
+    Super::EndPlay(EndPlayReason);
+}
+
+void ATamalePlayerCharacter::HandleActiveCharacterSwitched(FName NewCharacterId)
+{
+    ApplyActiveCharacterState(true);
 }
 
 void ATamalePlayerCharacter::HandleMoveInput(const FInputActionValue& Value)
@@ -125,12 +178,72 @@ void ATamalePlayerCharacter::HandleInteractPressed()
 
 void ATamalePlayerCharacter::SyncFromGameInstanceState()
 {
-    if (UTamaleGameInstance* GI = Cast<UTamaleGameInstance>(GetGameInstance()))
+    ApplyActiveCharacterState(false);
+}
+
+void ATamalePlayerCharacter::ApplyActiveCharacterState(bool bTeleport)
+{
+    UTamaleGameInstance* GI = Cast<UTamaleGameInstance>(GetGameInstance());
+    if (!GI)
     {
-        const FTamaleCharacterSaveState State = GI->GetActiveCharacterState();
-        if (NeedsComponent)
+        return;
+    }
+
+    const FTamaleCharacterSaveState State = GI->GetActiveCharacterState();
+    if (NeedsComponent)
+    {
+        NeedsComponent->LoadFromSaveState(State.Needs, State.HomeState);
+    }
+
+    if (bTeleport)
+    {
+        GetCharacterMovement()->StopMovementImmediately();
+        if (bIsCrouched)
         {
-            NeedsComponent->LoadFromSaveState(State.Needs, State.HomeState);
+            UnCrouch();
+        }
+        SetActorLocationAndRotation(State.SavedWorldLocation + FVector(0.0, 0.0, 10.0), FRotator(0.0f, State.SavedWorldRotation.Yaw, 0.0f),
+                                    false, nullptr, ETeleportType::TeleportPhysics);
+        if (Controller)
+        {
+            Controller->SetControlRotation(FRotator(-12.0f, State.SavedWorldRotation.Yaw, 0.0f));
+        }
+    }
+
+    ApplyPlaceholderColors();
+}
+
+void ATamalePlayerCharacter::ApplyPlaceholderColors()
+{
+    if (!PlaceholderBody || (GetMesh() && GetMesh()->GetSkeletalMeshAsset()))
+    {
+        return; // a real character mesh is in use
+    }
+
+    FLinearColor Cloth(0.85f, 0.65f, 0.1f);
+    FLinearColor Skin(0.36f, 0.22f, 0.14f);
+    const UTamaleGameInstance* GI = Cast<UTamaleGameInstance>(GetGameInstance());
+    const UTamaleDataRegistrySubsystem* Data = GI ? GI->GetSubsystem<UTamaleDataRegistrySubsystem>() : nullptr;
+    if (GI && Data)
+    {
+        if (const FTamalePlayableCharacterRow* Row = Data->FindPlayableCharacter(GI->GetActiveCharacterId().ToString()))
+        {
+            if (Row->PrimaryColorHex.StartsWith(TEXT("#")))
+            {
+                Cloth = FLinearColor::FromSRGBColor(FColor::FromHex(Row->PrimaryColorHex));
+            }
+        }
+    }
+
+    if (UMaterialInstanceDynamic* BodyMID = PlaceholderBody->CreateAndSetMaterialInstanceDynamic(0))
+    {
+        BodyMID->SetVectorParameterValue(TEXT("Color"), Cloth);
+    }
+    if (PlaceholderHead)
+    {
+        if (UMaterialInstanceDynamic* HeadMID = PlaceholderHead->CreateAndSetMaterialInstanceDynamic(0))
+        {
+            HeadMID->SetVectorParameterValue(TEXT("Color"), Skin);
         }
     }
 }

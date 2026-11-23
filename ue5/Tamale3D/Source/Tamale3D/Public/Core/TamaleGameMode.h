@@ -4,9 +4,13 @@
 #include "GameFramework/GameModeBase.h"
 #include "TamaleGameMode.generated.h"
 
+class UDataTable;
+class ATamaleCityBootstrapActor;
+
 /**
- * Coordinates Phase 1 Tamale simulation spawn, DataTable references,
- * and default PlayerController/Character wiring.
+ * Wires the TAMALE 3D player controller/character/HUD, makes sure the city exists
+ * (spawning the greybox builder when the level has none), and spawns the player at the
+ * active character's saved position when the level has no PlayerStart.
  */
 UCLASS()
 class TAMALE3D_API ATamaleGameMode : public AGameModeBase
@@ -16,6 +20,7 @@ class TAMALE3D_API ATamaleGameMode : public AGameModeBase
 public:
     ATamaleGameMode();
 
+    /** Optional editor-imported tables (C++ systems read UTamaleDataRegistrySubsystem instead). */
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Data")
     TObjectPtr<UDataTable> LandmarksTable;
 
@@ -25,6 +30,16 @@ public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Data")
     TObjectPtr<UDataTable> DagbaniTermsTable;
 
+    /** Spawn ATamaleCityBootstrapActor automatically when the level does not contain one. */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "World")
+    bool bAutoSpawnGreyboxCity = true;
+
+    virtual void RestartPlayer(AController* NewPlayer) override;
+    virtual void StartPlay() override;
+
 protected:
     virtual void BeginPlay() override;
+
+private:
+    void EnsureCityExists();
 };

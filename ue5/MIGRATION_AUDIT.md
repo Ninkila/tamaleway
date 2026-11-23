@@ -1,3 +1,5 @@
+> **Superseded (2026-11-23):** current status lives in `ue5/Documentation/MIGRATION_MASTER_TRACKER.md`; build & test steps in `ue5/Documentation/BUILD_AND_TEST.md`. Kept for history.
+
 # TAMALE 3D — Unreal Engine 5 Migration Audit & Classification Inventory
 
 ## 0. Environment & Target Engine Verification (Audit Finding)

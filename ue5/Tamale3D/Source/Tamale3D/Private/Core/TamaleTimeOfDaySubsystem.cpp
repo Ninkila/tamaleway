@@ -2,6 +2,8 @@
 #include "EngineUtils.h"
 #include "Engine/DirectionalLight.h"
 #include "Components/DirectionalLightComponent.h"
+#include "Components/ExponentialHeightFogComponent.h"
+#include "Tamale3D.h"
 
 void UTamaleTimeOfDaySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -53,9 +55,30 @@ FString UTamaleTimeOfDaySubsystem::GetFormattedClock() const
 
 float UTamaleTimeOfDaySubsystem::GetSunPitchDegrees() const
 {
-    // Noon (720 mins) -> high Tamale ~10 deg latitude sun (-76 deg pitch); Midnight -> +65 deg
-    const float Normalized = (CurrentGameMinutes / 1440.0f) * 360.0f;
-    return -90.0f + Normalized;
+    // Sun angle above the eastern horizon: 0 at 06:00, 90 at 12:00, 180 at 18:00, 270 (= -90) at 00:00.
+    // (Previous formula returned +90 at noon, i.e. the sun under the ground at midday and overhead at midnight.)
+    const float SunAngle = (CurrentGameMinutes / 1440.0f) * 360.0f - 90.0f;
+    return FRotator::NormalizeAxis(-SunAngle);
+}
+
+float UTamaleTimeOfDaySubsystem::GetDaylightFactor() const
+{
+    const float SunAngle = (CurrentGameMinutes / 1440.0f) * 360.0f - 90.0f;
+    return FMath::Clamp(FMath::Sin(FMath::DegreesToRadians(SunAngle)), 0.0f, 1.0f);
+}
+
+float UTamaleTimeOfDaySubsystem::GetWeatherSunMultiplier() const
+{
+    switch (CurrentWeather)
+    {
+    case ETamaleWeather::Cloudy:       return 0.55f;
+    case ETamaleWeather::Harmattan:    return 0.65f;
+    case ETamaleWeather::LightRain:    return 0.45f;
+    case ETamaleWeather::Rain:         return 0.3f;
+    case ETamaleWeather::Thunderstorm: return 0.2f;
+    case ETamaleWeather::Heat:         return 1.1f;
+    default:                           return 1.0f;
+    }
 }
 
 void UTamaleTimeOfDaySubsystem::SetClockAndDay(float InMinutes, int32 InDayCount)
@@ -125,7 +148,10 @@ void UTamaleTimeOfDaySubsystem::SetWeather(ETamaleWeather NewWeather)
     if (CurrentWeather != NewWeather)
     {
         CurrentWeather = NewWeather;
+        ApplyWeatherToWorld();
+        RotateWorldSunLight();
         OnWeatherChanged.Broadcast(CurrentWeather);
+        UE_LOG(LogTamale3D, Log, TEXT("Weather changed to %s"), *UEnum::GetValueAsString(CurrentWeather));
     }
 }
 
@@ -134,18 +160,60 @@ void UTamaleTimeOfDaySubsystem::RotateWorldSunLight()
     UWorld* World = GetWorld();
     if (!World) return;
 
-    for (TActorIterator<ADirectionalLight> It(World); It; ++It)
+    ADirectionalLight* Sun = CachedSun.Get();
+    if (!Sun)
     {
-        if (ADirectionalLight* Sun = *It)
+        TActorIterator<ADirectionalLight> It(World);
+        if (!It)
         {
-            const float Pitch = GetSunPitchDegrees();
-            Sun->SetActorRotation(FRotator(Pitch, -35.0f, 0.0f));
-            if (UDirectionalLightComponent* LightComp = Cast<UDirectionalLightComponent>(Sun->GetLightComponent()))
-            {
-                const bool bNight = (CurrentGameMinutes < 330.0f || CurrentGameMinutes > 1140.0f);
-                LightComp->SetIntensity(bNight ? 0.35f : 5.5f);
-            }
-            break;
+            return;
+        }
+        Sun = *It;
+        CachedSun = Sun;
+        // A level's default sun is Stationary; it must be Movable to follow the clock.
+        if (USceneComponent* Root = Sun->GetRootComponent())
+        {
+            Root->SetMobility(EComponentMobility::Movable);
+        }
+    }
+
+    {
+        // Yaw 180: light travels east->west in the morning and west->east in the evening.
+        Sun->SetActorRotation(FRotator(GetSunPitchDegrees(), 180.0f, 0.0f));
+        if (UDirectionalLightComponent* LightComp = Cast<UDirectionalLightComponent>(Sun->GetLightComponent()))
+        {
+            // UE5 default sun is 10 lux with auto-exposure; scale by daylight and weather.
+            const float Day = GetDaylightFactor();
+            LightComp->SetIntensity(FMath::Max(0.05f, 10.0f * FMath::Sqrt(Day) * GetWeatherSunMultiplier()));
+        }
+    }
+}
+
+void UTamaleTimeOfDaySubsystem::ApplyWeatherToWorld()
+{
+    UWorld* World = GetWorld();
+    if (!World) return;
+
+    float Density = 0.012f;
+    FLinearColor Inscatter(0.75f, 0.62f, 0.45f);
+    switch (CurrentWeather)
+    {
+    case ETamaleWeather::Harmattan:    Density = 0.06f;  Inscatter = FLinearColor(0.85f, 0.68f, 0.45f); break; // dusty haze
+    case ETamaleWeather::Heat:         Density = 0.018f; break;
+    case ETamaleWeather::Cloudy:       Density = 0.02f;  Inscatter = FLinearColor(0.6f, 0.62f, 0.65f); break;
+    case ETamaleWeather::LightRain:    Density = 0.03f;  Inscatter = FLinearColor(0.5f, 0.55f, 0.6f); break;
+    case ETamaleWeather::Rain:         Density = 0.045f; Inscatter = FLinearColor(0.42f, 0.46f, 0.52f); break;
+    case ETamaleWeather::Thunderstorm: Density = 0.06f;  Inscatter = FLinearColor(0.3f, 0.33f, 0.4f); break;
+    default: break;
+    }
+
+    for (TActorIterator<AActor> It(World); It; ++It)
+    {
+        TInlineComponentArray<UExponentialHeightFogComponent*> Fogs(*It);
+        for (UExponentialHeightFogComponent* Fog : Fogs)
+        {
+            Fog->SetFogDensity(Density);
+            Fog->SetFogInscatteringColor(Inscatter);
         }
     }
 }

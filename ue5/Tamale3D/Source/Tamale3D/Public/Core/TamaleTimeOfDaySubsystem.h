@@ -42,9 +42,13 @@ public:
     UFUNCTION(BlueprintPure, Category = "Time")
     FString GetFormattedClock() const;
 
-    /** Returns sun pitch angle in degrees suitable for rotating the level DirectionalLight */
+    /** Directional-light pitch in degrees: 0 at 06:00 (sunrise, east), -90 at noon (overhead), +90 at midnight. */
     UFUNCTION(BlueprintPure, Category = "Time")
     float GetSunPitchDegrees() const;
+
+    /** 0 at night, rising to 1 at noon. */
+    UFUNCTION(BlueprintPure, Category = "Time")
+    float GetDaylightFactor() const;
 
     UFUNCTION(BlueprintCallable, Category = "Time")
     void SetClockAndDay(float InMinutes, int32 InDayCount);
@@ -78,5 +82,10 @@ private:
     ETamaleWeather CurrentWeather = ETamaleWeather::Clear;
     float BroadcastAccumulator = 0.0f;
 
+    /** The level's sun, found once and made Movable once (not searched every tick). */
+    TWeakObjectPtr<class ADirectionalLight> CachedSun;
+
     void RotateWorldSunLight();
+    void ApplyWeatherToWorld();
+    float GetWeatherSunMultiplier() const;
 };

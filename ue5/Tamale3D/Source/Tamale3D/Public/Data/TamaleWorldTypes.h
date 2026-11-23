@@ -22,7 +22,7 @@ enum class ETamaleTimePeriod : uint8
     Morning   UMETA(DisplayName = "Morning (Dasuba)"),
     Afternoon UMETA(DisplayName = "Afternoon (Wuntanga)"),
     Evening   UMETA(DisplayName = "Evening (Zaawuni)"),
-    Night     UMETA(DisplayName = "Night (Yuŋ)")
+    Night     UMETA(DisplayName = "Night")
 };
 
 UENUM(BlueprintType)
@@ -152,9 +152,49 @@ struct TAMALE3D_API FTamaleRoadRow : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FString DisplayName;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FString Orientation;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FVector CenterLocationCm = FVector::ZeroVector;
+    /** Centre-line end points (exported since the width/length fix). */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FVector StartLocationCm = FVector::ZeroVector;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FVector EndLocationCm = FVector::ZeroVector;
+    /** Carriageway width (across the road). */
     UPROPERTY(EditAnywhere, BlueprintReadOnly) float WidthCm = 750.0f;
+    /** Length along the road's direction. */
     UPROPERTY(EditAnywhere, BlueprintReadOnly) float LengthCm = 6000.0f;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FString SurfaceType;
+
+    bool IsEastWest() const { return Orientation == TEXT("EastWest"); }
+
+    /** Axis-aligned 2D footprint of the carriageway in world centimetres. */
+    FBox2D GetFootprint2D() const
+    {
+        const double HalfLen = LengthCm * 0.5;
+        const double HalfW = WidthCm * 0.5;
+        const FVector2D C(CenterLocationCm.X, CenterLocationCm.Y);
+        const FVector2D Half = IsEastWest() ? FVector2D(HalfLen, HalfW) : FVector2D(HalfW, HalfLen);
+        return FBox2D(C - Half, C + Half);
+    }
+};
+
+/** Building footprint exported from src/data/tamaleWorldLayout.ts (landmarks, houses, shop rows). */
+USTRUCT(BlueprintType)
+struct TAMALE3D_API FTamaleBuildingRow : public FTableRowBase
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString BuildingId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString DisplayName;
+    /** Landmark | House | Shop */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString Category;
+    /** Box | Cylinder */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString Shape;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString LandmarkId;
+    /** Ground-level centre of the footprint. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FVector CenterLocationCm = FVector::ZeroVector;
+    /** X/Y footprint (diameter for cylinders) and Z height, in centimetres. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FVector SizeCm = FVector(800.0f, 600.0f, 400.0f);
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) float YawDegrees = 0.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString Style;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString WallColorHex;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString AccentColorHex;
 };
 
 USTRUCT(BlueprintType)

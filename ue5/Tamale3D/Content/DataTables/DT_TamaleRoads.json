@@ -9,8 +9,18 @@
       "Y": 0,
       "Z": 0
     },
-    "WidthCm": 45000,
-    "LengthCm": 1400,
+    "StartLocationCm": {
+      "X": -22500,
+      "Y": 0,
+      "Z": 0
+    },
+    "EndLocationCm": {
+      "X": 22500,
+      "Y": 0,
+      "Z": 0
+    },
+    "WidthCm": 1400,
+    "LengthCm": 45000,
     "SurfaceType": "Asphalt"
   },
   {
@@ -23,8 +33,18 @@
       "Y": -4800,
       "Z": 0
     },
-    "WidthCm": 30000,
-    "LengthCm": 900,
+    "StartLocationCm": {
+      "X": -16700,
+      "Y": -4800,
+      "Z": 0
+    },
+    "EndLocationCm": {
+      "X": 13300,
+      "Y": -4800,
+      "Z": 0
+    },
+    "WidthCm": 900,
+    "LengthCm": 30000,
     "SurfaceType": "Asphalt"
   },
   {
@@ -37,8 +57,18 @@
       "Y": -9200,
       "Z": 0
     },
-    "WidthCm": 39000,
-    "LengthCm": 1000,
+    "StartLocationCm": {
+      "X": -21500,
+      "Y": -9200,
+      "Z": 0
+    },
+    "EndLocationCm": {
+      "X": 17500,
+      "Y": -9200,
+      "Z": 0
+    },
+    "WidthCm": 1000,
+    "LengthCm": 39000,
     "SurfaceType": "Asphalt"
   },
   {
@@ -51,8 +81,18 @@
       "Y": -15800,
       "Z": 0
     },
-    "WidthCm": 35600,
-    "LengthCm": 900,
+    "StartLocationCm": {
+      "X": -16600,
+      "Y": -15800,
+      "Z": 0
+    },
+    "EndLocationCm": {
+      "X": 19000,
+      "Y": -15800,
+      "Z": 0
+    },
+    "WidthCm": 900,
+    "LengthCm": 35600,
     "SurfaceType": "Asphalt"
   },
   {
@@ -65,8 +105,18 @@
       "Y": 6600,
       "Z": 0
     },
-    "WidthCm": 24000,
-    "LengthCm": 900,
+    "StartLocationCm": {
+      "X": -10700,
+      "Y": 6600,
+      "Z": 0
+    },
+    "EndLocationCm": {
+      "X": 13300,
+      "Y": 6600,
+      "Z": 0
+    },
+    "WidthCm": 900,
+    "LengthCm": 24000,
     "SurfaceType": "Asphalt"
   },
   {
@@ -79,8 +129,18 @@
       "Y": 12800,
       "Z": 0
     },
-    "WidthCm": 41000,
-    "LengthCm": 1000,
+    "StartLocationCm": {
+      "X": -20500,
+      "Y": 12800,
+      "Z": 0
+    },
+    "EndLocationCm": {
+      "X": 20500,
+      "Y": 12800,
+      "Z": 0
+    },
+    "WidthCm": 1000,
+    "LengthCm": 41000,
     "SurfaceType": "Asphalt"
   },
   {
@@ -91,6 +151,16 @@
     "CenterLocationCm": {
       "X": 0,
       "Y": 200,
+      "Z": 0
+    },
+    "StartLocationCm": {
+      "X": 0,
+      "Y": -18600,
+      "Z": 0
+    },
+    "EndLocationCm": {
+      "X": 0,
+      "Y": 19000,
       "Z": 0
     },
     "WidthCm": 1200,
@@ -107,6 +177,16 @@
       "Y": -600,
       "Z": 0
     },
+    "StartLocationCm": {
+      "X": -6600,
+      "Y": -16300,
+      "Z": 0
+    },
+    "EndLocationCm": {
+      "X": -6600,
+      "Y": 15100,
+      "Z": 0
+    },
     "WidthCm": 900,
     "LengthCm": 31400,
     "SurfaceType": "Asphalt"
@@ -119,6 +199,16 @@
     "CenterLocationCm": {
       "X": -10200,
       "Y": 800,
+      "Z": 0
+    },
+    "StartLocationCm": {
+      "X": -10200,
+      "Y": -16400,
+      "Z": 0
+    },
+    "EndLocationCm": {
+      "X": -10200,
+      "Y": 18000,
       "Z": 0
     },
     "WidthCm": 1000,
@@ -135,6 +225,16 @@
       "Y": 800,
       "Z": 0
     },
+    "StartLocationCm": {
+      "X": -16200,
+      "Y": -16400,
+      "Z": 0
+    },
+    "EndLocationCm": {
+      "X": -16200,
+      "Y": 18000,
+      "Z": 0
+    },
     "WidthCm": 900,
     "LengthCm": 34400,
     "SurfaceType": "Asphalt"
@@ -147,6 +247,16 @@
     "CenterLocationCm": {
       "X": 6600,
       "Y": 800,
+      "Z": 0
+    },
+    "StartLocationCm": {
+      "X": 6600,
+      "Y": -16400,
+      "Z": 0
+    },
+    "EndLocationCm": {
+      "X": 6600,
+      "Y": 18000,
       "Z": 0
     },
     "WidthCm": 900,
@@ -163,6 +273,16 @@
       "Y": 0,
       "Z": 0
     },
+    "StartLocationCm": {
+      "X": 12800,
+      "Y": -16250,
+      "Z": 0
+    },
+    "EndLocationCm": {
+      "X": 12800,
+      "Y": 16250,
+      "Z": 0
+    },
     "WidthCm": 1000,
     "LengthCm": 32500,
     "SurfaceType": "Asphalt"
@@ -175,6 +295,16 @@
     "CenterLocationCm": {
       "X": 18600,
       "Y": 0,
+      "Z": 0
+    },
+    "StartLocationCm": {
+      "X": 18600,
+      "Y": -16600,
+      "Z": 0
+    },
+    "EndLocationCm": {
+      "X": 18600,
+      "Y": 16600,
       "Z": 0
     },
     "WidthCm": 900,
@@ -191,8 +321,18 @@
       "Y": 4200,
       "Z": 0
     },
-    "WidthCm": 6800,
-    "LengthCm": 700,
+    "StartLocationCm": {
+      "X": -16600,
+      "Y": 4200,
+      "Z": 0
+    },
+    "EndLocationCm": {
+      "X": -9800,
+      "Y": 4200,
+      "Z": 0
+    },
+    "WidthCm": 700,
+    "LengthCm": 6800,
     "SurfaceType": "Asphalt"
   },
   {
@@ -205,8 +345,18 @@
       "Y": 17200,
       "Z": 0
     },
-    "WidthCm": 23600,
-    "LengthCm": 700,
+    "StartLocationCm": {
+      "X": -16600,
+      "Y": 17200,
+      "Z": 0
+    },
+    "EndLocationCm": {
+      "X": 7000,
+      "Y": 17200,
+      "Z": 0
+    },
+    "WidthCm": 700,
+    "LengthCm": 23600,
     "SurfaceType": "Asphalt"
   },
   {
@@ -219,8 +369,18 @@
       "Y": 14800,
       "Z": 0
     },
-    "WidthCm": 12800,
-    "LengthCm": 700,
+    "StartLocationCm": {
+      "X": 6200,
+      "Y": 14800,
+      "Z": 0
+    },
+    "EndLocationCm": {
+      "X": 19000,
+      "Y": 14800,
+      "Z": 0
+    },
+    "WidthCm": 700,
+    "LengthCm": 12800,
     "SurfaceType": "Asphalt"
   },
   {
@@ -231,6 +391,16 @@
     "CenterLocationCm": {
       "X": 9600,
       "Y": -12500,
+      "Z": 0
+    },
+    "StartLocationCm": {
+      "X": 9600,
+      "Y": -16200,
+      "Z": 0
+    },
+    "EndLocationCm": {
+      "X": 9600,
+      "Y": -8800,
       "Z": 0
     },
     "WidthCm": 700,
@@ -247,8 +417,18 @@
       "Y": 9600,
       "Z": 0
     },
-    "WidthCm": 6600,
-    "LengthCm": 750,
+    "StartLocationCm": {
+      "X": 0,
+      "Y": 9600,
+      "Z": 0
+    },
+    "EndLocationCm": {
+      "X": 6600,
+      "Y": 9600,
+      "Z": 0
+    },
+    "WidthCm": 750,
+    "LengthCm": 6600,
     "SurfaceType": "PavedLateriteShoulder"
   },
   {
@@ -259,6 +439,16 @@
     "CenterLocationCm": {
       "X": 3600,
       "Y": 9700,
+      "Z": 0
+    },
+    "StartLocationCm": {
+      "X": 3600,
+      "Y": 6600,
+      "Z": 0
+    },
+    "EndLocationCm": {
+      "X": 3600,
+      "Y": 12800,
       "Z": 0
     },
     "WidthCm": 650,

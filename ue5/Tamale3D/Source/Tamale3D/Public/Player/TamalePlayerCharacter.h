@@ -9,6 +9,8 @@ class USpringArmComponent;
 class UCameraComponent;
 class UTamaleNeedsComponent;
 class UTamaleInteractionComponent;
+class UStaticMeshComponent;
+class UNavigationInvokerComponent;
 
 /**
  * Grounded third-person citizen controller character for TAMALE 3D.
@@ -35,6 +37,17 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction")
     TObjectPtr<UTamaleInteractionComponent> InteractionComponent;
 
+    /** Builds navmesh tiles around the player at runtime so NPCs can path nearby (no hand-placed NavMeshBoundsVolume needed). */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI")
+    TObjectPtr<UNavigationInvokerComponent> NavigationInvoker;
+
+    /** Stand-in body until a licensed skeletal mesh is assigned (then hidden automatically). */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Placeholder")
+    TObjectPtr<UStaticMeshComponent> PlaceholderBody;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Placeholder")
+    TObjectPtr<UStaticMeshComponent> PlaceholderHead;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
     float WalkSpeedCmSec = 210.0f;
 
@@ -58,9 +71,21 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Character")
     void SyncFromGameInstanceState();
 
+    /** Loads the active character's needs/home state and, when bTeleport, moves to their saved location. */
+    UFUNCTION(BlueprintCallable, Category = "Character")
+    void ApplyActiveCharacterState(bool bTeleport);
+
     UFUNCTION(BlueprintCallable, Category = "Character")
     void SaveToGameInstanceState();
 
 protected:
     virtual void BeginPlay() override;
+
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+private:
+    void ApplyPlaceholderColors();
+
+    UFUNCTION()
+    void HandleActiveCharacterSwitched(FName NewCharacterId);
 };

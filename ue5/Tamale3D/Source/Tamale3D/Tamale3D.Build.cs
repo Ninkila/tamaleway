@@ -22,7 +22,12 @@ public class Tamale3D : ModuleRules
 
         PrivateDependencyModuleNames.AddRange(new string[]
         {
-            "NetCore"
+            "Json",
+            "JsonUtilities"
         });
+
+        // Lets "#include "Data/TamaleWorldTypes.h"" style paths resolve from Public/ and Private/.
+        PublicIncludePaths.Add(ModuleDirectory + "/Public");
+        PrivateIncludePaths.Add(ModuleDirectory);
     }
 }

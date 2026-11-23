@@ -37,6 +37,13 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Character")
     bool SwitchPlayableCharacter(FName NewCharacterId);
 
+    /** All playable character ids in data order (keys 1-6 map to these). */
+    UFUNCTION(BlueprintPure, Category = "Character")
+    TArray<FName> GetPlayableCharacterIds() const { return CharacterOrder; }
+
+    /** Read-only view of a character's isolated state (nullptr if unknown). */
+    const FTamaleCharacterSaveState* FindCharacterState(FName CharacterId) const { return CharacterStates.Find(CharacterId); }
+
     UFUNCTION(BlueprintCallable, Category = "Save")
     bool SaveCurrentGame(const FString& SlotName = TEXT(""));
 
@@ -46,6 +53,10 @@ public:
 private:
     FName ActiveCharacterId = FName(TEXT("yakubu_pragya"));
     TMap<FName, FTamaleCharacterSaveState> CharacterStates;
+    TArray<FName> CharacterOrder;
 
     void InitializeAllSixPlayableCharacters();
+
+    /** Copies the live player pawn's needs/location into the active character's state. */
+    void FlushActivePawnState();
 };

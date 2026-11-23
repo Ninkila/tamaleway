@@ -1,7 +1,9 @@
 #include "Core/TamaleGameInstance.h"
 #include "Core/TamaleSaveGame.h"
 #include "Core/TamaleTimeOfDaySubsystem.h"
+#include "Data/TamaleDataRegistrySubsystem.h"
 #include "Kismet/GameplayStatics.h"
+#include "Player/TamalePlayerCharacter.h"
 #include "Tamale3D.h"
 
 void UTamaleGameInstance::Init()
@@ -13,6 +15,35 @@ void UTamaleGameInstance::Init()
 void UTamaleGameInstance::InitializeAllSixPlayableCharacters()
 {
     CharacterStates.Empty();
+    CharacterOrder.Reset();
+
+    // Preferred source: DT_PlayableCharacters (the same data the web game uses).
+    if (const UTamaleDataRegistrySubsystem* Data = GetSubsystem<UTamaleDataRegistrySubsystem>())
+    {
+        for (const FTamalePlayableCharacterRow& Row : Data->PlayableCharacters)
+        {
+            FTamaleCharacterSaveState State;
+            State.CharacterId = FName(*Row.CharacterId);
+            State.DisplayName = Row.DisplayName;
+            State.MoneyCedis = Row.StartingMoneyCedis;
+            State.BankBalanceCedis = FMath::RoundToInt(Row.StartingMoneyCedis * 1.5f);
+            State.Needs.Energy = FMath::Clamp(Row.StartingEnergy, 0.0f, 100.0f);
+            State.SavedWorldLocation = FVector(Row.SpawnLocationCm.X, Row.SpawnLocationCm.Y, FMath::Max(100.0, Row.SpawnLocationCm.Z));
+            State.HomeState.HomeName = FString::Printf(TEXT("%s's Changli Compound"), *Row.DisplayName);
+            State.HomeState.HomeDistrict = Row.HomeDistrict;
+            CharacterStates.Add(State.CharacterId, State);
+            CharacterOrder.Add(State.CharacterId);
+        }
+    }
+
+    if (CharacterStates.Num() > 0)
+    {
+        ActiveCharacterId = CharacterOrder[0];
+        UE_LOG(LogTamale3D, Log, TEXT("Seeded %d playable characters from DT_PlayableCharacters"), CharacterOrder.Num());
+        return;
+    }
+
+    UE_LOG(LogTamale3D, Warning, TEXT("DT_PlayableCharacters not available - using built-in fallback characters"));
 
     struct FSeedChar
     {
@@ -42,6 +73,7 @@ void UTamaleGameInstance::InitializeAllSixPlayableCharacters()
         State.SavedWorldLocation = S.Spawn;
         State.HomeState.HomeName = S.HomeName;
         CharacterStates.Add(State.CharacterId, State);
+        CharacterOrder.Add(State.CharacterId);
     }
 
     ActiveCharacterId = FName(TEXT("yakubu_pragya"));
@@ -68,15 +100,34 @@ bool UTamaleGameInstance::SwitchPlayableCharacter(FName NewCharacterId)
         UE_LOG(LogTamale3D, Warning, TEXT("Attempted to switch to unknown character ID: %s"), *NewCharacterId.ToString());
         return false;
     }
+    if (NewCharacterId == ActiveCharacterId)
+    {
+        return true;
+    }
 
+    // Store the outgoing character's live needs/location first so switching never loses or mixes state.
+    FlushActivePawnState();
+    UE_LOG(LogTamale3D, Log, TEXT("Switching character %s -> %s"), *ActiveCharacterId.ToString(), *NewCharacterId.ToString());
     ActiveCharacterId = NewCharacterId;
     OnActiveCharacterSwitched.Broadcast(NewCharacterId);
     return true;
 }
 
+void UTamaleGameInstance::FlushActivePawnState()
+{
+    if (APlayerController* PC = GetFirstLocalPlayerController())
+    {
+        if (ATamalePlayerCharacter* PlayerChar = Cast<ATamalePlayerCharacter>(PC->GetPawn()))
+        {
+            PlayerChar->SaveToGameInstanceState();
+        }
+    }
+}
+
 bool UTamaleGameInstance::SaveCurrentGame(const FString& SlotName)
 {
     const FString TargetSlot = SlotName.IsEmpty() ? DefaultSaveSlotName : SlotName;
+    FlushActivePawnState();
     UTamaleSaveGame* SaveObj = Cast<UTamaleSaveGame>(UGameplayStatics::CreateSaveGameObject(UTamaleSaveGame::StaticClass()));
     if (!SaveObj) return false;
 
@@ -88,6 +139,7 @@ bool UTamaleGameInstance::SaveCurrentGame(const FString& SlotName)
         if (UTamaleTimeOfDaySubsystem* TimeSys = World->GetSubsystem<UTamaleTimeOfDaySubsystem>())
         {
             SaveObj->GlobalGameMinutes = TimeSys->GetGameMinutes();
+            SaveObj->GlobalDayCount = TimeSys->GetDayCount();
             SaveObj->CurrentWeather = TimeSys->GetWeather();
         }
     }
@@ -122,8 +174,9 @@ bool UTamaleGameInstance::LoadSavedGame(const FString& SlotName)
     {
         if (UTamaleTimeOfDaySubsystem* TimeSys = World->GetSubsystem<UTamaleTimeOfDaySubsystem>())
         {
-            const FTamaleCharacterSaveState Active = GetActiveCharacterState();
-            TimeSys->SetClockAndDay(Loaded->GlobalGameMinutes, Active.DayCount);
+            // v1 saves kept the day on the character; v2 stores it globally.
+            const int32 Day = Loaded->SaveSchemaVersion >= 2 ? Loaded->GlobalDayCount : GetActiveCharacterState().DayCount;
+            TimeSys->SetClockAndDay(Loaded->GlobalGameMinutes, Day);
             TimeSys->SetWeather(Loaded->CurrentWeather);
         }
     }

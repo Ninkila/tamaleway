@@ -5,6 +5,8 @@
 #include "Interaction/TamaleInteractableInterface.h"
 #include "TamaleNpcCharacter.generated.h"
 
+class UStaticMeshComponent;
+
 /**
  * Base Tamale citizen NPC with time-of-day Dagbani greeting support,
  * simple NavMesh patrol waypoints, and distance-based AI tick throttling
@@ -28,6 +30,23 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TamaleNPC")
     TArray<FVector> PatrolWaypoints;
+
+    /** Greetings from DT_TamaleNPCs (verified Dagbani). Empty -> generic time-of-day greeting. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TamaleNPC|Dialogue")
+    FString MorningGreetingDagbani;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TamaleNPC|Dialogue")
+    FString MorningGreetingEnglish;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TamaleNPC|Dialogue")
+    FString EveningGreetingDagbani;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TamaleNPC|Dialogue")
+    FString EveningGreetingEnglish;
+
+    /** Simple visible stand-in body, hidden automatically once a skeletal mesh is assigned. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "TamaleNPC|Placeholder")
+    TObjectPtr<UStaticMeshComponent> PlaceholderBody;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TamaleNPC|Perf")
     float FullAiDistanceCm = 4500.0f;
